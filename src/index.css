@@ -2,41 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Creative Portfolio Design System - Tech meets Art */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base colors - Modern tech-art fusion */
+    --background: 240 10% 4%;
+    --foreground: 240 5% 96%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 240 8% 8%;
+    --card-foreground: 240 5% 94%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 240 8% 8%;
+    --popover-foreground: 240 5% 94%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Tech-Art Gradient Colors */
+    --primary: 260 85% 65%;
+    --primary-foreground: 240 5% 96%;
+    
+    --secondary: 320 70% 70%;
+    --secondary-foreground: 240 5% 96%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --tech-primary: 220 90% 60%;
+    --tech-secondary: 200 85% 55%;
+    
+    --art-primary: 320 85% 65%;
+    --art-secondary: 30 90% 65%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 280 80% 70%;
+    --accent-foreground: 240 10% 4%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 240 5% 96%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 240 5% 20%;
+    --input: 240 5% 16%;
+    --ring: 260 85% 65%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Custom Portfolio Colors */
+    --gaming-accent: 130 70% 60%;
+    --achievement-gold: 45 95% 65%;
+    --achievement-silver: 240 10% 75%;
+    --achievement-bronze: 25 70% 60%;
+    
+    /* Gradients */
+    --gradient-tech-art: linear-gradient(135deg, hsl(var(--tech-primary)) 0%, hsl(var(--art-primary)) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 50%, hsl(var(--art-secondary)) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(var(--card)) 0%, hsl(240 8% 12%) 100%);
+    --gradient-gaming: linear-gradient(135deg, hsl(var(--gaming-accent)) 0%, hsl(var(--tech-primary)) 100%);
+    
+    /* Shadows & Effects */
+    --shadow-card: 0 8px 32px hsl(240 10% 3% / 0.4);
+    --shadow-hover: 0 16px 64px hsl(var(--primary) / 0.15);
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.3);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --sidebar-background: 0 0% 98%;
 
@@ -94,12 +123,108 @@ All colors MUST be HSL.
   }
 }
 
+/* Custom Portfolio Animations & Components */
 @layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-inter;
+  }
+}
+
+@layer components {
+  /* Portfolio Card Animations */
+  .portfolio-card {
+    @apply relative overflow-hidden rounded-xl bg-card border border-border/50;
+    @apply transition-all duration-300 ease-out;
+    @apply hover:scale-105 hover:shadow-2xl hover:border-primary/50;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .portfolio-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-8px) scale(1.02);
+  }
+
+  .portfolio-card::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-500;
+    background: var(--gradient-tech-art);
+    z-index: -1;
+  }
+
+  .portfolio-card:hover::before {
+    opacity: 0.1;
+  }
+
+  /* Gaming Achievement Styles */
+  .achievement-card {
+    @apply relative p-6 rounded-lg transition-all duration-300;
+    @apply border-2 border-muted hover:border-accent;
+  }
+
+  .achievement-unlocked {
+    background: var(--gradient-gaming);
+    @apply text-accent-foreground shadow-lg;
+  }
+
+  .achievement-locked {
+    @apply bg-muted/20 text-muted-foreground border-muted/50;
+    filter: grayscale(1);
+  }
+
+  /* Interactive Hover Effects */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* Gradient Text Effects */
+  .gradient-text {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .tech-gradient {
+    background: linear-gradient(135deg, hsl(var(--tech-primary)), hsl(var(--tech-secondary)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .art-gradient {
+    background: linear-gradient(135deg, hsl(var(--art-primary)), hsl(var(--art-secondary)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Floating Animation */
+  .floating {
+    animation: floating 6s ease-in-out infinite;
+  }
+
+  @keyframes floating {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+
+  /* Pulse Glow Effect */
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse-glow {
+    from { box-shadow: 0 0 20px hsl(var(--primary) / 0.3); }
+    to { box-shadow: 0 0 40px hsl(var(--primary) / 0.6); }
   }
 }
