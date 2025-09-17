@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Palette, 
@@ -9,23 +9,18 @@ import {
   Bot, 
   PenTool, 
   Camera,
-  Gamepad2,
-  Trophy
+  Star,
+  Heart,
+  Settings
 } from 'lucide-react';
 import { PortfolioCard } from '@/components/PortfolioCard';
 import { Navigation } from '@/components/Navigation';
+import { AdminLogin } from '@/components/AdminLogin';
+import { useAdmin } from '@/contexts/AdminContext';
 import heroWorkspace from '@/assets/hero-workspace.jpg';
 
+// Alternate tech and art categories for better visual balance
 const portfolioCategories = [
-  {
-    id: 'digital-art',
-    title: 'Artă Digitală',
-    description: 'Postere, edituri, ilustrații și designuri creative realizate în Photoshop și Illustrator',
-    icon: Palette,
-    category: 'art' as const,
-    projectCount: 15,
-    route: '/digital-art'
-  },
   {
     id: 'web-development',
     title: 'Dezvoltare Web',
@@ -36,13 +31,13 @@ const portfolioCategories = [
     route: '/web-dev'
   },
   {
-    id: 'ui-ux-design',
-    title: 'Design UI/UX',
-    description: 'Interfețe de aplicații, prototipuri și experiențe utilizator inovatoare',
-    icon: Smartphone,
+    id: 'digital-art',
+    title: 'Artă Digitală',
+    description: 'Postere, edituri, ilustrații și designuri creative realizate în Photoshop și Illustrator',
+    icon: Palette,
     category: 'art' as const,
-    projectCount: 8,
-    route: '/ui-ux'
+    projectCount: 15,
+    route: '/digital-art'
   },
   {
     id: 'database-projects',
@@ -54,13 +49,13 @@ const portfolioCategories = [
     route: '/database'
   },
   {
-    id: 'traditional-art',
-    title: 'Artă Tradițională',
-    description: 'Desene pe foaie, picturi și creații artistice realizate cu instrumente tradiționale',
-    icon: Pencil,
+    id: 'photography',
+    title: 'Fotografie',
+    description: 'Fotografie artistică, editare foto și capturi creative din diverse domenii',
+    icon: Camera,
     category: 'art' as const,
-    projectCount: 20,
-    route: '/traditional-art'
+    projectCount: 30,
+    route: '/photography'
   },
   {
     id: 'ai-ml-projects',
@@ -72,6 +67,24 @@ const portfolioCategories = [
     route: '/ai-ml'
   },
   {
+    id: 'ui-ux-design',
+    title: 'Design UI/UX',
+    description: 'Interfețe de aplicații, prototipuri și experiențe utilizator inovatoare',
+    icon: Smartphone,
+    category: 'art' as const,
+    projectCount: 8,
+    route: '/ui-ux'
+  },
+  {
+    id: 'traditional-art',
+    title: 'Artă Tradițională',
+    description: 'Desene pe foaie, picturi și creații artistice realizate cu instrumente tradiționale',
+    icon: Pencil,
+    category: 'art' as const,
+    projectCount: 20,
+    route: '/traditional-art'
+  },
+  {
     id: 'creative-writing',
     title: 'Scriere Creativă',
     description: 'Poezii, texte creative și alte forme de expresie literară',
@@ -79,20 +92,13 @@ const portfolioCategories = [
     category: 'art' as const,
     projectCount: 25,
     route: '/writing'
-  },
-  {
-    id: 'photography',
-    title: 'Fotografie',
-    description: 'Fotografie artistică, editare foto și capturi creative din diverse domenii',
-    icon: Camera,
-    category: 'art' as const,
-    projectCount: 30,
-    route: '/photography'
   }
 ];
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useAdmin();
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -123,13 +129,13 @@ const Dashboard: React.FC = () => {
             </p>
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
-                <Gamepad2 className="h-4 w-4 text-gaming-accent" />
-                <span>Gaming Experience</span>
+                <Star className="h-4 w-4 text-gaming-accent" />
+                <span>Creative Portfolio</span>
               </div>
               <div className="h-4 border-l border-border"></div>
               <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-achievement-gold" />
-                <span>Achievement System</span>
+                <Heart className="h-4 w-4 text-achievement-gold" />
+                <span>Passion & Innovation</span>
               </div>
             </div>
           </div>
@@ -160,10 +166,30 @@ const Dashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* Floating Elements */}
+      {/* Admin Floating Button */}
       <div className="fixed bottom-8 right-8 floating">
-        <div className="w-4 h-4 bg-primary rounded-full pulse-glow"></div>
+        <button
+          onClick={() => setShowAdminLogin(true)}
+          className="w-12 h-12 bg-gaming-accent/80 hover:bg-gaming-accent rounded-full pulse-glow flex items-center justify-center transition-all duration-300 hover:scale-110"
+          title="Admin Access"
+        >
+          <Settings className="h-5 w-5 text-white" />
+        </button>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-card/50 border-t border-border/50 py-8 px-6">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-muted-foreground">
+            © 2024 Marius Bica - Creative Portfolio. Toate drepturile rezervate.
+          </p>
+          <p className="text-sm text-muted-foreground/70 mt-2">
+            Construit cu ❤️ în React & TypeScript
+          </p>
+        </div>
+      </footer>
+
+      <AdminLogin open={showAdminLogin} onOpenChange={setShowAdminLogin} />
     </div>
   );
 };
