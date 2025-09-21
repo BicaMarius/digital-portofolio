@@ -12,7 +12,6 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) => {
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -20,14 +19,13 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) =>
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(username, password);
+    const success = login('BicaMarius', password);
     if (success) {
       onOpenChange(false);
-      setUsername('');
       setPassword('');
       setError('');
     } else {
-      setError('Date de autentificare invalide');
+      setError('Parolă incorectă');
     }
   };
 
@@ -42,18 +40,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) =>
         </DialogHeader>
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="border-gaming-accent/20 focus:border-gaming-accent"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Parola</Label>
+            <Label htmlFor="password">Parola Admin</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -61,6 +48,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) =>
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="border-gaming-accent/20 focus:border-gaming-accent pr-10"
+                placeholder="Introduceți parola de admin..."
                 required
               />
               <Button
@@ -82,7 +70,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) =>
             <p className="text-sm text-destructive">{error}</p>
           )}
           <Button type="submit" className="w-full bg-gaming-accent hover:bg-gaming-accent/80">
-            Login
+            Acces Admin
           </Button>
         </form>
       </DialogContent>
