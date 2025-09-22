@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AdminProvider } from "@/contexts/AdminContext";
+import { DataProvider } from "@/contexts/DataContext";
 import Index from "./pages/Index";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -21,26 +22,28 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AdminProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/web-dev" element={<WebDevelopment />} />
-            <Route path="/digital-art" element={<DigitalArt />} />
-            <Route path="/database" element={<Database />} />
-            <Route path="/photography" element={<Photography />} />
-            <Route path="/ai-ml" element={<AiMl />} />
-            <Route path="/ui-ux" element={<UiUxDesign />} />
-            <Route path="/traditional-art" element={<TraditionalArt />} />
-            <Route path="/writing" element={<CreativeWriting />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <DataProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/web-dev" element={<WebDevelopment />} />
+              <Route path="/digital-art" element={<DigitalArt />} />
+              <Route path="/database" element={<Database />} />
+              <Route path="/photography" element={<Photography />} />
+              <Route path="/ai-ml" element={<AiMl />} />
+              <Route path="/ui-ux" element={<UiUxDesign />} />
+              <Route path="/traditional-art" element={<TraditionalArt />} />
+              <Route path="/writing" element={<CreativeWriting />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </DataProvider>
     </AdminProvider>
   </QueryClientProvider>
 );

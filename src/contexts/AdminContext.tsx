@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-interface AdminContextType {
-  isAdmin: boolean;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
-}
+import { AdminContextType } from '@/types';
+import { ADMIN_CREDENTIALS } from '@/constants';
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
@@ -24,7 +20,7 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const login = (username: string, password: string): boolean => {
-    if (username === 'BicaMarius' && password === 'PortofoliuDigitalMarius') {
+    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
       setIsAdmin(true);
       localStorage.setItem('portfolio_admin', 'true');
       return true;
