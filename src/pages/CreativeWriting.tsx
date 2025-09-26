@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Toggle } from '@/components/ui/toggle';
 import { toast } from '@/components/ui/use-toast';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { AlbumNameDialog } from '@/components/AlbumNameDialog';
+import { AlbumCard } from '@/components/AlbumCard';
+import { DragDropIndicator } from '@/components/DragDropIndicator';
 
 interface WritingPiece {
   id: number;
@@ -144,10 +148,14 @@ const CreativeWriting: React.FC = () => {
     return hay.includes(term) && (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
   });
 
-  // word count helper: counts words in plain text
+  // word count helper: counts words in plain text (improved)
   const countWords = (htmlOrText: string) => {
-    const text = (new DOMParser()).parseFromString(htmlOrText, 'text/html').body.textContent || '';
-    const words = text.trim().split(/\s+/).filter(Boolean);
+    if (!htmlOrText) return 0;
+    // Remove HTML tags and get plain text
+    const text = htmlOrText.replace(/<[^>]*>/g, '').trim();
+    if (!text) return 0;
+    // Split by whitespace and filter out empty strings
+    const words = text.split(/\s+/).filter(word => word.length > 0);
     return words.length;
   };
 
@@ -230,6 +238,34 @@ const CreativeWriting: React.FC = () => {
   // drag/drop state
   const dragItemId = useRef<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [dragOverType, setDragOverType] = useState<'merge' | 'move-left' | 'move-right' | null>(null);
+  const [dragOverAlbumId, setDragOverAlbumId] = useState<string | null>(null);
+
+  // dialog states for themed popups
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    type?: 'warning' | 'success' | 'info';
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const [albumNameDialog, setAlbumNameDialog] = useState<{
+    open: boolean;
+    sourceId: number | null;
+    targetId: number | null;
+  }>({
+    open: false,
+    sourceId: null,
+    targetId: null
+  });
 
   // helper to start editor with autosave drafts
   const startNewEditing = () => openEditorFor({
@@ -275,52 +311,111 @@ const CreativeWriting: React.FC = () => {
     editorRef.current?.focus();
   };
 
-  // drag-and-drop handlers
+  // drag-and-drop handlers (improved)
   const onDragStart = (e: React.DragEvent, id: number) => {
     dragItemId.current = id;
     e.dataTransfer.setData('text/plain', String(id));
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const onDragOverCard = (e: React.DragEvent, id: number) => {
+  const onDragOverCard = (e: React.DragEvent, targetId: number) => {
     e.preventDefault();
-    setDragOverId(id);
+    const draggedId = dragItemId.current;
+    if (!draggedId || draggedId === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+
+    // Determine drop zone based on mouse position
+    if (x < width * 0.2) {
+      setDragOverType('move-left');
+      setDragOverId(targetId);
+    } else if (x > width * 0.8) {
+      setDragOverType('move-right'); 
+      setDragOverId(targetId);
+    } else {
+      setDragOverType('merge');
+      setDragOverId(targetId);
+    }
   };
 
   const onDropOnCard = (e: React.DragEvent, targetId: number) => {
     e.preventDefault();
-    const src = dragItemId.current;
+    const sourceId = dragItemId.current;
     dragItemId.current = null;
     setDragOverId(null);
-    if (src == null) return;
-    if (src === targetId) return;
-    // ask user: reorder or create album
-    const createAlbum = window.confirm('Dorești să creezi un album nou care să conțină aceste două scrieri? (OK = creează album, Cancel = mută poziția)');
-    if (createAlbum) {
-      const name = window.prompt('Nume album nou:', 'Album nou');
-      if (!name) return;
-      const id = String(Date.now());
-      setAlbums(a => [{ id, name, color: '#7c3aed', icon: '📁', itemIds: [src, targetId] }, ...a]);
+    setDragOverType(null);
+
+    if (!sourceId || sourceId === targetId) return;
+
+    if (dragOverType === 'merge') {
+      // Open album creation dialog
+      setAlbumNameDialog({
+        open: true,
+        sourceId,
+        targetId
+      });
     } else {
-      // reorder: place src before target
+      // Reorder writings
+      const direction = dragOverType === 'move-left' ? 'before' : 'after';
       setWritings(ws => {
         const copy = [...ws];
-        const srcIndex = copy.findIndex(w => w.id === src);
+        const sourceIndex = copy.findIndex(w => w.id === sourceId);
         const targetIndex = copy.findIndex(w => w.id === targetId);
-        if (srcIndex === -1 || targetIndex === -1) return ws;
-        const [item] = copy.splice(srcIndex, 1);
-        const insertAt = copy.findIndex(w => w.id === targetId);
-        copy.splice(insertAt, 0, item);
+        
+        if (sourceIndex === -1 || targetIndex === -1) return ws;
+        
+        const [item] = copy.splice(sourceIndex, 1);
+        const insertIndex = direction === 'before' ? targetIndex : targetIndex + 1;
+        copy.splice(insertIndex > sourceIndex ? insertIndex - 1 : insertIndex, 0, item);
+        
         return copy;
       });
     }
   };
 
+  const onDragLeave = () => {
+    setDragOverId(null);
+    setDragOverType(null);
+  };
+
   const onDropOnAlbum = (e: React.DragEvent, albumId: string) => {
     e.preventDefault();
-    const src = Number(e.dataTransfer.getData('text/plain'));
-    if (!src) return;
-    setAlbums(a => a.map(al => al.id === albumId ? { ...al, itemIds: Array.from(new Set([...al.itemIds, src])) } : al));
+    const sourceId = Number(e.dataTransfer.getData('text/plain'));
+    if (!sourceId) return;
+
+    setAlbums(albums => albums.map(album => 
+      album.id === albumId 
+        ? { ...album, itemIds: Array.from(new Set([...album.itemIds, sourceId])) }
+        : album
+    ));
+    
+    setDragOverAlbumId(null);
+    toast({ 
+      title: 'Succes', 
+      description: 'Scrierea a fost adăugată în album.' 
+    });
+  };
+
+  const createAlbumFromWritings = (name: string, color: string) => {
+    const { sourceId, targetId } = albumNameDialog;
+    if (!sourceId || !targetId) return;
+
+    const newAlbum = {
+      id: String(Date.now()),
+      name,
+      color,
+      itemIds: [sourceId, targetId]
+    };
+
+    setAlbums(albums => [newAlbum, ...albums]);
+    setAlbumNameDialog({ open: false, sourceId: null, targetId: null });
+    
+    toast({ 
+      title: 'Album creat', 
+      description: `Albumul "${name}" a fost creat cu succes.` 
+    });
   };
 
   const getTypeIcon = (type: string) => {
@@ -365,6 +460,64 @@ const CreativeWriting: React.FC = () => {
       case 'nostalgic': return 'Nostalgic';
       default: return mood;
     }
+  };
+
+  const deleteWriting = (writingId: number) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Confirmă ștergerea',
+      message: 'Ești sigur că vrei să ștergi această scriere? Această acțiune nu poate fi anulată.',
+      type: 'warning',
+      confirmText: 'Șterge',
+      cancelText: 'Anulează',
+      onConfirm: () => {
+        setWritings(ws => ws.filter(w => w.id !== writingId));
+        // Remove from albums as well
+        setAlbums(albums => albums.map(album => ({
+          ...album,
+          itemIds: album.itemIds.filter(id => id !== writingId)
+        })));
+        toast({ 
+          title: 'Șters', 
+          description: 'Scrierea a fost ștearsă cu succes.' 
+        });
+      }
+    });
+  };
+
+  const deleteAlbum = (albumId: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Confirmă ștergerea albumului',
+      message: 'Ești sigur că vrei să ștergi acest album? Scrierile din album nu vor fi șterse.',
+      type: 'warning', 
+      confirmText: 'Șterge Album',
+      cancelText: 'Anulează',
+      onConfirm: () => {
+        setAlbums(albums => albums.filter(a => a.id !== albumId));
+        toast({
+          title: 'Album șters',
+          description: 'Albumul a fost șters cu succes.'
+        });
+      }
+    });
+  };
+
+  const editAlbum = (albumId: string) => {
+    const album = albums.find(a => a.id === albumId);
+    if (!album) return;
+
+    const newName = window.prompt('Nume nou pentru album:', album.name);
+    if (!newName || newName === album.name) return;
+
+    setAlbums(albums => albums.map(a => 
+      a.id === albumId ? { ...a, name: newName } : a
+    ));
+    
+    toast({
+      title: 'Album actualizat',
+      description: 'Numele albumului a fost schimbat cu succes.'
+    });
   };
 
   return (
@@ -444,13 +597,25 @@ const CreativeWriting: React.FC = () => {
             {visibleWritings.map((writing, index) => (
               <div
                 key={writing.id}
+                className="relative"
                 draggable={isAdmin}
                 onDragStart={(e) => onDragStart(e, writing.id)}
                 onDragOver={(e) => onDragOverCard(e, writing.id)}
                 onDrop={(e) => onDropOnCard(e, writing.id)}
+                onDragLeave={onDragLeave}
               >
+                {/* Drag Drop Indicator */}
+                {dragOverId === writing.id && (
+                  <DragDropIndicator 
+                    type={dragOverType!} 
+                    isActive={true} 
+                  />
+                )}
+                
                 <Card 
-                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in ${dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''}`}
+                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in ${
+                    dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
+                  }`}
                   style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => setSelectedWriting(writing)}
                 >
@@ -473,8 +638,27 @@ const CreativeWriting: React.FC = () => {
                         )}
                         {isAdmin && (
                           <div className="flex gap-1">
-                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setEditing(writing); setIsEditorOpen(true); }}>Editează</Button>
-                            <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setWritings(ws => ws.filter(w => w.id !== writing.id)); }}>Șterge</Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setEditing(writing); 
+                                setIsEditorOpen(true); 
+                              }}
+                            >
+                              Editează
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive" 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                deleteWriting(writing.id); 
+                              }}
+                            >
+                              Șterge
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -699,29 +883,57 @@ const CreativeWriting: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Albums UI */}
-      <div className="mt-8 max-w-7xl mx-auto">
-        <h3 className="text-lg font-semibold mb-3">Albume</h3>
-        <div className="flex gap-3 items-start">
-          {albums.map(album => (
-            <div key={album.id} className="p-3 bg-card rounded shadow cursor-pointer" onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDropOnAlbum(e, album.id)}>
-              <div className="flex items-center gap-2">
-                <div className="text-2xl">{album.icon || '📁'}</div>
-                <div>
-                  <div className="font-semibold">{album.name}</div>
-                  <div className="text-xs text-muted-foreground">{album.itemIds.length} scrieri</div>
-                </div>
-              </div>
-            </div>
-          ))}
-          <Button onClick={() => {
-            const name = window.prompt('Nume album:');
-            if (!name) return;
-            const id = String(Date.now());
-            setAlbums(a => [{ id, name, color: '#06b6d4', icon: '📁', itemIds: [] }, ...a]);
-          }}>Creează album</Button>
+      {/* Albums Section */}
+      {albums.length > 0 && (
+        <div className="mt-12 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold gradient-text">Albume</h2>
+            {isAdmin && (
+              <Button 
+                onClick={() => setAlbumNameDialog({ open: true, sourceId: null, targetId: null })}
+                className="bg-art-accent hover:bg-art-accent/80"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Album Nou
+              </Button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {albums.map(album => (
+              <AlbumCard
+                key={album.id}
+                album={album}
+                writings={writings}
+                onDrop={onDropOnAlbum}
+                onWritingClick={(writing: WritingPiece) => setSelectedWriting(writing)}
+                isAdmin={isAdmin}
+                onDeleteAlbum={deleteAlbum}
+                onEditAlbum={editAlbum}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+      />
+
+      {/* Album Name Dialog */}
+      <AlbumNameDialog
+        open={albumNameDialog.open}
+        onOpenChange={(open) => setAlbumNameDialog(prev => ({ ...prev, open }))}
+        onConfirm={createAlbumFromWritings}
+      />
     </div>
   );
 };
