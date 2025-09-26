@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
 
@@ -11,8 +11,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const baseWidth = 900;
+  const baseHeight = 800;
 
   const handleZoomIn = () => {
     setScale(prev => Math.min(prev + 0.25, 3));
@@ -27,7 +30,25 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   };
 
   const handleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
+    const el = containerRef.current as (HTMLElement | null);
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      const req = (el as HTMLElement & {
+        requestFullscreen?: () => Promise<void>;
+        webkitRequestFullscreen?: () => void;
+        msRequestFullscreen?: () => void;
+      });
+      const request = req.requestFullscreen?.bind(el) || req.webkitRequestFullscreen?.bind(el) || req.msRequestFullscreen?.bind(el);
+      if (request) { try { request(); } catch { /* ignore */ } }
+    } else {
+      const docReq = document as Document & {
+        exitFullscreen?: () => Promise<void>;
+        webkitExitFullscreen?: () => void;
+        msExitFullscreen?: () => void;
+      };
+      const exit = docReq.exitFullscreen?.bind(document) || docReq.webkitExitFullscreen?.bind(document) || docReq.msExitFullscreen?.bind(document);
+      if (exit) { try { exit(); } catch { /* ignore */ } }
+    }
   };
 
   const handleDownload = () => {
@@ -50,8 +71,19 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
     setCurrentPage(1);
   }, [fileUrl]);
 
+  // Sync isFullscreen with document fullscreen state to avoid glitches
+  useEffect(() => {
+    const onFullChange = () => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    };
+    document.addEventListener('fullscreenchange', onFullChange as EventListener);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullChange as EventListener);
+    };
+  }, []);
+
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background' : 'w-full'} flex flex-col`}>
+  <div ref={containerRef} className={`w-full flex flex-col`}>
       {/* PDF Controls */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-card">
         <div className="flex items-center gap-2">
@@ -84,20 +116,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       <div className="flex-1 overflow-auto bg-muted/20 p-4">
         <div className="flex justify-center">
           <div 
-            className="bg-white shadow-lg rounded-lg overflow-hidden"
+            className="bg-white shadow-lg rounded-lg overflow-hidden flex justify-center items-start"
             style={{
-              transform: `scale(${scale}) rotate(${rotation}deg)`,
-              transformOrigin: 'center top',
-              transition: 'transform 0.3s ease-in-out'
+              transform: `rotate(${rotation}deg)`,
+              transition: 'transform 0.3s ease-in-out',
+              maxWidth: '100%'
             }}
           >
             <iframe
-              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`}
-              className="w-full h-[600px] border-0"
+              src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&page=${currentPage}&view=FitH`}
+              style={{
+                width: isFullscreen ? '100vw' : `${Math.round(baseWidth * scale)}px`,
+                height: isFullscreen ? 'calc(100vh - 120px)' : `${Math.round(baseHeight * scale)}px`,
+                border: '0'
+              }}
               title={fileName}
               onLoad={() => {
-                // Try to get total pages from PDF
-                // This is a simplified approach - in a real app you might use a PDF library
+                // Keep simple fallback for total pages
                 setTotalPages(1);
               }}
             />

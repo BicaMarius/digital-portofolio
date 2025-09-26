@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,19 +8,31 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Toggle } from '@/components/ui/toggle';
+import { toast } from '@/components/ui/use-toast';
 
 interface WritingPiece {
   id: number;
   title: string;
-  type: 'poetry' | 'short-story' | 'essay' | 'article' | 'song-lyrics';
+  // allow dynamic types/moods managed by admin
+  type: string;
   content: string;
   excerpt: string;
   wordCount: number;
   dateWritten: string;
   tags: string[];
-  mood: 'melancholic' | 'joyful' | 'contemplative' | 'passionate' | 'nostalgic';
+  mood: string;
   isPrivate?: boolean;
   published?: boolean;
+}
+
+interface Album {
+  id: string;
+  name: string;
+  color?: string;
+  icon?: string;
+  itemIds: number[];
 }
 
 const mockWritings: WritingPiece[] = [
@@ -91,12 +103,225 @@ const CreativeWriting: React.FC = () => {
   const [filterMood, setFilterMood] = useState<string>('all');
   const [selectedWriting, setSelectedWriting] = useState<WritingPiece | null>(null);
 
-  const visibleWritings = (isAdmin ? mockWritings : mockWritings.filter(writing => !writing.isPrivate))
-    .filter(writing => 
-      writing.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (filterType === 'all' || writing.type === filterType) &&
-      (filterMood === 'all' || writing.mood === filterMood)
-    );
+  // make writings editable in local state (mock persists in-memory only)
+  const [writings, setWritings] = useState<WritingPiece[]>(mockWritings);
+
+  // admin-managed type and mood lists
+  const [types, setTypes] = useState<Array<{ key: string; label: string }>>([
+    { key: 'poetry', label: 'Poezie' },
+    { key: 'short-story', label: 'Povestire' },
+    { key: 'essay', label: 'Eseu' },
+    { key: 'article', label: 'Articol' },
+    { key: 'song-lyrics', label: 'Versuri' }
+  ]);
+  const [moods, setMoods] = useState<Array<{ key: string; label: string }>>([
+    { key: 'melancholic', label: 'Melancolic' },
+    { key: 'joyful', label: 'Vesel' },
+    { key: 'contemplative', label: 'Contemplativ' },
+    { key: 'passionate', label: 'Pasional' },
+    { key: 'nostalgic', label: 'Nostalgic' }
+  ]);
+
+  // editor dialog state
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editing, setEditing] = useState<WritingPiece | null>(null);
+  const editorRef = React.useRef<HTMLDivElement | null>(null);
+  const [isManageTypesOpen, setIsManageTypesOpen] = useState(false);
+  const [isManageMoodsOpen, setIsManageMoodsOpen] = useState(false);
+  const [newTypeKey, setNewTypeKey] = useState('');
+  const [newTypeLabel, setNewTypeLabel] = useState('');
+  const [newMoodKey, setNewMoodKey] = useState('');
+  const [newMoodLabel, setNewMoodLabel] = useState('');
+
+  // helper: normalize string removing diacritics and lowercase
+  const normalize = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
+  // search across title and content, diacritics-insensitive
+  const visibleWritings = (isAdmin ? writings : writings.filter(w => !w.isPrivate)).filter(writing => {
+    const term = normalize(searchTerm.trim());
+    if (!term) return (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
+    const hay = normalize(writing.title + ' ' + writing.content + ' ' + writing.tags.join(' '));
+    return hay.includes(term) && (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
+  });
+
+  // word count helper: counts words in plain text
+  const countWords = (htmlOrText: string) => {
+    const text = (new DOMParser()).parseFromString(htmlOrText, 'text/html').body.textContent || '';
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    return words.length;
+  };
+
+  const openEditorFor = (w: WritingPiece | null) => {
+    setEditing(w ? { ...w } : null);
+    setIsEditorOpen(true);
+    // set contenteditable content when dialog opens (handled in effect below)
+  };
+
+  // save from editor
+  const saveEditing = () => {
+    if (!editing) return;
+    const contentHtml = editorRef.current?.innerHTML || editing.content;
+    const plainTextWordCount = countWords(contentHtml);
+    const updated: WritingPiece = { ...editing, content: contentHtml, wordCount: plainTextWordCount };
+    setWritings(ws => {
+      if (ws.some(w => w.id === updated.id)) {
+        return ws.map(w => w.id === updated.id ? updated : w);
+      }
+      // new item: assign new id
+      const nextId = Math.max(0, ...ws.map(w => w.id)) + 1;
+      updated.id = nextId;
+      return [updated, ...ws];
+    });
+    setIsEditorOpen(false);
+    toast({ title: 'Salvat', description: 'Textul a fost salvat în bibliotecă.' });
+  };
+
+  // manage types/moods add/remove
+  const addType = () => {
+    if (!newTypeKey || !newTypeLabel) return;
+    setTypes(t => [...t, { key: newTypeKey, label: newTypeLabel }]);
+    setNewTypeKey(''); setNewTypeLabel('');
+  };
+  const removeType = (key: string) => setTypes(t => t.filter(i => i.key !== key));
+  const addMood = () => {
+    if (!newMoodKey || !newMoodLabel) return;
+    setMoods(m => [...m, { key: newMoodKey, label: newMoodLabel }]);
+    setNewMoodKey(''); setNewMoodLabel('');
+  };
+  const removeMood = (key: string) => setMoods(m => m.filter(i => i.key !== key));
+
+  // when editor opens, populate contentEditable
+  useEffect(() => {
+    if (isEditorOpen) {
+      requestAnimationFrame(() => {
+        if (editorRef.current) {
+          // load draft if exists
+          const draftKey = editing ? `cw_draft_${editing.id}` : 'cw_draft_new';
+          const draft = localStorage.getItem(draftKey);
+          editorRef.current.innerHTML = draft ?? editing?.content ?? '';
+        }
+      });
+    }
+  }, [isEditorOpen, editing]);
+
+  // albums state (declared before persistence effects)
+  const [albums, setAlbums] = useState<Album[]>([]);
+
+  // persistence: load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('cw_writings');
+    if (saved) setWritings(JSON.parse(saved));
+    const st = localStorage.getItem('cw_types');
+    if (st) setTypes(JSON.parse(st));
+    const sm = localStorage.getItem('cw_moods');
+    if (sm) setMoods(JSON.parse(sm));
+    const sa = localStorage.getItem('cw_albums');
+    if (sa) setAlbums(JSON.parse(sa));
+  }, []);
+
+  // save on changes
+  useEffect(() => { localStorage.setItem('cw_writings', JSON.stringify(writings)); }, [writings]);
+  useEffect(() => { localStorage.setItem('cw_types', JSON.stringify(types)); }, [types]);
+  useEffect(() => { localStorage.setItem('cw_moods', JSON.stringify(moods)); }, [moods]);
+  useEffect(() => { localStorage.setItem('cw_albums', JSON.stringify(albums)); }, [albums]);
+
+  // (albums state moved up)
+
+  // drag/drop state
+  const dragItemId = useRef<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+
+  // helper to start editor with autosave drafts
+  const startNewEditing = () => openEditorFor({
+    id: 0,
+    title: '',
+    type: (types[0] && types[0].key) || 'poetry',
+    content: '',
+    excerpt: '',
+    wordCount: 0,
+    dateWritten: new Date().toISOString().slice(0,10),
+    tags: [],
+    mood: (moods[0] && moods[0].key) || 'contemplative',
+    published: false
+  });
+
+  // autosave draft every 2s when editor open
+  useEffect(() => {
+    if (!isEditorOpen) return;
+    const id = setInterval(() => {
+      if (!editorRef.current) return;
+      const html = editorRef.current.innerHTML;
+      const draftKey = editing ? `cw_draft_${editing.id}` : 'cw_draft_new';
+      localStorage.setItem(draftKey, html);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [isEditorOpen, editing]);
+
+  // save on unload
+  useEffect(() => {
+    const handler = () => {
+      if (isEditorOpen && editorRef.current) {
+        const draftKey = editing ? `cw_draft_${editing.id}` : 'cw_draft_new';
+        localStorage.setItem(draftKey, editorRef.current.innerHTML);
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isEditorOpen, editing]);
+
+  // editor undo/redo via execCommand
+  const exec = (cmd: string, value?: string) => {
+    document.execCommand(cmd, false, value);
+    editorRef.current?.focus();
+  };
+
+  // drag-and-drop handlers
+  const onDragStart = (e: React.DragEvent, id: number) => {
+    dragItemId.current = id;
+    e.dataTransfer.setData('text/plain', String(id));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onDragOverCard = (e: React.DragEvent, id: number) => {
+    e.preventDefault();
+    setDragOverId(id);
+  };
+
+  const onDropOnCard = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    const src = dragItemId.current;
+    dragItemId.current = null;
+    setDragOverId(null);
+    if (src == null) return;
+    if (src === targetId) return;
+    // ask user: reorder or create album
+    const createAlbum = window.confirm('Dorești să creezi un album nou care să conțină aceste două scrieri? (OK = creează album, Cancel = mută poziția)');
+    if (createAlbum) {
+      const name = window.prompt('Nume album nou:', 'Album nou');
+      if (!name) return;
+      const id = String(Date.now());
+      setAlbums(a => [{ id, name, color: '#7c3aed', icon: '📁', itemIds: [src, targetId] }, ...a]);
+    } else {
+      // reorder: place src before target
+      setWritings(ws => {
+        const copy = [...ws];
+        const srcIndex = copy.findIndex(w => w.id === src);
+        const targetIndex = copy.findIndex(w => w.id === targetId);
+        if (srcIndex === -1 || targetIndex === -1) return ws;
+        const [item] = copy.splice(srcIndex, 1);
+        const insertAt = copy.findIndex(w => w.id === targetId);
+        copy.splice(insertAt, 0, item);
+        return copy;
+      });
+    }
+  };
+
+  const onDropOnAlbum = (e: React.DragEvent, albumId: string) => {
+    e.preventDefault();
+    const src = Number(e.dataTransfer.getData('text/plain'));
+    if (!src) return;
+    setAlbums(a => a.map(al => al.id === albumId ? { ...al, itemIds: Array.from(new Set([...al.itemIds, src])) } : al));
+  };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -180,11 +405,10 @@ const CreativeWriting: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toate tipurile</SelectItem>
-                <SelectItem value="poetry">Poezie</SelectItem>
-                <SelectItem value="short-story">Povestire</SelectItem>
-                <SelectItem value="essay">Eseu</SelectItem>
-                <SelectItem value="article">Articol</SelectItem>
-                <SelectItem value="song-lyrics">Versuri</SelectItem>
+                {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
+                {isAdmin && (
+                  <SelectItem value="__manage_types">⚙️ Manage types</SelectItem>
+                )}
               </SelectContent>
             </Select>
 
@@ -194,99 +418,120 @@ const CreativeWriting: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toate</SelectItem>
-                <SelectItem value="melancholic">Melancolic</SelectItem>
-                <SelectItem value="joyful">Vesel</SelectItem>
-                <SelectItem value="contemplative">Contemplativ</SelectItem>
-                <SelectItem value="passionate">Pasional</SelectItem>
-                <SelectItem value="nostalgic">Nostalgic</SelectItem>
+                {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
+                {isAdmin && (
+                  <SelectItem value="__manage_moods">⚙️ Manage moods</SelectItem>
+                )}
               </SelectContent>
             </Select>
 
             {isAdmin && (
-              <Button className="bg-art-accent hover:bg-art-accent/80">
-                <Plus className="h-4 w-4 mr-2" />
-                Adaugă Text
-              </Button>
+              <div className="flex gap-2">
+                <Button className="bg-art-accent hover:bg-art-accent/80" onClick={() => { setEditing(null); setIsEditorOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adaugă Text
+                </Button>
+                <Button variant="outline" onClick={() => { /* open manage types/moods UI - will be handled via select special value */ }}>
+                  <Filter className="h-4 w-4 mr-2" />
+                  Gestionează Etichete
+                </Button>
+              </div>
             )}
           </div>
 
           {/* Writings Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleWritings.map((writing, index) => (
-              <Card 
+              <div
                 key={writing.id}
-                className="hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in"
-                style={{ animationDelay: `${index * 100}ms` }}
-                onClick={() => setSelectedWriting(writing)}
+                draggable={isAdmin}
+                onDragStart={(e) => onDragStart(e, writing.id)}
+                onDragOver={(e) => onDragOverCard(e, writing.id)}
+                onDrop={(e) => onDropOnCard(e, writing.id)}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2 flex-1">
-                      {getTypeIcon(writing.type)}
-                      <CardTitle className="text-lg line-clamp-2">{writing.title}</CardTitle>
+                <Card 
+                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in ${dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''}`}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                  onClick={() => setSelectedWriting(writing)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2 flex-1">
+                        {getTypeIcon(writing.type)}
+                        <CardTitle className="text-lg line-clamp-2">{writing.title}</CardTitle>
+                      </div>
+                      <div className="flex flex-col gap-1 ml-2">
+                        {writing.isPrivate && !isAdmin && (
+                          <Badge variant="outline" className="text-xs">
+                            Private
+                          </Badge>
+                        )}
+                        {writing.published && (
+                          <Badge className="bg-green-500/20 text-green-400 text-xs">
+                            Publicat
+                          </Badge>
+                        )}
+                        {isAdmin && (
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setEditing(writing); setIsEditorOpen(true); }}>Editează</Button>
+                            <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setWritings(ws => ws.filter(w => w.id !== writing.id)); }}>Șterge</Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1 ml-2">
-                      {writing.isPrivate && !isAdmin && (
-                        <Badge variant="outline" className="text-xs">
-                          Private
-                        </Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-muted-foreground text-sm line-clamp-3">
+                      {writing.excerpt}
+                    </p>
+
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1">
+                      {writing.tags.slice(0, 3).map((tag) => (
+                        <span 
+                          key={tag}
+                          className="px-2 py-1 bg-art-accent/20 text-art-accent rounded-md text-xs"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                      {writing.tags.length > 3 && (
+                        <span className="px-2 py-1 bg-muted rounded-md text-xs">
+                          +{writing.tags.length - 3}
+                        </span>
                       )}
-                      {writing.published && (
-                        <Badge className="bg-green-500/20 text-green-400 text-xs">
-                          Publicat
-                        </Badge>
+                    </div>
+
+                    {/* Type & Mood */}
+                    <div className="flex gap-2">
+                      <Badge className="bg-blue-500/20 text-blue-400" variant="outline">
+                        {getTypeLabel(writing.type)}
+                      </Badge>
+                      <Badge className={getMoodColor(writing.mood)} variant="outline">
+                        {getMoodLabel(writing.mood)}
+                      </Badge>
+                      {isAdmin && (
+                        <div className="ml-2 text-xs text-muted-foreground">ID: {writing.id}</div>
                       )}
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-muted-foreground text-sm line-clamp-3">
-                    {writing.excerpt}
-                  </p>
 
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1">
-                    {writing.tags.slice(0, 3).map((tag) => (
-                      <span 
-                        key={tag}
-                        className="px-2 py-1 bg-art-accent/20 text-art-accent rounded-md text-xs"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                    {writing.tags.length > 3 && (
-                      <span className="px-2 py-1 bg-muted rounded-md text-xs">
-                        +{writing.tags.length - 3}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Type & Mood */}
-                  <div className="flex gap-2">
-                    <Badge className="bg-blue-500/20 text-blue-400" variant="outline">
-                      {getTypeLabel(writing.type)}
-                    </Badge>
-                    <Badge className={getMoodColor(writing.mood)} variant="outline">
-                      {getMoodLabel(writing.mood)}
-                    </Badge>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">Cuvinte</p>
-                      <p className="font-semibold text-sm">{writing.wordCount}</p>
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
+                      <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Cuvinte</p>
+                        <p className="font-semibold text-sm">{writing.wordCount}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Data
+                        </p>
+                        <p className="font-semibold text-sm">{writing.dateWritten}</p>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        Data
-                      </p>
-                      <p className="font-semibold text-sm">{writing.dateWritten}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             ))}
           </div>
 
@@ -301,7 +546,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Reading Modal */}
       <Dialog open={!!selectedWriting} onOpenChange={() => setSelectedWriting(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedWriting && (
             <div>
               <DialogHeader className="pb-6">
@@ -349,6 +594,134 @@ const CreativeWriting: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Editor Modal */}
+      <Dialog open={isEditorOpen} onOpenChange={(open) => { if (!open) setIsEditorOpen(false); }}>
+        <DialogContent className="max-w-3xl w-full">
+          <DialogHeader>
+            <DialogTitle>{editing?.id ? 'Editează text' : 'Adaugă text nou'}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Input placeholder="Titlu" value={editing?.title || ''} onChange={(e) => setEditing(ed => ed ? { ...ed, title: e.target.value } : ed)} />
+              <Select value={editing?.type || types[0]?.key} onValueChange={(v) => setEditing(ed => ed ? { ...ed, type: v } as WritingPiece : ed)}>
+                <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{types.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={editing?.mood || moods[0]?.key} onValueChange={(v) => setEditing(ed => ed ? { ...ed, mood: v } as WritingPiece : ed)}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{moods.map(m => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={() => exec('bold')}><b>B</b></Button>
+              <Button size="sm" onClick={() => exec('italic')}><i>I</i></Button>
+              <Button size="sm" onClick={() => exec('justifyLeft')}>L</Button>
+              <Button size="sm" onClick={() => exec('justifyCenter')}>C</Button>
+              <Button size="sm" onClick={() => exec('justifyRight')}>R</Button>
+              <Button size="sm" onClick={() => exec('undo')}>Undo</Button>
+              <Button size="sm" onClick={() => exec('redo')}>Redo</Button>
+            </div>
+
+            <div ref={editorRef} contentEditable className="min-h-[220px] p-4 border border-border rounded prose max-w-none" />
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Label>Publicat</Label>
+                <input type="checkbox" checked={!!editing?.published} onChange={(e) => setEditing(ed => ed ? { ...ed, published: e.target.checked } : ed)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-muted-foreground">Cuvinte: {countWords(editorRef.current?.innerHTML || editing?.content || '')}</div>
+                <Button variant="outline" onClick={() => { setIsEditorOpen(false); /* autosave handled */ }}>Back</Button>
+                <Button onClick={saveEditing}>Save</Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Types Dialog */}
+      <Dialog open={isManageTypesOpen} onOpenChange={setIsManageTypesOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Gestionează tipuri</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-2">
+            {types.map(t => (
+              <div key={t.key} className="flex items-center justify-between">
+                <div>{t.label} <span className="text-xs text-muted-foreground">({t.key})</span></div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const k = window.prompt('Edit key', t.key) || t.key;
+                    const l = window.prompt('Edit label', t.label) || t.label;
+                    setTypes(ts => ts.map(x => x.key === t.key ? { key: k, label: l } : x));
+                  }}>Edit</Button>
+                  <Button size="sm" variant="destructive" onClick={() => removeType(t.key)}>Șterge</Button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex gap-2">
+              <Input placeholder="key" value={newTypeKey} onChange={(e) => setNewTypeKey(e.target.value)} />
+              <Input placeholder="label" value={newTypeLabel} onChange={(e) => setNewTypeLabel(e.target.value)} />
+              <Button onClick={addType}>Add</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Moods Dialog */}
+      <Dialog open={isManageMoodsOpen} onOpenChange={setIsManageMoodsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Gestionează stări</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-2">
+            {moods.map(m => (
+              <div key={m.key} className="flex items-center justify-between">
+                <div>{m.label} <span className="text-xs text-muted-foreground">({m.key})</span></div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const k = window.prompt('Edit key', m.key) || m.key;
+                    const l = window.prompt('Edit label', m.label) || m.label;
+                    setMoods(ms => ms.map(x => x.key === m.key ? { key: k, label: l } : x));
+                  }}>Edit</Button>
+                  <Button size="sm" variant="destructive" onClick={() => removeMood(m.key)}>Șterge</Button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex gap-2">
+              <Input placeholder="key" value={newMoodKey} onChange={(e) => setNewMoodKey(e.target.value)} />
+              <Input placeholder="label" value={newMoodLabel} onChange={(e) => setNewMoodLabel(e.target.value)} />
+              <Button onClick={addMood}>Add</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Albums UI */}
+      <div className="mt-8 max-w-7xl mx-auto">
+        <h3 className="text-lg font-semibold mb-3">Albume</h3>
+        <div className="flex gap-3 items-start">
+          {albums.map(album => (
+            <div key={album.id} className="p-3 bg-card rounded shadow cursor-pointer" onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDropOnAlbum(e, album.id)}>
+              <div className="flex items-center gap-2">
+                <div className="text-2xl">{album.icon || '📁'}</div>
+                <div>
+                  <div className="font-semibold">{album.name}</div>
+                  <div className="text-xs text-muted-foreground">{album.itemIds.length} scrieri</div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <Button onClick={() => {
+            const name = window.prompt('Nume album:');
+            if (!name) return;
+            const id = String(Date.now());
+            setAlbums(a => [{ id, name, color: '#06b6d4', icon: '📁', itemIds: [] }, ...a]);
+          }}>Creează album</Button>
+        </div>
+      </div>
     </div>
   );
 };

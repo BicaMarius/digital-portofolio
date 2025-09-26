@@ -29,6 +29,7 @@ const Profile: React.FC = () => {
   const [showPrivateAchievements, setShowPrivateAchievements] = useState(false);
   const { isAdmin } = useAdmin();
   const { cvData, uploadNewCV, deleteExistingCV, getProjectCountByCategory, getTotalProjectCountByCategory } = useData();
+  const [pendingCV, setPendingCV] = useState<{ fileName: string; fileUrl: string } | null>(null);
   
   const unlockedAchievements = ACHIEVEMENTS.filter(a => a.unlocked);
   const lockedAchievements = ACHIEVEMENTS.filter(a => !a.unlocked);
@@ -97,7 +98,7 @@ const Profile: React.FC = () => {
                             const file = e.target.files?.[0];
                             if (file) {
                               const fileUrl = URL.createObjectURL(file);
-                              uploadNewCV(file.name, fileUrl);
+                              setPendingCV({ fileName: file.name, fileUrl });
                             }
                           }}
                           className="hidden"
@@ -109,6 +110,22 @@ const Profile: React.FC = () => {
                             Upload CV
                           </label>
                         </Button>
+
+                        {pendingCV && (
+                          <div className="flex items-center gap-2">
+                            <Button onClick={() => {
+                              // finalize upload
+                              uploadNewCV(pendingCV.fileName, pendingCV.fileUrl);
+                              setPendingCV(null);
+                            }}>
+                              Gata
+                            </Button>
+                            <Button variant="outline" onClick={() => setPendingCV(null)}>
+                              Anulează
+                            </Button>
+                          </div>
+                        )}
+
                         {cvData && (
                           <Button 
                             variant="destructive" 

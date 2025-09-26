@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from '@/components/ui/sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,16 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) =>
     e.preventDefault();
     const success = login('BicaMarius', password);
     if (success) {
+      toast.success('Conectat ca admin!', {
+        description: 'Acum poți edita și administra portofoliul.',
+        icon: (
+          <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="12" fill="#22c55e" />
+            <path d="M7 13l3 3 7-7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+        duration: 3500,
+      });
       onOpenChange(false);
       setPassword('');
       setError('');

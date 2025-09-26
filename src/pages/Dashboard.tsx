@@ -36,12 +36,12 @@ const portfolioCategories = PORTFOLIO_CATEGORIES.map(category => ({
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { isAdmin } = useAdmin();
+  const { isAdmin, logout } = useAdmin();
   const { getProjectCountByCategory, getTotalProjectCountByCategory } = useData();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
       <Navigation />
       
       {/* Hero Section */}
@@ -79,7 +79,7 @@ const Dashboard: React.FC = () => {
       </section>
 
       {/* Portfolio Grid */}
-      <section className="py-8 md:py-12 responsive-padding">
+      <section className="py-8 md:py-12 responsive-padding flex-1">
         <div className="responsive-container">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {portfolioCategories.map((category, index) => {
@@ -110,37 +110,58 @@ const Dashboard: React.FC = () => {
 
       {/* Admin Floating Button */}
       <div className="responsive-admin-button z-50">
-        <button
-          onClick={() => setShowAdminLogin(true)}
-          className="group relative w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg hover:shadow-2xl transition-all duration-500 hover:scale-110 animate-pulse-glow"
-          title="Admin Access"
-        >
-          {/* Animated ring */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 animate-ping opacity-20"></div>
-          
-          {/* Inner glow */}
-          <div className="absolute inset-1 rounded-full bg-gradient-to-br from-blue-400 via-purple-400 to-pink-400 opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-          
-          {/* Icon */}
-          <div className="relative w-full h-full flex items-center justify-center">
-            <svg 
-              className="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-300" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" 
-              />
-            </svg>
-          </div>
-          
-          {/* Hover effect */}
-          <div className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        </button>
+        {isAdmin ? (
+          <button
+            onClick={() => {
+              const confirmed = confirm('Vrei să ieși din modul admin?');
+              if (confirmed) {
+                logout();
+              }
+            }}
+            className="group relative w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-500 shadow-lg hover:shadow-2xl transition-all duration-500 hover:scale-110"
+            title="Logout Admin"
+          >
+            <div className="absolute inset-0 rounded-full bg-red-500/20"></div>
+            <div className="relative w-full h-full flex items-center justify-center text-white">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8v8" />
+              </svg>
+            </div>
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowAdminLogin(true)}
+            className="group relative w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg hover:shadow-2xl transition-all duration-500 hover:scale-110 animate-pulse-glow"
+            title="Admin Access"
+          >
+            {/* Animated ring */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 animate-ping opacity-20"></div>
+            
+            {/* Inner glow */}
+            <div className="absolute inset-1 rounded-full bg-gradient-to-br from-blue-400 via-purple-400 to-pink-400 opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
+            
+            {/* Icon */}
+            <div className="relative w-full h-full flex items-center justify-center">
+              <svg 
+                className="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-300" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" 
+                />
+              </svg>
+            </div>
+            
+            {/* Hover effect */}
+            <div className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          </button>
+        )}
       </div>
 
       {/* Footer */}
