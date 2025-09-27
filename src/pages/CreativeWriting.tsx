@@ -1031,15 +1031,14 @@ const CreativeWriting: React.FC = () => {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col gap-4 mb-8">
-            {/* Search Bar - Always on first row */}
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-24"
+                className="pl-10 pr-12"
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <div className="flex items-center gap-2 text-xs cursor-pointer">
@@ -1069,282 +1068,84 @@ const CreativeWriting: React.FC = () => {
               </div>
             </div>
             
-            {/* Filters and Actions - Second row */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Select value={filterType} onValueChange={(value) => {
-                if (value === '__manage_types') {
-                  setIsManageTypesOpen(true);
-                } else {
-                  setFilterType(value);
-                }
-              }}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Tip text" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toate tipurile</SelectItem>
-                  {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
-                  {isAdmin && (
-                    <SelectItem value="__manage_types">
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="h-3 w-3" />
-                        Gestionează tipuri
-                      </div>
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+            <Select value={filterType} onValueChange={(value) => {
+              if (value === '__manage_types') {
+                setIsManageTypesOpen(true);
+              } else {
+                setFilterType(value);
+              }
+            }}>
+              <SelectTrigger className="w-[180px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Tip text" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toate tipurile</SelectItem>
+                {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
+                {isAdmin && (
+                  <SelectItem value="__manage_types">
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="h-3 w-3" />
+                      Gestionează tipuri
+                    </div>
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
 
-              <Select value={filterMood} onValueChange={(value) => {
-                if (value === '__manage_moods') {
-                  setIsManageMoodsOpen(true);
-                } else {
-                  setFilterMood(value);
-                }
-              }}>
-                <SelectTrigger className="w-full sm:w-[150px]">
-                  <SelectValue placeholder="Stare" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toate</SelectItem>
-                  {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
-                  {isAdmin && (
-                    <SelectItem value="__manage_moods">
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="h-3 w-3" />
-                        Gestionează stări
-                      </div>
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+            <Select value={filterMood} onValueChange={(value) => {
+              if (value === '__manage_moods') {
+                setIsManageMoodsOpen(true);
+              } else {
+                setFilterMood(value);
+              }
+            }}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Stare" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toate</SelectItem>
+                {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
+                {isAdmin && (
+                  <SelectItem value="__manage_moods">
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="h-3 w-3" />
+                      Gestionează stări
+                    </div>
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
 
-              {isAdmin && (
-                <div className="flex gap-2 justify-end flex-1">
+            {isAdmin && (
+              <div className="flex gap-2">
+                <Button 
+                  className="bg-art-accent hover:bg-art-accent/80" 
+                  onClick={startNewEditing}
+                  title="Adaugă text nou"
+                  size="icon"
+                >
+                  <PenTool className="h-4 w-4" />
+                </Button>
+                
+                {trashedWritings.length > 0 && (
                   <Button 
-                    className="bg-art-accent hover:bg-art-accent/80" 
-                    onClick={startNewEditing}
-                    title="Adaugă text nou"
-                    size="icon"
+                    variant="outline" 
+                    onClick={() => setIsTrashOpen(true)}
+                    title="Coșul de gunoi"
                   >
-                    <PenTool className="h-4 w-4" />
+                    <Trash className="h-4 w-4" />
+                    <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
+                      {trashedWritings.length}
+                    </span>
                   </Button>
-                  
-                  {trashedWritings.length > 0 && (
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setIsTrashOpen(true)}
-                      title="Coșul de gunoi"
-                    >
-                      <Trash className="h-4 w-4" />
-                      <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
-                        {trashedWritings.length}
-                      </span>
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Writings Section Title */}
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold gradient-text">Scrieri</h2>
-          </div>
-
-          {/* Writings Grid - Desktop: Better spacing, Mobile: List or smaller grid */}
-          <div className="block sm:hidden mb-8">
-            {/* Mobile List View */}
-            <div className="space-y-3">
-              {visibleWritings.map((writing, index) => (
-                <div
-                  key={writing.id}
-                  className="relative"
-                  draggable={isAdmin}
-                  onDragStart={(e) => onDragStart(e, writing.id)}
-                  onDragOver={(e) => onDragOverCard(e, writing.id)}
-                  onDrop={(e) => onDropOnCard(e, writing.id)}
-                  onDragLeave={onDragLeave}
-                >
-                  {/* Drag Drop Indicator */}
-                  {dragOverId === writing.id && (
-                    <DragDropIndicator 
-                      type={dragOverType!} 
-                      isActive={true} 
-                    />
-                  )}
-                  
-                  <Card 
-                    className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in h-auto ${
-                      dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
-                    }`}
-                    style={{ animationDelay: `${index * 50}ms` }}
-                    onClick={() => setSelectedWriting(writing)}
-                  >
-                    <div className="p-4 flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {getTypeIcon(writing.type)}
-                          <h3 className="font-semibold text-base line-clamp-1">{writing.title}</h3>
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                          {(() => {
-                            const plainText = writing.content.replace(/<[^>]*>/g, '');
-                            const lines = plainText.split('\n').filter(line => line.trim());
-                            return lines[0]?.substring(0, 80) + (lines[0]?.length > 80 ? '...' : '');
-                          })()}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{writing.lastModified}</span>
-                          <span>{writing.wordCount} cuvinte</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col items-end gap-2 ml-4">
-                        <Badge 
-                          variant="outline"  
-                          className={`text-xs ${getMoodColor(writing.mood)}`}
-                        >
-                          {getMoodLabel(writing.mood)}
-                        </Badge>
-                        {isAdmin && (
-                          <div className="flex gap-1">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                setEditing(writing); 
-                                setIsEditorOpen(true); 
-                              }}
-                              title="Editează"
-                              className="h-6 w-6 p-0"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive" 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                deleteWriting(writing.id); 
-                              }}
-                              title="Mută în coș"
-                              className="h-6 w-6 p-0"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Desktop/Tablet Grid View */}
-          <div className="hidden sm:grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-8 mb-8">
-            {visibleWritings.map((writing, index) => (
-              <div
-                key={writing.id}
-                className="relative"
-                draggable={isAdmin}
-                onDragStart={(e) => onDragStart(e, writing.id)}
-                onDragOver={(e) => onDragOverCard(e, writing.id)}
-                onDrop={(e) => onDropOnCard(e, writing.id)}
-                onDragLeave={onDragLeave}
-              >
-                {/* Drag Drop Indicator */}
-                {dragOverId === writing.id && (
-                  <DragDropIndicator 
-                    type={dragOverType!} 
-                    isActive={true} 
-                  />
                 )}
-                
-                <Card 
-                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in min-h-[320px] ${
-                    dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
-                  }`}
-                  style={{ animationDelay: `${index * 100}ms` }}
-                  onClick={() => setSelectedWriting(writing)}
-                >
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2 flex-1">
-                        {getTypeIcon(writing.type)}
-                        <CardTitle className="text-lg font-semibold line-clamp-2 leading-tight">{writing.title}</CardTitle>
-                      </div>
-                      {isAdmin && (
-                        <div className="flex gap-1 ml-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setEditing(writing); 
-                              setIsEditorOpen(true); 
-                            }}
-                            title="Editează"
-                            className="h-7 w-7 p-0"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              deleteWriting(writing.id); 
-                            }}
-                            title="Mută în coș"
-                            className="h-7 w-7 p-0"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 pb-4">
-                    <div className="mb-6">
-                      <p className="text-sm text-muted-foreground line-clamp-5 leading-relaxed">
-                        {(() => {
-                          const plainText = writing.content.replace(/<[^>]*>/g, '');
-                          const lines = plainText.split('\n').filter(line => line.trim());
-                          const firstLines = lines.slice(0, 4).join(' ').substring(0, 160);
-                          return firstLines + (lines.length > 4 || plainText.length > 160 ? '...' : '');
-                        })()}
-                      </p>
-                    </div>
-                    <div className="space-y-3 mt-auto">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Book className="h-3 w-3" />
-                          {writing.wordCount} cuvinte
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {writing.lastModified}
-                        </span>
-                      </div>
-                      <div className="flex justify-center">
-                        <Badge 
-                          variant="outline"  
-                          className={`text-xs ${getMoodColor(writing.mood)}`}
-                        >
-                          {getMoodLabel(writing.mood)}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
-            ))}
+            )}
           </div>
+
+          {/* Writings Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6 mb-8">
             {visibleWritings.map((writing, index) => (
               <div
                 key={writing.id}
@@ -1364,17 +1165,17 @@ const CreativeWriting: React.FC = () => {
                 )}
                 
                 <Card 
-                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in min-h-[320px] ${
+                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in min-h-[280px] ${
                     dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
                   }`}
                   style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => setSelectedWriting(writing)}
                 >
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between mb-3">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-1">
                         {getTypeIcon(writing.type)}
-                        <CardTitle className="text-lg font-semibold line-clamp-2 leading-tight">{writing.title}</CardTitle>
+                        <CardTitle className="text-base font-semibold line-clamp-2">{writing.title}</CardTitle>
                       </div>
                       {isAdmin && (
                         <div className="flex gap-1 ml-2">
@@ -1387,7 +1188,7 @@ const CreativeWriting: React.FC = () => {
                               setIsEditorOpen(true); 
                             }}
                             title="Editează"
-                            className="h-7 w-7 p-0"
+                            className="h-6 w-6 p-0"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -1399,7 +1200,7 @@ const CreativeWriting: React.FC = () => {
                               deleteWriting(writing.id); 
                             }}
                             title="Mută în coș"
-                            className="h-7 w-7 p-0"
+                            className="h-6 w-6 p-0"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -1419,18 +1220,18 @@ const CreativeWriting: React.FC = () => {
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-0 pb-4">
-                    <div className="mb-6">
-                      <p className="text-sm text-muted-foreground line-clamp-5 leading-relaxed">
+                  <CardContent className="pt-0">
+                    <div className="mb-4">
+                      <p className="text-sm text-muted-foreground line-clamp-4 leading-relaxed">
                         {(() => {
                           const plainText = writing.content.replace(/<[^>]*>/g, '');
                           const lines = plainText.split('\n').filter(line => line.trim());
-                          const firstLines = lines.slice(0, 4).join(' ').substring(0, 160);
-                          return firstLines + (lines.length > 4 || plainText.length > 160 ? '...' : '');
+                          const firstLines = lines.slice(0, 3).join(' ').substring(0, 120);
+                          return firstLines + (lines.length > 3 || plainText.length > 120 ? '...' : '');
                         })()}
                       </p>
                     </div>
-                    <div className="space-y-3 mt-auto">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Book className="h-3 w-3" />
@@ -1455,25 +1256,25 @@ const CreativeWriting: React.FC = () => {
               </div>
             ))}
 
-            {/* Album search results for desktop */}
+            {/* Album search results */}
             {searchInAlbums && albumSearchResults.map((writing: any, index) => (
               <div
                 key={`album-${writing.id}`}
                 className="relative"
               >
                 <Card 
-                  className="hover-scale cursor-pointer group animate-scale-in border-2 min-h-[320px]"
+                  className="hover-scale cursor-pointer group animate-scale-in border-2"
                   style={{ 
                     animationDelay: `${(visibleWritings.length + index) * 100}ms`,
                     borderColor: writing._albumInfo?.color || '#7c3aed'
                   }}
                   onClick={() => setSelectedWriting(writing)}
                 >
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between mb-3">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2 flex-1">
                         {getTypeIcon(writing.type)}
-                        <CardTitle className="text-lg font-semibold line-clamp-2 leading-tight">{writing.title}</CardTitle>
+                        <CardTitle className="text-lg line-clamp-2">{writing.title}</CardTitle>
                       </div>
                       <div className="flex flex-col gap-1 ml-2">
                         <Badge 
@@ -1499,14 +1300,12 @@ const CreativeWriting: React.FC = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-0 pb-4">
-                    <div className="mb-6">
-                      <p className="text-sm text-muted-foreground line-clamp-5 leading-relaxed">
-                        {writing.excerpt}
-                      </p>
-                    </div>
-                    <div className="space-y-3 mt-auto">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                      {writing.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4">
                         <span className="flex items-center gap-1">
                           <Book className="h-3 w-3" />
                           {writing.wordCount} cuvinte
@@ -1516,75 +1315,17 @@ const CreativeWriting: React.FC = () => {
                           {writing.lastModified}
                         </span>
                       </div>
-                      <div className="flex justify-center">
-                        <Badge 
-                          variant="outline"  
-                          className={getMoodColor(writing.mood)}
-                        >
-                          {getMoodLabel(writing.mood)}
-                        </Badge>
-                      </div>
+                      <Badge 
+                        variant="outline"  
+                        className={getMoodColor(writing.mood)}
+                      >
+                        {getMoodLabel(writing.mood)}
+                      </Badge>
                     </div>
                   </CardContent>
                 </Card>
               </div>
             ))}
-          </div>
-
-          {/* Mobile Album search results */}
-          {searchInAlbums && albumSearchResults.length > 0 && (
-            <div className="block sm:hidden mb-8">
-              <div className="space-y-3">
-                {albumSearchResults.map((writing: any, index) => (
-                  <div key={`mobile-album-${writing.id}`} className="relative">
-                    <Card 
-                      className="hover-scale cursor-pointer group animate-scale-in border-2 h-auto"
-                      style={{ 
-                        animationDelay: `${(visibleWritings.length + index) * 50}ms`,
-                        borderColor: writing._albumInfo?.color || '#7c3aed'
-                      }}
-                      onClick={() => setSelectedWriting(writing)}
-                    >
-                      <div className="p-4 flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {getTypeIcon(writing.type)}
-                            <h3 className="font-semibold text-base line-clamp-1">{writing.title}</h3>
-                          </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                            {writing.excerpt}
-                          </p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span>{writing.lastModified}</span>
-                            <span>{writing.wordCount} cuvinte</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col items-end gap-2 ml-4">
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs"
-                            style={{ 
-                              borderColor: writing._albumInfo?.color || '#7c3aed',
-                              color: writing._albumInfo?.color || '#7c3aed'
-                            }}
-                          >
-                            {writing._albumInfo?.name}
-                          </Badge>
-                          <Badge 
-                            variant="outline"  
-                            className={`text-xs ${getMoodColor(writing.mood)}`}
-                          >
-                            {getMoodLabel(writing.mood)}
-                          </Badge>
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           </div>
 
           {/* Pagination Controls */}
@@ -1639,7 +1380,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Reading Modal */}
       <Dialog open={!!selectedWriting} onOpenChange={() => setSelectedWriting(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedWriting && (
             <div>
               <DialogHeader className="pb-6">
@@ -1808,7 +1549,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Albums Section */}
       {albums.length > 0 && (
-        <div className="mt-16 mb-12 max-w-7xl mx-auto">
+        <div className="mt-12 max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold gradient-text">Albume</h2>
             {isAdmin && (
@@ -1822,7 +1563,7 @@ const CreativeWriting: React.FC = () => {
             )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {albums.map(album => (
               <AlbumCard
                 key={album.id}
