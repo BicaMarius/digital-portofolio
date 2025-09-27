@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface WritingPiece {
@@ -30,6 +30,7 @@ interface AlbumCardProps {
   isAdmin: boolean;
   onDeleteAlbum?: (albumId: string) => void;
   onEditAlbum?: (albumId: string) => void;
+  onDiscardAlbum?: (albumId: string) => void;
 }
 
 const ITEMS_PER_PAGE = 9; // 3x3 grid
@@ -41,7 +42,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   onWritingClick,
   isAdmin,
   onDeleteAlbum,
-  onEditAlbum
+  onEditAlbum,
+  onDiscardAlbum
 }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -97,16 +99,35 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
               <Button 
                 size="sm" 
                 variant="outline"
-                onClick={() => onEditAlbum?.(album.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditAlbum?.(album.id);
+                }}
+                title="Editează album"
               >
-                Editează
+                <Edit className="h-3 w-3" />
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDiscardAlbum?.(album.id);
+                }}
+                title="Desfă albumul"
+              >
+                <Undo2 className="h-3 w-3" />
               </Button>
               <Button 
                 size="sm" 
                 variant="destructive"
-                onClick={() => onDeleteAlbum?.(album.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteAlbum?.(album.id);
+                }}
+                title="Șterge albumul și scrierile"
               >
-                Șterge
+                <Trash2 className="h-3 w-3" />
               </Button>
             </div>
           )}
