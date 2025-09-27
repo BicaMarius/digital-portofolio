@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2, X, Check, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface WritingPiece {
   id: number;
   title: string;
   type: string;
+  content: string;
   excerpt: string;
   wordCount: number;
   dateWritten: string;
+  lastModified: string;
   tags: string[];
   mood: string;
+  deletedAt?: string;
 }
 
 interface Album {
@@ -25,12 +30,16 @@ interface Album {
 interface AlbumCardProps {
   album: Album;
   writings: WritingPiece[];
+  allWritings: WritingPiece[]; // all available writings for adding to album
   onDrop: (e: React.DragEvent, albumId: string) => void;
   onWritingClick: (writing: WritingPiece) => void;
   isAdmin: boolean;
   onDeleteAlbum?: (albumId: string) => void;
   onEditAlbum?: (albumId: string) => void;
   onDiscardAlbum?: (albumId: string) => void;
+  onAddWritingsToAlbum?: (albumId: string, writingIds: number[]) => void;
+  onRemoveWritingFromAlbum?: (albumId: string, writingId: number) => void;
+  onDeleteWritingFromAlbum?: (albumId: string, writingId: number) => void;
 }
 
 const ITEMS_PER_PAGE = 9; // 3x3 grid
@@ -38,15 +47,21 @@ const ITEMS_PER_PAGE = 9; // 3x3 grid
 export const AlbumCard: React.FC<AlbumCardProps> = ({
   album,
   writings,
+  allWritings,
   onDrop,
   onWritingClick,
   isAdmin,
   onDeleteAlbum,
   onEditAlbum,
-  onDiscardAlbum
+  onDiscardAlbum,
+  onAddWritingsToAlbum,
+  onRemoveWritingFromAlbum,
+  onDeleteWritingFromAlbum
 }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedWritingsToAdd, setSelectedWritingsToAdd] = useState<Set<number>>(new Set());
 
   const albumWritings = writings.filter(w => album.itemIds.includes(w.id));
   const totalPages = Math.ceil(albumWritings.length / ITEMS_PER_PAGE);
@@ -70,6 +85,41 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const handlePageClick = (page: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setCurrentPage(page);
+  };
+
+  // Get first verse/line from content
+  const getFirstVerse = (content: string) => {
+    const plainText = content.replace(/<[^>]*>/g, '');
+    const lines = plainText.split('\n').filter(line => line.trim());
+    return lines[0] || '';
+  };
+
+  // Available writings that are not in this album
+  const availableWritings = allWritings.filter(w => 
+    !w.deletedAt && !album.itemIds.includes(w.id)
+  );
+
+  const handleEditAlbum = () => {
+    setSelectedWritingsToAdd(new Set());
+    setIsEditDialogOpen(true);
+  };
+
+  const handleAddSelectedWritings = () => {
+    if (selectedWritingsToAdd.size > 0) {
+      onAddWritingsToAlbum?.(album.id, Array.from(selectedWritingsToAdd));
+      setSelectedWritingsToAdd(new Set());
+    }
+    setIsEditDialogOpen(false);
+  };
+
+  const toggleWritingSelection = (writingId: number) => {
+    const newSelection = new Set(selectedWritingsToAdd);
+    if (newSelection.has(writingId)) {
+      newSelection.delete(writingId);
+    } else {
+      newSelection.add(writingId);
+    }
+    setSelectedWritingsToAdd(newSelection);
   };
 
   return (
@@ -101,7 +151,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                 variant="outline"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onEditAlbum?.(album.id);
+                  handleEditAlbum();
                 }}
                 title="Editează album"
               >
@@ -153,14 +203,16 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
               {previewWritings.map((writing, index) => (
                 <div
                   key={writing.id}
-                  className="p-2 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors"
+                  className="p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors min-h-[80px]"
                   onClick={() => onWritingClick(writing)}
                 >
-                  <h4 className="text-xs font-medium truncate">{writing.title}</h4>
-                  <p className="text-xs text-muted-foreground truncate">{writing.excerpt}</p>
-                  <div className="flex justify-between items-center mt-1">
+                  <h4 className="text-sm font-medium truncate mb-1">{writing.title}</h4>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                    {getFirstVerse(writing.content) || writing.excerpt}
+                  </p>
+                  <div className="flex justify-between items-center">
                     <span className="text-xs text-muted-foreground">{writing.wordCount} cuv.</span>
-                    <span className="text-xs text-muted-foreground">{writing.dateWritten}</span>
+                    <span className="text-xs text-muted-foreground">{writing.lastModified}</span>
                   </div>
                 </div>
               ))}
@@ -238,6 +290,99 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
           </div>
         )}
       </CardContent>
+
+      {/* Edit Album Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Editează Album: {album.name}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex gap-6 h-full">
+            {/* Current album writings */}
+            <div className="flex-1">
+              <h3 className="font-semibold mb-3">Scrieri în album ({albumWritings.length})</h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {albumWritings.map(writing => (
+                  <div key={writing.id} className="flex items-center justify-between p-3 border rounded">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm">{writing.title}</h4>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {getFirstVerse(writing.content) || writing.excerpt}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onRemoveWritingFromAlbum?.(album.id, writing.id)}
+                        title="Scoate din album"
+                      >
+                        <Undo2 className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onDeleteWritingFromAlbum?.(album.id, writing.id)}
+                        title="Șterge definitiv"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {albumWritings.length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">Album gol</p>
+                )}
+              </div>
+            </div>
+
+            {/* Available writings to add */}
+            <div className="flex-1">
+              <h3 className="font-semibold mb-3">
+                Scrieri disponibile ({availableWritings.length})
+                {selectedWritingsToAdd.size > 0 && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {' '}- {selectedWritingsToAdd.size} selectate
+                  </span>
+                )}
+              </h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {availableWritings.map(writing => (
+                  <div key={writing.id} className="flex items-center gap-3 p-3 border rounded">
+                    <Checkbox
+                      checked={selectedWritingsToAdd.has(writing.id)}
+                      onCheckedChange={() => toggleWritingSelection(writing.id)}
+                    />
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm">{writing.title}</h4>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {getFirstVerse(writing.content) || writing.excerpt}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {availableWritings.length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">Nu sunt scrieri disponibile</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between pt-4 border-t">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Anulează
+            </Button>
+            <Button 
+              onClick={handleAddSelectedWritings}
+              disabled={selectedWritingsToAdd.size === 0}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Adaugă {selectedWritingsToAdd.size > 0 ? selectedWritingsToAdd.size : ''} scrieri
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

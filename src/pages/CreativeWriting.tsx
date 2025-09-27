@@ -271,6 +271,7 @@ const CreativeWriting: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterMood, setFilterMood] = useState<string>('all');
+  const [searchInAlbums, setSearchInAlbums] = useState(false);
   const [selectedWriting, setSelectedWriting] = useState<WritingPiece | null>(null);
 
   // make writings editable in local state (mock persists in-memory only)
@@ -326,6 +327,40 @@ const CreativeWriting: React.FC = () => {
     return hay.includes(term) && (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
   });
 
+  // Search results from albums when enabled
+  const albumSearchResults = searchInAlbums && searchTerm.trim() ? 
+    albums.flatMap(album => {
+      const albumWritings = writings.filter(w => album.itemIds.includes(w.id) && !w.deletedAt);
+      const filteredWritings = (isAdmin ? albumWritings : albumWritings.filter(w => !w.isPrivate)).filter(writing => {
+        const term = normalize(searchTerm.trim());
+        const hay = normalize(writing.title + ' ' + writing.content + ' ' + writing.tags.join(' '));
+        return hay.includes(term) && (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
+      });
+      
+      return filteredWritings.map(writing => ({
+        ...writing,
+        _albumInfo: { id: album.id, name: album.name, color: album.color }
+      }));
+    }) : [];
+
+  // Get first verse/line from content for preview
+  const getFirstVerse = (content: string) => {
+    const plainText = content.replace(/<[^>]*>/g, '');
+    const lines = plainText.split('\n').filter(line => line.trim());
+    return lines.slice(0, 2).join(' ').substring(0, 120) + (lines.length > 2 ? '...' : '');
+  };
+
+  // Update excerpt for new writings
+  const updateWritingExcerpt = (writing: WritingPiece): WritingPiece => {
+    if (!writing.excerpt || writing.excerpt.length < 50) {
+      return {
+        ...writing,
+        excerpt: getFirstVerse(writing.content)
+      };
+    }
+    return writing;
+  };
+
   // word count helper: counts words in plain text (improved)
   const countWords = (htmlOrText: string) => {
     if (!htmlOrText) return 0;
@@ -352,6 +387,7 @@ const CreativeWriting: React.FC = () => {
     const updated: WritingPiece = { 
       ...editing, 
       content: contentHtml, 
+      excerpt: getFirstVerse(contentHtml), // Auto-generate excerpt
       wordCount: plainTextWordCount,
       lastModified: now,
       dateWritten: editing.dateWritten || now
@@ -756,6 +792,44 @@ const CreativeWriting: React.FC = () => {
     });
   };
 
+  const addWritingsToAlbum = (albumId: string, writingIds: number[]) => {
+    setAlbums(albums => albums.map(a => 
+      a.id === albumId 
+        ? { ...a, itemIds: [...a.itemIds, ...writingIds] }
+        : a
+    ));
+    
+    toast({
+      title: 'Scrieri adăugate',
+      description: `${writingIds.length} scrieri au fost adăugate în album.`
+    });
+  };
+
+  const removeWritingFromAlbum = (albumId: string, writingId: number) => {
+    setAlbums(albums => albums.map(a => 
+      a.id === albumId 
+        ? { ...a, itemIds: a.itemIds.filter(id => id !== writingId) }
+        : a
+    ));
+    
+    toast({
+      title: 'Scriere scoasă din album',
+      description: 'Scrierea a fost returnată în biblioteca principală.'
+    });
+  };
+
+  const deleteWritingFromAlbum = (albumId: string, writingId: number) => {
+    // First remove from album
+    setAlbums(albums => albums.map(a => 
+      a.id === albumId 
+        ? { ...a, itemIds: a.itemIds.filter(id => id !== writingId) }
+        : a
+    ));
+    
+    // Then delete the writing (move to trash)
+    deleteWriting(writingId);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -780,11 +854,22 @@ const CreativeWriting: React.FC = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Caută scrieri..."
+                placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-12"
               />
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={searchInAlbums}
+                    onChange={(e) => setSearchInAlbums(e.target.checked)}
+                    className="w-3 h-3 rounded border border-input"
+                  />
+                  <span className="text-muted-foreground whitespace-nowrap">În albume</span>
+                </label>
+              </div>
             </div>
             
             <Select value={filterType} onValueChange={(value) => {
@@ -842,8 +927,9 @@ const CreativeWriting: React.FC = () => {
                   className="bg-art-accent hover:bg-art-accent/80" 
                   onClick={startNewEditing}
                   title="Adaugă text nou"
+                  size="icon"
                 >
-                  <Plus className="h-4 w-4" />
+                  <PenTool className="h-4 w-4" />
                 </Button>
                 
                 {trashedWritings.length > 0 && (
@@ -936,32 +1022,96 @@ const CreativeWriting: React.FC = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-muted-foreground text-sm line-clamp-3">
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
                       {writing.excerpt}
                     </p>
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground">Cuvinte</p>
-                        <p className="font-semibold text-sm">{writing.wordCount}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1">
+                          <Book className="h-3 w-3" />
+                          {writing.wordCount} cuvinte
+                        </span>
+                        <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          Modificat
-                        </p>
-                        <p className="font-semibold text-sm">{writing.lastModified}</p>
+                          {writing.lastModified}
+                        </span>
+                      </div>
+                      <Badge 
+                        variant="outline"  
+                        className={getMoodColor(writing.mood)}
+                      >
+                        {getMoodLabel(writing.mood)}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+
+            {/* Album search results */}
+            {searchInAlbums && albumSearchResults.map((writing: any, index) => (
+              <div
+                key={`album-${writing.id}`}
+                className="relative"
+              >
+                <Card 
+                  className="hover-scale cursor-pointer group animate-scale-in border-2"
+                  style={{ 
+                    animationDelay: `${(visibleWritings.length + index) * 100}ms`,
+                    borderColor: writing._albumInfo?.color || '#7c3aed'
+                  }}
+                  onClick={() => setSelectedWriting(writing)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2 flex-1">
+                        {getTypeIcon(writing.type)}
+                        <CardTitle className="text-lg line-clamp-2">{writing.title}</CardTitle>
+                      </div>
+                      <div className="flex flex-col gap-1 ml-2">
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs"
+                          style={{ 
+                            borderColor: writing._albumInfo?.color || '#7c3aed',
+                            color: writing._albumInfo?.color || '#7c3aed'
+                          }}
+                        >
+                          {writing._albumInfo?.name}
+                        </Badge>
+                        {writing.isPrivate && !isAdmin && (
+                          <Badge variant="outline" className="text-xs">
+                            Private
+                          </Badge>
+                        )}
+                        {writing.published && (
+                          <Badge className="bg-green-500/20 text-green-400 text-xs">
+                            Publicat
+                          </Badge>
+                        )}
                       </div>
                     </div>
-
-                    {/* Type & Mood */}
-                    <div className="flex gap-2 justify-center">
-                      <Badge className="bg-blue-500/20 text-blue-400" variant="outline">
-                        {getTypeLabel(writing.type)}
-                      </Badge>
-                      <Badge className={getMoodColor(writing.mood)} variant="outline">
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                      {writing.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1">
+                          <Book className="h-3 w-3" />
+                          {writing.wordCount} cuvinte
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {writing.lastModified}
+                        </span>
+                      </div>
+                      <Badge 
+                        variant="outline"  
+                        className={getMoodColor(writing.mood)}
+                      >
                         {getMoodLabel(writing.mood)}
                       </Badge>
                     </div>
@@ -1171,12 +1321,16 @@ const CreativeWriting: React.FC = () => {
                 key={album.id}
                 album={album}
                 writings={writings}
+                allWritings={writings}
                 onDrop={onDropOnAlbum}
                 onWritingClick={(writing: WritingPiece) => setSelectedWriting(writing)}
                 isAdmin={isAdmin}
                 onDeleteAlbum={deleteAlbumAndWritings}
                 onEditAlbum={editAlbum}
                 onDiscardAlbum={discardAlbum}
+                onAddWritingsToAlbum={addWritingsToAlbum}
+                onRemoveWritingFromAlbum={removeWritingFromAlbum}
+                onDeleteWritingFromAlbum={deleteWritingFromAlbum}
               />
             ))}
           </div>
