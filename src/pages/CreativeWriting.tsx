@@ -263,6 +263,150 @@ Stau la fereastră și privesc orașul care se trezește. Oamenii grăbiți, ma�
     tags: ['dimineață', 'ritual', 'reflecție'],
     mood: 'contemplative',
     published: true
+  },
+  {
+    id: 13,
+    title: 'Marea și Visurile',
+    type: 'poetry',
+    content: `Marea cântă mereu aceeași melodie,
+Valurile și-au găsit ritmul perfect,
+Fiecare undă poartă o poveste,
+Fiecare spumă, un vis neîmplinit.
+
+Stau pe țărm și ascult,
+Cum îmi șoptește secretele adâncului,
+Cum îmi vorbește despre eternitate,
+Cum mă îndeamnă să visez mai mult.`,
+    excerpt: 'Marea cântă mereu aceeași melodie, Valurile și-au găsit ritmul perfect...',
+    wordCount: 51,
+    dateWritten: '2024-07-08',
+    lastModified: '2024-07-08',
+    tags: ['mare', 'visuri', 'natură', 'eternitate'],
+    mood: 'contemplative',
+    published: true
+  },
+  {
+    id: 14,
+    title: 'Amintiri din Copilărie',
+    type: 'short-story',
+    content: `Casa bunicilor avea mirosul acela special pe care nu-l voi uita niciodată. Lemn vechi, flori uscate și prăjituri de sâmbătă. În fiecare vară mă întorceam acolo ca într-un refugiu magic.
+
+Bunicul îmi povestea despre războiul din tinerețe, bunica mă învăța să fac cozonac. Erau zile lungi și calde, fără griji, când timpul părea că stă în loc și fericirea era ceva de la sine înțeles.`,
+    excerpt: 'Casa bunicilor avea mirosul acela special pe care nu-l voi uita niciodată...',
+    wordCount: 108,
+    dateWritten: '2024-08-20',
+    lastModified: '2024-08-21',
+    tags: ['copilărie', 'bunici', 'amintiri', 'nostalgie'],
+    mood: 'nostalgic',
+    published: true
+  },
+  {
+    id: 15,
+    title: 'Dansul Frunzelor',
+    type: 'poetry',
+    content: `Frunzele dansează în vânt,
+Ca niște balerini nebuni,
+Învârtindu-se spre cer,
+Apoi căzând ușor pe păpădii.
+
+Privesc acest spectacol,
+Și înțeleg frumusețea schimbării,
+Cum totul se transformă,
+Cum nimic nu rămâne neschimbat.`,
+    excerpt: 'Frunzele dansează în vânt, Ca niște balerini nebuni...',
+    wordCount: 39,
+    dateWritten: '2024-10-12',
+    lastModified: '2024-10-12',
+    tags: ['frunze', 'dans', 'schimbare', 'natură'],
+    mood: 'joyful',
+    published: true
+  },
+  {
+    id: 16,
+    title: 'Prietenia Adevărată',
+    type: 'essay',
+    content: `Prietenia adevărată e ca un comori rar găsit. Nu e măsurată în numărul de mesaje trimise sau în frecvența întâlnirilor. E în acele momente când cineva te înțelege fără cuvinte.
+
+Am învățat că prietenii adevărați sunt cei care rămân lângă tine când totul pare să meargă prost, care îți spun adevărul chiar când doare, care îți celebrează succesele fără gelozie.`,
+    excerpt: 'Prietenia adevărată e ca un comori rar găsit...',
+    wordCount: 87,
+    dateWritten: '2024-09-15',
+    lastModified: '2024-09-16',
+    tags: ['prietenie', 'relații', 'adevăr', 'loialitate'],
+    mood: 'contemplative',
+    published: true
+  },
+  {
+    id: 17,
+    title: 'Noaptea Înstelată',
+    type: 'poetry',
+    content: `Sub cerul înstelat stau și privesc,
+Miliarde de lumini îndepărtate,
+Fiecare stea o lume necunoscută,
+Fiecare constelație, o poveste.
+
+Mă simt atât de mic și totuși,
+În același timp, parte din totul,
+Legat de univers printr-un fir invizibil,
+Care mă face să mă simt acasă.`,
+    excerpt: 'Sub cerul înstelat stau și privesc, Miliarde de lumini îndepărtate...',
+    wordCount: 48,
+    dateWritten: '2024-06-25',
+    lastModified: '2024-06-25',
+    tags: ['noapte', 'stele', 'univers', 'conexiune'],
+    mood: 'contemplative',
+    published: true
+  },
+  {
+    id: 18,
+    title: 'Călătorul Singur',
+    type: 'short-story',
+    content: `Trenul către necunoscut pleca în fiecare dimineață la ora șapte. Am stat luni întregi și m-am uitat la el, întrebându-mă unde duc șinele acelea și ce se întâmplă cu oamenii care urcă în el.
+
+Într-o zi am luat decizia. Am cumpărat un bilet fără destinație și am urcat. Nu știam unde mă duc, dar pentru prima dată în viață simțeam că trăiesc cu adevărat.`,
+    excerpt: 'Trenul către necunoscut pleca în fiecare dimineață la ora șapte...',
+    wordCount: 95,
+    dateWritten: '2024-04-03',
+    lastModified: '2024-04-04',
+    tags: ['călătorie', 'aventură', 'necunoscut', 'libertate'],
+    mood: 'joyful',
+    published: true
+  },
+  {
+    id: 19,
+    title: 'Răspunsuri în Ceai',
+    type: 'essay',
+    content: `Ceaiul are o magie aparte. Nu e doar băutura caldă care îți încălzește corpul într-o zi rece. E ritualul, e pauza, e momentul când îți permiți să te oprești din goană și să respiri.
+
+În fiecare cană de ceai se ascund răspunsuri. La întrebări pe care nici măcar nu știai că le ai. E suficient să bei încet, să simți căldura, să lași mintea să se liniștească.`,
+    excerpt: 'Ceaiul are o magie aparte. Nu e doar băutura caldă care îți încălzește corpul...',
+    wordCount: 92,
+    dateWritten: '2024-11-15',
+    lastModified: '2024-11-15',
+    tags: ['ceai', 'ritual', 'liniște', 'răspunsuri'],
+    mood: 'contemplative',
+    published: true
+  },
+  {
+    id: 20,
+    title: 'Ultimul Petec de Zăpadă',
+    type: 'poetry',
+    content: `Ultimul petec de zăpadă se topește,
+Sub soarele timid de martie,
+Iarna își ia rămas bun încet,
+Lăsând loc primăverii să înflorească.
+
+Privesc cum dispare,
+Acest ultim martor al frigului,
+Și simt cum în inimă se naște,
+Un nou început, o nouă speranță.`,
+    excerpt: 'Ultimul petec de zăpadă se topește, Sub soarele timid de martie...',
+    wordCount: 43,
+    dateWritten: '2024-03-15',
+    lastModified: '2024-03-15',
+    tags: ['primăvară', 'schimbare', 'speranță', 'nou început'],
+    mood: 'joyful',
+    published: true
   }
 ];
 
@@ -282,6 +426,10 @@ const CreativeWriting: React.FC = () => {
   
   // trash state for deleted items (24h retention)
   const [trashedWritings, setTrashedWritings] = useState<WritingPiece[]>([]);
+
+  // Pagination for main writings grid (2 rows of 6 items each = 12 items per page)
+  const [currentPage, setCurrentPage] = useState(0);
+  const ITEMS_PER_PAGE = 12; // 2 rows × 6 columns
 
   // admin-managed type and mood lists
   const [types, setTypes] = useState<Array<{ key: string; label: string }>>([
@@ -320,12 +468,24 @@ const CreativeWriting: React.FC = () => {
   });
 
   // search across title and content, diacritics-insensitive
-  const visibleWritings = (isAdmin ? writingsNotInAlbums : writingsNotInAlbums.filter(w => !w.isPrivate)).filter(writing => {
+  const allVisibleWritings = (isAdmin ? writingsNotInAlbums : writingsNotInAlbums.filter(w => !w.isPrivate)).filter(writing => {
     const term = normalize(searchTerm.trim());
     if (!term) return (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
     const hay = normalize(writing.title + ' ' + writing.content + ' ' + writing.tags.join(' '));
     return hay.includes(term) && (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(allVisibleWritings.length / ITEMS_PER_PAGE);
+  const visibleWritings = allVisibleWritings.slice(
+    currentPage * ITEMS_PER_PAGE,
+    (currentPage + 1) * ITEMS_PER_PAGE
+  );
+
+  // Reset to first page when search/filter changes
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchTerm, filterType, filterMood]);
 
   // Search results from albums when enabled
   const albumSearchResults = searchInAlbums && searchTerm.trim() ? 
@@ -830,6 +990,32 @@ const CreativeWriting: React.FC = () => {
     deleteWriting(writingId);
   };
 
+  const updateAlbum = (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => {
+    setAlbums(albums => albums.map(a => 
+      a.id === albumId ? { ...a, ...updates } : a
+    ));
+    
+    if (updates.name || updates.color) {
+      toast({
+        title: 'Album actualizat',
+        description: 'Modificările au fost salvate cu succes.'
+      });
+    }
+  };
+
+  const updateAlbum = (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => {
+    setAlbums(albums => albums.map(a => 
+      a.id === albumId ? { ...a, ...updates } : a
+    ));
+    
+    if (updates.name || updates.color) {
+      toast({
+        title: 'Album actualizat',
+        description: 'Modificările au fost salvate cu succes.'
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -860,15 +1046,30 @@ const CreativeWriting: React.FC = () => {
                 className="pl-10 pr-12"
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={searchInAlbums}
-                    onChange={(e) => setSearchInAlbums(e.target.checked)}
-                    className="w-3 h-3 rounded border border-input"
-                  />
-                  <span className="text-muted-foreground whitespace-nowrap">În albume</span>
-                </label>
+                <div className="flex items-center gap-2 text-xs cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      id="searchInAlbums"
+                      checked={searchInAlbums}
+                      onChange={(e) => setSearchInAlbums(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <label 
+                      htmlFor="searchInAlbums"
+                      className={`relative inline-block w-10 h-5 rounded-full transition-colors cursor-pointer ${
+                        searchInAlbums 
+                          ? 'bg-gradient-to-r from-primary to-primary/80' 
+                          : 'bg-muted border border-muted-foreground/20'
+                      }`}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${
+                        searchInAlbums ? 'translate-x-5' : 'translate-x-0.5'
+                      }`} />
+                    </label>
+                  </div>
+                  <span className="text-muted-foreground whitespace-nowrap select-none">În albume</span>
+                </div>
               </div>
             </div>
             
@@ -949,7 +1150,7 @@ const CreativeWriting: React.FC = () => {
           </div>
 
           {/* Writings Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
             {visibleWritings.map((writing, index) => (
               <div
                 key={writing.id}
@@ -1121,8 +1322,49 @@ const CreativeWriting: React.FC = () => {
             ))}
           </div>
 
-          {visibleWritings.length === 0 && (
-            <div className="text-center py-12">
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mb-8">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                disabled={currentPage === 0}
+                className="px-3"
+              >
+                ←
+              </Button>
+              
+              <div className="flex gap-2">
+                {Array.from({ length: totalPages }).map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentPage(index)}
+                    className={`w-8 h-8 rounded-full text-sm transition-all duration-200 ${
+                      index === currentPage 
+                        ? 'bg-primary text-primary-foreground shadow-lg' 
+                        : 'bg-muted hover:bg-muted-foreground/20 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                disabled={currentPage === totalPages - 1}
+                className="px-3"
+              >
+                →
+              </Button>
+            </div>
+          )}
+
+          {allVisibleWritings.length === 0 && (
+            <div className="text-center py-12 mb-8">
               <PenTool className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">Nu au fost găsite scrieri</p>
             </div>
@@ -1331,6 +1573,7 @@ const CreativeWriting: React.FC = () => {
                 onAddWritingsToAlbum={addWritingsToAlbum}
                 onRemoveWritingFromAlbum={removeWritingFromAlbum}
                 onDeleteWritingFromAlbum={deleteWritingFromAlbum}
+                onUpdateAlbum={updateAlbum}
               />
             ))}
           </div>
