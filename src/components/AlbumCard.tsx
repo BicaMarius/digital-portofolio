@@ -75,6 +75,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
   const [draggedWritingId, setDraggedWritingId] = useState<number | null>(null);
+  const [editDialogPage, setEditDialogPage] = useState(0);
 
   const albumWritings = writings.filter(w => album.itemIds.includes(w.id));
   const totalPages = Math.ceil(albumWritings.length / ITEMS_PER_PAGE);
@@ -116,6 +117,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
     setSelectedWritingsToAdd(new Set());
     setAlbumName(album.name);
     setAlbumColor(album.color || '#7c3aed');
+    setEditDialogPage(0); // Reset to first page
     setIsEditDialogOpen(true);
   };
 
@@ -435,83 +437,121 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
               </div>
             </div>
 
-            <div className="flex gap-6 h-[400px]">
-              {/* Current album writings */}
-              <div className="flex-1">
-                <h3 className="font-semibold mb-3">Scrieri în album ({albumWritings.length})</h3>
-                <div className="space-y-2 h-full overflow-y-auto">
-                  {albumWritings.map((writing, index) => (
-                    <div 
-                      key={writing.id} 
-                      className="flex items-center justify-between p-3 border rounded hover:bg-muted/50"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, writing.id)}
-                      onDragOver={(e) => handleDragOver(e, writing.id)}
-                      onDrop={(e) => handleDrop(e, writing.id)}
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm">{writing.title}</h4>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {getFirstVerse(writing.content) || writing.excerpt}
-                          </p>
+            {/* Single list with album writings first, then available writings */}
+            <div className="h-[400px]">
+              <h3 className="font-semibold mb-3">
+                Toate scrierile ({allWritings.filter(w => !w.deletedAt).length})
+              </h3>
+              
+              {/* Combined list with pagination */}
+              <div className="space-y-2 h-[320px] overflow-y-auto mb-4">
+                {(() => {
+                  // Create combined list: album writings first, then others
+                  const albumWritingsInOrder = albumWritings;
+                  const otherWritings = allWritings.filter(w => !w.deletedAt && !album.itemIds.includes(w.id));
+                  const combinedWritings = [...albumWritingsInOrder, ...otherWritings];
+                  
+                  const EDIT_ITEMS_PER_PAGE = 10;
+                  const totalEditPages = Math.ceil(combinedWritings.length / EDIT_ITEMS_PER_PAGE);
+                  const currentEditPage = Math.min(Math.floor(editDialogPage || 0), Math.max(0, totalEditPages - 1));
+                  const displayedWritings = combinedWritings.slice(
+                    currentEditPage * EDIT_ITEMS_PER_PAGE,
+                    (currentEditPage + 1) * EDIT_ITEMS_PER_PAGE
+                  );
+                  
+                  return (
+                    <>
+                      {displayedWritings.map((writing) => {
+                        const isInAlbum = album.itemIds.includes(writing.id);
+                        return (
+                          <div 
+                            key={writing.id} 
+                            className={`flex items-center justify-between p-3 border rounded hover:bg-muted/50 ${
+                              isInAlbum ? 'bg-primary/5 border-primary/20' : ''
+                            }`}
+                            draggable={isInAlbum}
+                            onDragStart={isInAlbum ? (e) => handleDragStart(e, writing.id) : undefined}
+                            onDragOver={isInAlbum ? (e) => handleDragOver(e, writing.id) : undefined}
+                            onDrop={isInAlbum ? (e) => handleDrop(e, writing.id) : undefined}
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              {isInAlbum && <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />}
+                              <div className="flex-1">
+                                <h4 className="font-medium text-sm">{writing.title}</h4>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {getFirstVerse(writing.content) || writing.excerpt}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-1 ml-2">
+                              <Button
+                                size="sm"
+                                variant={isInAlbum ? "outline" : "default"}
+                                onClick={() => toggleWritingInAlbum(writing.id, isInAlbum)}
+                                title={isInAlbum ? "Scoate din album" : "Adaugă în album"}
+                              >
+                                {isInAlbum ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                              </Button>
+                              {isInAlbum && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => onDeleteWritingFromAlbum?.(album.id, writing.id)}
+                                  title="Șterge definitiv"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      {combinedWritings.length === 0 && (
+                        <p className="text-muted-foreground text-center py-8">Nu există scrieri disponibile</p>
+                      )}
+                      
+                      {/* Pagination for edit dialog */}
+                      {totalEditPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditDialogPage(Math.max(0, currentEditPage - 1))}
+                            disabled={currentEditPage === 0}
+                          >
+                            ←
+                          </Button>
+                          
+                          <div className="flex gap-1">
+                            {Array.from({ length: totalEditPages }).map((_, index) => (
+                              <button
+                                key={index}
+                                onClick={() => setEditDialogPage(index)}
+                                className={`w-6 h-6 rounded text-xs transition-all ${
+                                  index === currentEditPage 
+                                    ? 'bg-primary text-primary-foreground' 
+                                    : 'bg-muted hover:bg-muted-foreground/20'
+                                }`}
+                              >
+                                {index + 1}
+                              </button>
+                            ))}
+                          </div>
+                          
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditDialogPage(Math.min(totalEditPages - 1, currentEditPage + 1))}
+                            disabled={currentEditPage === totalEditPages - 1}
+                          >
+                            →
+                          </Button>
                         </div>
-                      </div>
-                      <div className="flex gap-1 ml-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => toggleWritingInAlbum(writing.id, true)}
-                          title="Scoate din album"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => onDeleteWritingFromAlbum?.(album.id, writing.id)}
-                          title="Șterge definitiv"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {albumWritings.length === 0 && (
-                    <p className="text-muted-foreground text-center py-8">Album gol</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Available writings to add */}
-              <div className="flex-1">
-                <h3 className="font-semibold mb-3">
-                  Toate scrierile ({allWritings.filter(w => !w.deletedAt).length})
-                </h3>
-                <div className="space-y-2 h-full overflow-y-auto">
-                  {allWritings.filter(w => !w.deletedAt).map(writing => {
-                    const isInAlbum = album.itemIds.includes(writing.id);
-                    return (
-                      <div key={writing.id} className="flex items-center gap-3 p-3 border rounded hover:bg-muted/50">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm">{writing.title}</h4>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {getFirstVerse(writing.content) || writing.excerpt}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant={isInAlbum ? "outline" : "default"}
-                          onClick={() => toggleWritingInAlbum(writing.id, isInAlbum)}
-                          title={isInAlbum ? "Scoate din album" : "Adaugă în album"}
-                        >
-                          {isInAlbum ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>

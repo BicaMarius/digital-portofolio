@@ -487,6 +487,14 @@ const CreativeWriting: React.FC = () => {
     setCurrentPage(0);
   }, [searchTerm, filterType, filterMood]);
 
+  // Auto-adjust page when items are removed and current page becomes empty
+  useEffect(() => {
+    if (currentPage > 0 && visibleWritings.length === 0 && allVisibleWritings.length > 0) {
+      const newTotalPages = Math.ceil(allVisibleWritings.length / ITEMS_PER_PAGE);
+      setCurrentPage(Math.max(0, newTotalPages - 1));
+    }
+  }, [allVisibleWritings.length, currentPage, visibleWritings.length]);
+
   // Search results from albums when enabled
   const albumSearchResults = searchInAlbums && searchTerm.trim() ? 
     albums.flatMap(album => {
@@ -1137,7 +1145,7 @@ const CreativeWriting: React.FC = () => {
           </div>
 
           {/* Writings Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6 mb-8">
             {visibleWritings.map((writing, index) => (
               <div
                 key={writing.id}
@@ -1157,65 +1165,74 @@ const CreativeWriting: React.FC = () => {
                 )}
                 
                 <Card 
-                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in ${
+                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in min-h-[280px] ${
                     dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
                   }`}
                   style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => setSelectedWriting(writing)}
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-1">
                         {getTypeIcon(writing.type)}
-                        <CardTitle className="text-lg line-clamp-2">{writing.title}</CardTitle>
+                        <CardTitle className="text-base font-semibold line-clamp-2">{writing.title}</CardTitle>
                       </div>
-                      <div className="flex flex-col gap-1 ml-2">
-                        {writing.isPrivate && !isAdmin && (
-                          <Badge variant="outline" className="text-xs">
-                            Private
-                          </Badge>
-                        )}
-                        {writing.published && (
-                          <Badge className="bg-green-500/20 text-green-400 text-xs">
-                            Publicat
-                          </Badge>
-                        )}
-                        {isAdmin && (
-                          <div className="flex gap-1">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                setEditing(writing); 
-                                setIsEditorOpen(true); 
-                              }}
-                              title="Editează"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive" 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                deleteWriting(writing.id); 
-                              }}
-                              title="Mută în coș"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-1 ml-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setEditing(writing); 
+                              setIsEditorOpen(true); 
+                            }}
+                            title="Editează"
+                            className="h-6 w-6 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              deleteWriting(writing.id); 
+                            }}
+                            title="Mută în coș"
+                            className="h-6 w-6 p-0"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {writing.isPrivate && !isAdmin && (
+                        <Badge variant="outline" className="text-xs">
+                          Private
+                        </Badge>
+                      )}
+                      {writing.published && (
+                        <Badge className="bg-green-500/20 text-green-400 text-xs">
+                          Publicat
+                        </Badge>
+                      )}
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
-                      {writing.excerpt}
-                    </p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-4">
+                  <CardContent className="pt-0">
+                    <div className="mb-4">
+                      <p className="text-sm text-muted-foreground line-clamp-4 leading-relaxed">
+                        {(() => {
+                          const plainText = writing.content.replace(/<[^>]*>/g, '');
+                          const lines = plainText.split('\n').filter(line => line.trim());
+                          const firstLines = lines.slice(0, 3).join(' ').substring(0, 120);
+                          return firstLines + (lines.length > 3 || plainText.length > 120 ? '...' : '');
+                        })()}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Book className="h-3 w-3" />
                           {writing.wordCount} cuvinte
@@ -1225,12 +1242,14 @@ const CreativeWriting: React.FC = () => {
                           {writing.lastModified}
                         </span>
                       </div>
-                      <Badge 
-                        variant="outline"  
-                        className={getMoodColor(writing.mood)}
-                      >
-                        {getMoodLabel(writing.mood)}
-                      </Badge>
+                      <div className="flex justify-center">
+                        <Badge 
+                          variant="outline"  
+                          className={`text-xs ${getMoodColor(writing.mood)}`}
+                        >
+                          {getMoodLabel(writing.mood)}
+                        </Badge>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
