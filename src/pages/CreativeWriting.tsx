@@ -1003,19 +1003,6 @@ const CreativeWriting: React.FC = () => {
     }
   };
 
-  const updateAlbum = (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => {
-    setAlbums(albums => albums.map(a => 
-      a.id === albumId ? { ...a, ...updates } : a
-    ));
-    
-    if (updates.name || updates.color) {
-      toast({
-        title: 'Album actualizat',
-        description: 'Modificările au fost salvate cu succes.'
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
