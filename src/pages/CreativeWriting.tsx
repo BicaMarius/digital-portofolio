@@ -275,6 +275,12 @@ const CreativeWriting: React.FC = () => {
 
   // make writings editable in local state (mock persists in-memory only)
   const [writings, setWritings] = useState<WritingPiece[]>(mockWritings);
+  
+  // albums state (must be declared early to avoid temporal dead zone)
+  const [albums, setAlbums] = useState<Album[]>([]);
+  
+  // trash state for deleted items (24h retention)
+  const [trashedWritings, setTrashedWritings] = useState<WritingPiece[]>([]);
 
   // admin-managed type and mood lists
   const [types, setTypes] = useState<Array<{ key: string; label: string }>>([
@@ -391,11 +397,6 @@ const CreativeWriting: React.FC = () => {
     }
   }, [isEditorOpen, editing]);
 
-  // albums state (declared before persistence effects)
-  const [albums, setAlbums] = useState<Album[]>([]);
-  
-  // trash state for deleted items (24h retention)
-  const [trashedWritings, setTrashedWritings] = useState<WritingPiece[]>([]);
 
   // persistence: load from localStorage on mount
   useEffect(() => {
