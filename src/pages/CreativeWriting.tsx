@@ -1206,8 +1206,8 @@ const CreativeWriting: React.FC = () => {
             <h2 className="text-2xl font-bold gradient-text">Scrieri</h2>
           </div>
 
-          {/* Writings Grid (cards slightly larger to fit details) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 mb-8">
+          {/* Writings Grid - Responsive with better spacing */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 mb-8">
             {visibleWritings.map((writing, index) => (
               <div
                 key={writing.id}
@@ -1219,14 +1219,8 @@ const CreativeWriting: React.FC = () => {
                 onDragLeave={onDragLeave}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  // Close any existing menu first
-                  if (contextMenu.open) {
-                    setContextMenu({ open: false, x: 0, y: 0, writingId: null });
-                  }
-                  setTimeout(() => {
-                    setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
-                    setContextTargetWriting(writing);
-                  }, 10);
+                  setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
+                  setContextTargetWriting(writing);
                 }}
               >
                 {/* Drag Drop Indicator */}
@@ -1236,23 +1230,22 @@ const CreativeWriting: React.FC = () => {
                     isActive={true} 
                   />
                 )}
-                {/* Card: on small screens show compact horizontal list item, on larger show full card */}
                 <Card 
-                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in h-full flex flex-col ${
+                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in h-full flex flex-col min-h-[280px] ${
                     dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
                   }`
                   }
                   style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => setSelectedWriting(writing)}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-1">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
                         {getTypeIcon(writing.type)}
-                        <CardTitle className="text-base font-semibold line-clamp-2">{writing.title}</CardTitle>
+                        <CardTitle className="text-lg font-semibold line-clamp-2 leading-tight">{writing.title}</CardTitle>
                       </div>
                       {isAdmin && (
-                        <div className="flex gap-1 ml-2">
+                        <div className="flex gap-1 ml-2 flex-shrink-0">
                           <Button 
                             size="sm" 
                             variant="outline" 
@@ -1262,7 +1255,7 @@ const CreativeWriting: React.FC = () => {
                               setIsEditorOpen(true); 
                             }}
                             title="Editează"
-                            className="h-6 w-6 p-0"
+                            className="h-7 w-7 p-0"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -1272,36 +1265,46 @@ const CreativeWriting: React.FC = () => {
                             variant="destructive"
                             onClick={(e) => { e.stopPropagation(); deleteWriting(writing.id); }}
                             title="Șterge"
-                            className="h-6 w-6 p-0 ml-1"
+                            className="h-7 w-7 p-0 ml-1"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
-                      </div>
-                    )}
+                        </div>
+                      )}
                     </div>
                   </CardHeader>
 
-                  <CardContent className="flex-1">
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                  <CardContent className="flex-1 flex flex-col">
+                    <p className="text-sm text-muted-foreground mb-6 line-clamp-4 leading-relaxed flex-1">
                       {writing.excerpt}
                     </p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                          <Book className="h-3 w-3" />
-                          {writing.wordCount} cuvinte
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {writing.lastModified}
-                        </span>
+                    <div className="space-y-3 mt-auto">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1">
+                            <Book className="h-3 w-3" />
+                            {writing.wordCount} cuvinte
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {writing.lastModified}
+                          </span>
+                        </div>
                       </div>
-                      <Badge 
-                        variant="outline"  
-                        className={getMoodColor(writing.mood)}
-                      >
-                        {getMoodLabel(writing.mood)}
-                      </Badge>
+                      <div className="flex items-center justify-between">
+                        <Badge 
+                          variant="outline"  
+                          className={getMoodColor(writing.mood)}
+                        >
+                          {getMoodLabel(writing.mood)}
+                        </Badge>
+                        <Badge 
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {getTypeLabel(writing.type)}
+                        </Badge>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1613,7 +1616,7 @@ const CreativeWriting: React.FC = () => {
             )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
             {albums.map(album => (
               <AlbumCard
                 key={album.id}
@@ -1757,10 +1760,14 @@ const CreativeWriting: React.FC = () => {
 
       {/* Context menu floating */}
       {contextMenu.open && (
-        <div 
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 60 }}
-          onMouseLeave={() => !hoveredAlbumSubmenu && setContextMenu({ open: false, x: 0, y: 0, writingId: null })}
-        >
+        <>
+          <div 
+            className="fixed inset-0 z-50" 
+            onClick={() => setContextMenu({ open: false, x: 0, y: 0, writingId: null })}
+          />
+          <div 
+            style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 60 }}
+          >
           <div className="bg-popover border rounded shadow-md p-1 w-44 backdrop-blur-sm">
             {/* Add to... with hover submenu */}
             <div 
@@ -1863,7 +1870,8 @@ const CreativeWriting: React.FC = () => {
               Șterge
             </button>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Album Name Dialog */}
