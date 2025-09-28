@@ -35,6 +35,7 @@ interface AlbumCardProps {
   allWritings: WritingPiece[]; // all available writings for adding to album
   onDrop: (e: React.DragEvent, albumId: string) => void;
   onWritingClick: (writing: WritingPiece) => void;
+  onEditWriting?: (writing: WritingPiece) => void;
   isAdmin: boolean;
   onDeleteAlbum?: (albumId: string) => void;
   onEditAlbum?: (albumId: string) => void;
@@ -58,6 +59,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   allWritings,
   onDrop,
   onWritingClick,
+  onEditWriting,
   isAdmin,
   onDeleteAlbum,
   onEditAlbum,
@@ -195,9 +197,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   return (
     <>
       <Card 
-        className={`transition-all duration-300 hover:shadow-lg border-2 ${
-          isExpanded ? 'col-span-2 row-span-2' : ''
-        }`}
+        className={`transition-all duration-300 hover:shadow-lg border-2`}
         style={{ borderColor: album.color || '#7c3aed' }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => onDrop(e, album.id)}
@@ -287,7 +287,16 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                         <GripVertical className="h-3 w-3" />
                       </div>
                     )}
-                    <h4 className="text-sm font-medium truncate mb-2">{writing.title}</h4>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-medium truncate">{writing.title}</h4>
+                      {isAdmin && (
+                        <div className="ml-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" variant="outline" onClick={() => onEditWriting?.(writing)} title="Editează">
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground line-clamp-3 mb-2">
                       {getFirstVerse(writing.content) || writing.excerpt}
                     </p>
@@ -444,7 +453,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
               </h3>
               
               {/* Combined list with pagination */}
-              <div className="space-y-2 h-[320px] overflow-y-auto mb-4">
+              <div className="space-y-2 h-[320px] overflow-y-auto mb-4 theme-scrollbar">
                 {(() => {
                   // Create combined list: album writings first, then others
                   const albumWritingsInOrder = albumWritings;
@@ -468,11 +477,12 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             key={writing.id} 
                             className={`flex items-center justify-between p-3 border rounded hover:bg-muted/50 ${
                               isInAlbum ? 'bg-primary/5 border-primary/20' : ''
-                            }`}
+                            } cursor-pointer`}
                             draggable={isInAlbum}
                             onDragStart={isInAlbum ? (e) => handleDragStart(e, writing.id) : undefined}
                             onDragOver={isInAlbum ? (e) => handleDragOver(e, writing.id) : undefined}
                             onDrop={isInAlbum ? (e) => handleDrop(e, writing.id) : undefined}
+                            onClick={() => onWritingClick(writing)}
                           >
                             <div className="flex items-center gap-3 flex-1">
                               {isInAlbum && <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />}
@@ -483,7 +493,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                 </p>
                               </div>
                             </div>
-                            <div className="flex gap-1 ml-2">
+                            <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 size="sm"
                                 variant={isInAlbum ? "outline" : "default"}
@@ -491,6 +501,9 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                 title={isInAlbum ? "Scoate din album" : "Adaugă în album"}
                               >
                                 {isInAlbum ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => onEditWriting?.(writing)} title="Editează">
+                                <Edit className="h-3 w-3" />
                               </Button>
                               {isInAlbum && (
                                 <Button

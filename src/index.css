@@ -413,3 +413,30 @@
     @apply border-blue-500 bg-blue-500/10 text-blue-500;
   }
 }
+
+/* Themed custom scrollbar to match dashboard look */
+@layer components {
+  .theme-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .theme-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.02);
+    border-radius: 999px;
+  }
+  .theme-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(124,58,237,0.9), rgba(59,130,246,0.9));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .theme-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(124,58,237,0.9) rgba(255,255,255,0.02); }
+
+  /* Mobile-specific control layout helpers: stack on small screens, single-row on md+ */
+  .controls-two-rows {
+    @apply flex flex-col gap-3;
+  }
+  @screen md {
+    .controls-two-rows { @apply flex-row items-center gap-4; }
+  }
+}

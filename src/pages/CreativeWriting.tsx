@@ -427,9 +427,10 @@ const CreativeWriting: React.FC = () => {
   // trash state for deleted items (24h retention)
   const [trashedWritings, setTrashedWritings] = useState<WritingPiece[]>([]);
 
-  // Pagination for main writings grid (2 rows of 6 items each = 12 items per page)
+  // Pagination for main writings grid (2 rows; columns depend on viewport)
   const [currentPage, setCurrentPage] = useState(0);
-  const ITEMS_PER_PAGE = 12; // 2 rows × 6 columns
+  const [columns, setColumns] = useState(3);
+  const [itemsPerPage, setItemsPerPage] = useState(6); // columns * 2
 
   // admin-managed type and mood lists
   const [types, setTypes] = useState<Array<{ key: string; label: string }>>([
@@ -476,10 +477,10 @@ const CreativeWriting: React.FC = () => {
   });
 
   // Pagination calculations
-  const totalPages = Math.ceil(allVisibleWritings.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(allVisibleWritings.length / itemsPerPage || 1);
   const visibleWritings = allVisibleWritings.slice(
-    currentPage * ITEMS_PER_PAGE,
-    (currentPage + 1) * ITEMS_PER_PAGE
+    currentPage * itemsPerPage,
+    (currentPage + 1) * itemsPerPage
   );
 
   // Reset to first page when search/filter changes
@@ -490,10 +491,14 @@ const CreativeWriting: React.FC = () => {
   // Auto-adjust page when items are removed and current page becomes empty
   useEffect(() => {
     if (currentPage > 0 && visibleWritings.length === 0 && allVisibleWritings.length > 0) {
-      const newTotalPages = Math.ceil(allVisibleWritings.length / ITEMS_PER_PAGE);
+      const newTotalPages = Math.ceil(allVisibleWritings.length / itemsPerPage || 1);
       setCurrentPage(Math.max(0, newTotalPages - 1));
     }
-  }, [allVisibleWritings.length, currentPage, visibleWritings.length]);
+  }, [allVisibleWritings.length, currentPage, visibleWritings.length, itemsPerPage]);
+  
+  // Add itemsPerPage as dependency for pagination effect
+  useEffect(() => {}, [itemsPerPage]);
+  
 
   // Search results from albums when enabled
   const albumSearchResults = searchInAlbums && searchTerm.trim() ? 
@@ -601,6 +606,25 @@ const CreativeWriting: React.FC = () => {
     }
   }, [isEditorOpen, editing]);
 
+  // responsive columns (match Tailwind breakpoints used in grid)
+  useEffect(() => {
+    const calc = () => {
+      const w = window.innerWidth;
+      let cols = 1;
+      if (w >= 1536) cols = 5; // 2xl
+      else if (w >= 1280) cols = 4; // xl
+      else if (w >= 1024) cols = 3; // lg
+      else if (w >= 768) cols = 2; // md
+      else cols = 1;
+      setColumns(cols);
+      setItemsPerPage(cols * 2);
+    };
+    calc();
+    const onResize = () => calc();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
 
   // persistence: load from localStorage on mount
   useEffect(() => {
@@ -665,6 +689,10 @@ const CreativeWriting: React.FC = () => {
     sourceId: null,
     targetId: null
   });
+  // Context menu for right-click on a writing
+  const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; writingId: number | null }>({ open: false, x: 0, y: 0, writingId: null });
+  const [addToAlbumDialogOpen, setAddToAlbumDialogOpen] = useState(false);
+  const [contextTargetWriting, setContextTargetWriting] = useState<WritingPiece | null>(null);
 
   // helper to start editor with autosave drafts
   const startNewEditing = () => openEditorFor({
@@ -801,17 +829,15 @@ const CreativeWriting: React.FC = () => {
   const createAlbumFromWritings = (name: string, color: string) => {
     const { sourceId, targetId } = albumNameDialog;
     if (!sourceId || !targetId) return;
-
-    const newAlbum = {
+    const newAlbum: Album = {
       id: String(Date.now()),
       name,
       color,
       itemIds: [sourceId, targetId]
     };
 
-    setAlbums(albums => [newAlbum, ...albums]);
+    setAlbums(albs => [newAlbum, ...albs]);
     setAlbumNameDialog({ open: false, sourceId: null, targetId: null });
-    
     toast({ 
       title: 'Album creat', 
       description: `Albumul "${name}" a fost creat cu succes.` 
@@ -1030,17 +1056,22 @@ const CreativeWriting: React.FC = () => {
             </p>
           </div>
 
-          {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-8">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-12"
-              />
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+          {/* Controls - single responsive row on md+: search (flex-grow) | toggle + filters | actions */}
+          <div className="mb-8">
+            <div className="flex flex-col md:flex-row md:items-center md:gap-4">
+              {/* Search - grows */}
+              <div className="relative w-full md:flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-12 w-full"
+                />
+              </div>
+
+              {/* Middle controls: album toggle + filters */}
+              <div className="mt-3 md:mt-0 flex items-center gap-3 md:gap-4">
                 <div className="flex items-center gap-2 text-xs cursor-pointer">
                   <div className="relative">
                     <input
@@ -1065,96 +1096,108 @@ const CreativeWriting: React.FC = () => {
                   </div>
                   <span className="text-muted-foreground whitespace-nowrap select-none">În albume</span>
                 </div>
+
+                <Select value={filterType} onValueChange={(value) => {
+                  if (value === '__manage_types') {
+                    setIsManageTypesOpen(true);
+                  } else {
+                    setFilterType(value);
+                  }
+                }}>
+                  <SelectTrigger className="w-[160px]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Tip" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toate tipurile</SelectItem>
+                    {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
+                    {isAdmin && (
+                      <SelectItem value="__manage_types">
+                        <div className="flex items-center gap-2">
+                          <Settings2 className="h-3 w-3" />
+                          Gestionează tipuri
+                        </div>
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filterMood} onValueChange={(value) => {
+                  if (value === '__manage_moods') {
+                    setIsManageMoodsOpen(true);
+                  } else {
+                    setFilterMood(value);
+                  }
+                }}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Stare" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toate</SelectItem>
+                    {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
+                    {isAdmin && (
+                      <SelectItem value="__manage_moods">
+                        <div className="flex items-center gap-2">
+                          <Settings2 className="h-3 w-3" />
+                          Gestionează stări
+                        </div>
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Right actions */}
+              <div className="mt-3 md:mt-0 md:ml-auto flex items-center gap-2">
+                {isAdmin && (
+                  <>
+                    <Button 
+                      className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md"
+                      onClick={startNewEditing}
+                      title="Adaugă text nou"
+                    >
+                      <PenTool className="h-4 w-4 mr-2" />
+                      Adaugă text
+                    </Button>
+                    {trashedWritings.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsTrashOpen(true)}
+                        title="Coșul de gunoi"
+                      >
+                        <Trash className="h-4 w-4" />
+                        <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
+                          {trashedWritings.length}
+                        </span>
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
             </div>
-            
-            <Select value={filterType} onValueChange={(value) => {
-              if (value === '__manage_types') {
-                setIsManageTypesOpen(true);
-              } else {
-                setFilterType(value);
-              }
-            }}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Tip text" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toate tipurile</SelectItem>
-                {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
-                {isAdmin && (
-                  <SelectItem value="__manage_types">
-                    <div className="flex items-center gap-2">
-                      <Settings2 className="h-3 w-3" />
-                      Gestionează tipuri
-                    </div>
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            <Select value={filterMood} onValueChange={(value) => {
-              if (value === '__manage_moods') {
-                setIsManageMoodsOpen(true);
-              } else {
-                setFilterMood(value);
-              }
-            }}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Stare" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toate</SelectItem>
-                {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
-                {isAdmin && (
-                  <SelectItem value="__manage_moods">
-                    <div className="flex items-center gap-2">
-                      <Settings2 className="h-3 w-3" />
-                      Gestionează stări
-                    </div>
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            {isAdmin && (
-              <div className="flex gap-2">
-                <Button 
-                  className="bg-art-accent hover:bg-art-accent/80" 
-                  onClick={startNewEditing}
-                  title="Adaugă text nou"
-                  size="icon"
-                >
-                  <PenTool className="h-4 w-4" />
-                </Button>
-                
-                {trashedWritings.length > 0 && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsTrashOpen(true)}
-                    title="Coșul de gunoi"
-                  >
-                    <Trash className="h-4 w-4" />
-                    <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
-                      {trashedWritings.length}
-                    </span>
-                  </Button>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* Writings Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6 mb-8">
+          {/* Writings Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold gradient-text">Scrieri</h2>
+          </div>
+
+          {/* Writings Grid (cards slightly larger to fit details) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 mb-8">
             {visibleWritings.map((writing, index) => (
               <div
                 key={writing.id}
-                className="relative"
+                className="relative w-full h-full"
                 draggable={isAdmin}
                 onDragStart={(e) => onDragStart(e, writing.id)}
                 onDragOver={(e) => onDragOverCard(e, writing.id)}
                 onDrop={(e) => onDropOnCard(e, writing.id)}
                 onDragLeave={onDragLeave}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
+                  setContextTargetWriting(writing);
+                }}
               >
                 {/* Drag Drop Indicator */}
                 {dragOverId === writing.id && (
@@ -1163,11 +1206,12 @@ const CreativeWriting: React.FC = () => {
                     isActive={true} 
                   />
                 )}
-                
+                {/* Card: on small screens show compact horizontal list item, on larger show full card */}
                 <Card 
-                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in min-h-[280px] ${
+                  className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in h-full flex flex-col ${
                     dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
-                  }`}
+                  }`
+                  }
                   style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => setSelectedWriting(writing)}
                 >
@@ -1192,47 +1236,27 @@ const CreativeWriting: React.FC = () => {
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              deleteWriting(writing.id); 
-                            }}
-                            title="Mută în coș"
-                            className="h-6 w-6 p-0"
+
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={(e) => { e.stopPropagation(); deleteWriting(writing.id); }}
+                            title="Șterge"
+                            className="h-6 w-6 p-0 ml-1"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {writing.isPrivate && !isAdmin && (
-                        <Badge variant="outline" className="text-xs">
-                          Private
-                        </Badge>
-                      )}
-                      {writing.published && (
-                        <Badge className="bg-green-500/20 text-green-400 text-xs">
-                          Publicat
-                        </Badge>
-                      )}
+                      </div>
+                    )}
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="mb-4">
-                      <p className="text-sm text-muted-foreground line-clamp-4 leading-relaxed">
-                        {(() => {
-                          const plainText = writing.content.replace(/<[^>]*>/g, '');
-                          const lines = plainText.split('\n').filter(line => line.trim());
-                          const firstLines = lines.slice(0, 3).join(' ').substring(0, 120);
-                          return firstLines + (lines.length > 3 || plainText.length > 120 ? '...' : '');
-                        })()}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+
+                  <CardContent className="flex-1">
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                      {writing.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4">
                         <span className="flex items-center gap-1">
                           <Book className="h-3 w-3" />
                           {writing.wordCount} cuvinte
@@ -1242,14 +1266,12 @@ const CreativeWriting: React.FC = () => {
                           {writing.lastModified}
                         </span>
                       </div>
-                      <div className="flex justify-center">
-                        <Badge 
-                          variant="outline"  
-                          className={`text-xs ${getMoodColor(writing.mood)}`}
-                        >
-                          {getMoodLabel(writing.mood)}
-                        </Badge>
-                      </div>
+                      <Badge 
+                        variant="outline"  
+                        className={getMoodColor(writing.mood)}
+                      >
+                        {getMoodLabel(writing.mood)}
+                      </Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -1257,13 +1279,13 @@ const CreativeWriting: React.FC = () => {
             ))}
 
             {/* Album search results */}
-            {searchInAlbums && albumSearchResults.map((writing: any, index) => (
+            {searchInAlbums && albumSearchResults.map((writing: WritingPiece & { _albumInfo?: { id: string; name?: string; color?: string } }, index) => (
               <div
                 key={`album-${writing.id}`}
-                className="relative"
+                className="relative w-full h-full"
               >
                 <Card 
-                  className="hover-scale cursor-pointer group animate-scale-in border-2"
+                  className="hover-scale cursor-pointer group animate-scale-in border-2 h-full flex flex-col"
                   style={{ 
                     animationDelay: `${(visibleWritings.length + index) * 100}ms`,
                     borderColor: writing._albumInfo?.color || '#7c3aed'
@@ -1300,7 +1322,7 @@ const CreativeWriting: React.FC = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex-1">
                     <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
                       {writing.excerpt}
                     </p>
@@ -1409,9 +1431,7 @@ const CreativeWriting: React.FC = () => {
               </DialogHeader>
 
               <div className="prose prose-lg max-w-none dark:prose-invert">
-                <div className="whitespace-pre-line leading-relaxed">
-                  {selectedWriting.content}
-                </div>
+                <div className="leading-relaxed" dangerouslySetInnerHTML={{ __html: selectedWriting.content }} />
               </div>
 
               <div className="mt-6 pt-4 border-t border-border">
@@ -1549,7 +1569,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Albums Section */}
       {albums.length > 0 && (
-        <div className="mt-12 max-w-7xl mx-auto">
+        <div className="mt-12 max-w-7xl mx-auto pb-12">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold gradient-text">Albume</h2>
             {isAdmin && (
@@ -1572,6 +1592,7 @@ const CreativeWriting: React.FC = () => {
                 allWritings={writings}
                 onDrop={onDropOnAlbum}
                 onWritingClick={(writing: WritingPiece) => setSelectedWriting(writing)}
+                onEditWriting={(writing: WritingPiece) => { setEditing(writing); setIsEditorOpen(true); }}
                 isAdmin={isAdmin}
                 onDeleteAlbum={deleteAlbumAndWritings}
                 onEditAlbum={editAlbum}
@@ -1703,6 +1724,72 @@ const CreativeWriting: React.FC = () => {
         confirmText={confirmDialog.confirmText}
         cancelText={confirmDialog.cancelText}
       />
+
+      {/* Add-to-album Dialog (from context menu) */}
+      <Dialog open={addToAlbumDialogOpen} onOpenChange={setAddToAlbumDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Adaugă în album</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-2">
+            {albums.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nu există albume. Creează unul mai întâi.</p>
+            ) : (
+              albums.map(a => (
+                <div key={a.id} className="flex items-center justify-between p-2 border rounded">
+                  <div>
+                    <div className="font-semibold">{a.name}</div>
+                    <div className="text-xs text-muted-foreground">{a.itemIds.length} scrieri</div>
+                  </div>
+                  <div>
+                    <Button size="sm" onClick={() => {
+                      if (!contextTargetWriting) return;
+                      setAlbums(albs => albs.map(al => al.id === a.id ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), contextTargetWriting.id])) } : al));
+                      setAddToAlbumDialogOpen(false);
+                      setContextMenu({ open: false, x:0, y:0, writingId: null });
+                      toast({ title: 'Adăugat', description: 'Scrierea a fost adăugată în album.' });
+                    }}>Adaugă</Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Context menu floating */}
+      {contextMenu.open && (
+        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 60 }}>
+          <div className="bg-popover border rounded shadow-md p-2 w-44">
+            <button className="w-full text-left p-2 hover:bg-muted/50" onClick={() => {
+              setAddToAlbumDialogOpen(true);
+              setContextMenu({ open: false, x:0, y:0, writingId: contextMenu.writingId });
+            }}>Add to...</button>
+            <button className="w-full text-left p-2 hover:bg-muted/50" onClick={() => {
+              const id = contextMenu.writingId;
+              if (id == null) return;
+              // move to first
+              setWritings(ws => {
+                const idx = ws.findIndex(w => w.id === id);
+                if (idx === -1) return ws;
+                const copy = [...ws];
+                const [item] = copy.splice(idx,1);
+                copy.unshift(item);
+                return copy;
+              });
+              setContextMenu({ open: false, x:0, y:0, writingId: null });
+              toast({ title: 'Mutat', description: 'Scrierea a fost mutată prima.' });
+            }}>Move first</button>
+            <button className="w-full text-left p-2 hover:bg-muted/50 text-destructive" onClick={() => {
+              const id = contextMenu.writingId;
+              if (id == null) return;
+              setContextMenu({ open: false, x:0, y:0, writingId: null });
+              deleteWriting(id);
+            }}>Delete</button>
+            <div className="text-right mt-1">
+              <button className="text-xs text-muted-foreground" onClick={() => setContextMenu({ open:false, x:0, y:0, writingId: null })}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Album Name Dialog */}
       <AlbumNameDialog

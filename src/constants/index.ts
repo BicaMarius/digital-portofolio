@@ -26,7 +26,7 @@ export const PORTFOLIO_CATEGORIES = [
   // Tech Categories
   {
     id: 'web-development',
-    title: 'Dezvoltare Web',
+    title: 'Dezvoltare software',
     description: 'Site-uri web, aplicații React și proiecte full-stack cu tehnologii moderne',
     category: 'tech' as const,
     projectCount: 12,
@@ -99,14 +99,14 @@ export const ADMIN_CREDENTIALS = {
 export const CONTACT_INFO = {
   name: 'Bica Marius Adrian',
   title: 'Creative Developer & Digital Artist',
-  email: 'marius.bica@email.com',
+  email: 'mbica36599@gmail.com',
   phone: '+40 123 456 789',
   location: 'România',
   socialMedia: {
     instagram: 'https://instagram.com/bicamarius',
-    facebook: 'https://facebook.com/bicamarius',
-    linkedin: 'https://linkedin.com/in/bicamarius',
-    github: 'https://github.com/bicamarius'
+    facebook: 'https://www.facebook.com/bicamariusadrian',
+    linkedin: 'https://www.linkedin.com/in/marius-adrian-bica-b089b1183',
+    github: 'https://github.com/BicaMarius'
   }
 };
 
