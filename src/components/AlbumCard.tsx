@@ -261,10 +261,10 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Writing previews grid */}
-              <div className={`grid gap-2 ${
+              {/* Writing previews grid - larger cards with more content */}
+              <div className={`grid gap-3 ${
                 isExpanded 
-                  ? 'grid-cols-3' 
+                  ? 'grid-cols-2 lg:grid-cols-3' 
                   : albumWritings.length === 1 
                     ? 'grid-cols-1' 
                     : albumWritings.length === 2 
@@ -274,7 +274,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                 {previewWritings.map((writing, index) => (
                   <div
                     key={writing.id}
-                    className="p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors min-h-[120px] relative"
+                    className="p-4 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors min-h-[140px] relative"
                     onClick={() => onWritingClick(writing)}
                     onContextMenu={(e) => handleContextMenu(e, writing.id)}
                     draggable={isAdmin && isExpanded}
@@ -283,26 +283,29 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     onDrop={(e) => handleDrop(e, writing.id)}
                   >
                     {isAdmin && isExpanded && (
-                      <div className="absolute top-1 right-1 opacity-50 hover:opacity-100">
-                        <GripVertical className="h-3 w-3" />
+                      <div className="absolute top-2 right-2 opacity-50 hover:opacity-100">
+                        <GripVertical className="h-4 w-4" />
                       </div>
                     )}
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-medium truncate">{writing.title}</h4>
-                      {isAdmin && (
-                        <div className="ml-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" variant="outline" onClick={() => onEditWriting?.(writing)} title="Editează">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
+                    
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold mb-1 line-clamp-2">{writing.title}</h4>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        {writing.dateWritten} | {writing.wordCount} cuvinte
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-3 mb-2">
+                    
+                    <p className="text-xs text-muted-foreground line-clamp-4 mb-3 leading-relaxed">
                       {getFirstVerse(writing.content) || writing.excerpt}
                     </p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-muted-foreground">{writing.wordCount} cuv.</span>
-                      <span className="text-xs text-muted-foreground">{writing.lastModified}</span>
+                    
+                    <div className="flex items-center justify-between text-xs">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                        {writing.type === 'poetry' ? 'Poezie' : 
+                         writing.type === 'short-story' ? 'Povestire' : 
+                         writing.type === 'essay' ? 'Eseu' : writing.type}
+                      </Badge>
+                      <span className="text-muted-foreground">{writing.mood}</span>
                     </div>
                   </div>
                 ))}
@@ -310,61 +313,62 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                 {/* Show "more" indicator if there are more items and not expanded */}
                 {!isExpanded && albumWritings.length > 4 && (
                   <div 
-                    className="p-2 bg-background/30 rounded border border-dashed flex items-center justify-center cursor-pointer hover:bg-background/50 transition-colors min-h-[120px]"
+                    className="p-4 bg-background/30 rounded border border-dashed flex items-center justify-center cursor-pointer hover:bg-background/50 transition-colors min-h-[140px]"
                     onClick={() => setIsExpanded(true)}
                   >
                     <div className="text-center">
-                      <MoreHorizontal className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        +{albumWritings.length - 4}
+                      <MoreHorizontal className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground font-medium">
+                        +{albumWritings.length - 4} scrieri
                       </span>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Pagination for expanded view */}
-              {isExpanded && totalPages > 1 && (
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handlePrevPage}
-                    disabled={currentPage === 0}
-                  >
-                    <ChevronLeft className="h-3 w-3" />
-                  </Button>
-                  
-                  <div className="flex gap-1">
-                    {Array.from({ length: totalPages }).map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={(e) => handlePageClick(index, e)}
-                        className={`w-6 h-6 rounded-full text-xs transition-colors ${
-                          index === currentPage 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'bg-muted hover:bg-muted-foreground/20'
-                        }`}
-                      >
-                        {index + 1}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages - 1}
-                  >
-                    <ChevronRight className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-
-              {/* Collapse button for expanded view */}
+              {/* Fixed position controls for expanded view */}
               {isExpanded && (
-                <div className="text-center pt-2">
+                <div className="relative">
+                  {/* Pagination - always stays at bottom */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pt-3 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handlePrevPage}
+                        disabled={currentPage === 0}
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                      </Button>
+                      
+                      <div className="flex gap-1">
+                        {Array.from({ length: totalPages }).map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={(e) => handlePageClick(index, e)}
+                            className={`w-6 h-6 rounded-full text-xs transition-colors ${
+                              index === currentPage 
+                                ? 'bg-primary text-primary-foreground' 
+                                : 'bg-muted hover:bg-muted-foreground/20'
+                            }`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages - 1}
+                      >
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Minimize button - bottom right corner */}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -372,7 +376,10 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                       setIsExpanded(false);
                       setCurrentPage(0);
                     }}
+                    className="absolute -bottom-2 right-0 text-xs px-2 py-1 h-auto"
+                    title="Minimizează"
                   >
+                    <X className="h-3 w-3 mr-1" />
                     Minimizează
                   </Button>
                 </div>
@@ -385,7 +392,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
       {/* Context Menu */}
       {contextMenuPosition && (
         <div 
-          className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-50"
+          className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-50 backdrop-blur-sm"
           style={{ 
             left: contextMenuPosition.x, 
             top: contextMenuPosition.y,
@@ -394,17 +401,32 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
         >
           <button 
             onClick={handleDiscardFromContext}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+            className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
           >
             <Undo2 className="h-3 w-3" />
             Scoate din album
           </button>
+          {onEditWriting && (
+            <button 
+              onClick={() => {
+                if (contextMenuPosition) {
+                  const writing = writings.find(w => w.id === contextMenuPosition.writingId);
+                  if (writing) onEditWriting(writing);
+                  setContextMenuPosition(null);
+                }
+              }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
+            >
+              <Edit className="h-3 w-3" />
+              Editează
+            </button>
+          )}
         </div>
       )}
 
       {/* Edit Album Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+        <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw] sm:w-full overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <Edit className="h-5 w-5" />
@@ -414,7 +436,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
           
           <div className="space-y-6">
             {/* Album Settings */}
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
               <div className="space-y-2">
                 <Label htmlFor="albumName" className="flex items-center gap-2">
                   <Type className="h-4 w-4" />
@@ -431,7 +453,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                   <Palette className="h-4 w-4" />
                   Culoare
                 </Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {albumColors.map(color => (
                     <button
                       key={color}

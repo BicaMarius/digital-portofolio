@@ -691,8 +691,27 @@ const CreativeWriting: React.FC = () => {
   });
   // Context menu for right-click on a writing
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; writingId: number | null }>({ open: false, x: 0, y: 0, writingId: null });
-  const [addToAlbumDialogOpen, setAddToAlbumDialogOpen] = useState(false);
   const [contextTargetWriting, setContextTargetWriting] = useState<WritingPiece | null>(null);
+  const [hoveredAlbumSubmenu, setHoveredAlbumSubmenu] = useState(false);
+
+  // Close context menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.open) {
+        setContextMenu({ open: false, x: 0, y: 0, writingId: null });
+        setHoveredAlbumSubmenu(false);
+      }
+    };
+
+    if (contextMenu.open) {
+      document.addEventListener('click', handleClickOutside);
+      document.addEventListener('contextmenu', handleClickOutside);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+        document.removeEventListener('contextmenu', handleClickOutside);
+      };
+    }
+  }, [contextMenu.open]);
 
   // helper to start editor with autosave drafts
   const startNewEditing = () => openEditorFor({
@@ -1056,11 +1075,11 @@ const CreativeWriting: React.FC = () => {
             </p>
           </div>
 
-          {/* Controls - single responsive row on md+: search (flex-grow) | toggle + filters | actions */}
+          {/* Controls - responsive layout: search first, then filters+actions on mobile */}
           <div className="mb-8">
-            <div className="flex flex-col md:flex-row md:items-center md:gap-4">
-              {/* Search - grows */}
-              <div className="relative w-full md:flex-1">
+            {/* Search bar - full width on mobile, part of flex on desktop */}
+            <div className="mb-3 sm:mb-0">
+              <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
@@ -1069,10 +1088,13 @@ const CreativeWriting: React.FC = () => {
                   className="pl-10 pr-12 w-full"
                 />
               </div>
+            </div>
 
-              {/* Middle controls: album toggle + filters */}
-              <div className="mt-3 md:mt-0 flex items-center gap-3 md:gap-4">
-                <div className="flex items-center gap-2 text-xs cursor-pointer">
+            {/* Filters and actions row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {/* Left: album toggle + filters */}
+              <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
+                <div className="flex items-center gap-2 text-xs cursor-pointer whitespace-nowrap">
                   <div className="relative">
                     <input
                       type="checkbox"
@@ -1094,7 +1116,7 @@ const CreativeWriting: React.FC = () => {
                       }`} />
                     </label>
                   </div>
-                  <span className="text-muted-foreground whitespace-nowrap select-none">În albume</span>
+                  <span className="text-muted-foreground select-none">În albume</span>
                 </div>
 
                 <Select value={filterType} onValueChange={(value) => {
@@ -1104,7 +1126,7 @@ const CreativeWriting: React.FC = () => {
                     setFilterType(value);
                   }
                 }}>
-                  <SelectTrigger className="w-[160px]">
+                  <SelectTrigger className="w-[140px] sm:w-[160px]">
                     <Filter className="h-4 w-4 mr-2" />
                     <SelectValue placeholder="Tip" />
                   </SelectTrigger>
@@ -1129,7 +1151,7 @@ const CreativeWriting: React.FC = () => {
                     setFilterMood(value);
                   }
                 }}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[120px] sm:w-[140px]">
                     <SelectValue placeholder="Stare" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1148,16 +1170,36 @@ const CreativeWriting: React.FC = () => {
               </div>
 
               {/* Right actions */}
-              <div className="mt-3 md:mt-0 md:ml-auto flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:ml-4">
                 {isAdmin && (
                   <>
                     <Button 
-                      className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md"
+                      className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md flex-shrink-0"
                       onClick={startNewEditing}
                       title="Adaugă text nou"
                     >
                       <PenTool className="h-4 w-4 mr-2" />
-                      Adaugă text
+                      <span className="hidden sm:inline">Adaugă text</span>
+                      <span className="sm:hidden">Nou</span>
+                    </Button>
+                    {trashedWritings.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsTrashOpen(true)}
+                        title="Coșul de gunoi"
+                        className="flex-shrink-0"
+                      >
+                        <Trash className="h-4 w-4" />
+                        <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
+                          {trashedWritings.length}
+                        </span>
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
                     </Button>
                     {trashedWritings.length > 0 && (
                       <Button 
@@ -1195,8 +1237,14 @@ const CreativeWriting: React.FC = () => {
                 onDragLeave={onDragLeave}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
-                  setContextTargetWriting(writing);
+                  // Close any existing menu first
+                  if (contextMenu.open) {
+                    setContextMenu({ open: false, x: 0, y: 0, writingId: null });
+                  }
+                  setTimeout(() => {
+                    setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
+                    setContextTargetWriting(writing);
+                  }, 10);
                 }}
               >
                 {/* Drag Drop Indicator */}
@@ -1583,7 +1631,7 @@ const CreativeWriting: React.FC = () => {
             )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             {albums.map(album => (
               <AlbumCard
                 key={album.id}
@@ -1725,68 +1773,113 @@ const CreativeWriting: React.FC = () => {
         cancelText={confirmDialog.cancelText}
       />
 
-      {/* Add-to-album Dialog (from context menu) */}
-      <Dialog open={addToAlbumDialogOpen} onOpenChange={setAddToAlbumDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Adaugă în album</DialogTitle></DialogHeader>
-          <div className="flex flex-col gap-2">
-            {albums.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nu există albume. Creează unul mai întâi.</p>
-            ) : (
-              albums.map(a => (
-                <div key={a.id} className="flex items-center justify-between p-2 border rounded">
-                  <div>
-                    <div className="font-semibold">{a.name}</div>
-                    <div className="text-xs text-muted-foreground">{a.itemIds.length} scrieri</div>
-                  </div>
-                  <div>
-                    <Button size="sm" onClick={() => {
-                      if (!contextTargetWriting) return;
-                      setAlbums(albs => albs.map(al => al.id === a.id ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), contextTargetWriting.id])) } : al));
-                      setAddToAlbumDialogOpen(false);
-                      setContextMenu({ open: false, x:0, y:0, writingId: null });
-                      toast({ title: 'Adăugat', description: 'Scrierea a fost adăugată în album.' });
-                    }}>Adaugă</Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Context menu floating */}
       {contextMenu.open && (
-        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 60 }}>
-          <div className="bg-popover border rounded shadow-md p-2 w-44">
-            <button className="w-full text-left p-2 hover:bg-muted/50" onClick={() => {
-              setAddToAlbumDialogOpen(true);
-              setContextMenu({ open: false, x:0, y:0, writingId: contextMenu.writingId });
-            }}>Add to...</button>
-            <button className="w-full text-left p-2 hover:bg-muted/50" onClick={() => {
-              const id = contextMenu.writingId;
-              if (id == null) return;
-              // move to first
-              setWritings(ws => {
-                const idx = ws.findIndex(w => w.id === id);
-                if (idx === -1) return ws;
-                const copy = [...ws];
-                const [item] = copy.splice(idx,1);
-                copy.unshift(item);
-                return copy;
-              });
-              setContextMenu({ open: false, x:0, y:0, writingId: null });
-              toast({ title: 'Mutat', description: 'Scrierea a fost mutată prima.' });
-            }}>Move first</button>
-            <button className="w-full text-left p-2 hover:bg-muted/50 text-destructive" onClick={() => {
-              const id = contextMenu.writingId;
-              if (id == null) return;
-              setContextMenu({ open: false, x:0, y:0, writingId: null });
-              deleteWriting(id);
-            }}>Delete</button>
-            <div className="text-right mt-1">
-              <button className="text-xs text-muted-foreground" onClick={() => setContextMenu({ open:false, x:0, y:0, writingId: null })}>Close</button>
+        <div 
+          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 60 }}
+          onMouseLeave={() => !hoveredAlbumSubmenu && setContextMenu({ open: false, x: 0, y: 0, writingId: null })}
+        >
+          <div className="bg-popover border rounded shadow-md p-1 w-44 backdrop-blur-sm">
+            {/* Add to... with hover submenu */}
+            <div 
+              className="relative"
+              onMouseEnter={() => setHoveredAlbumSubmenu(true)}
+              onMouseLeave={() => setHoveredAlbumSubmenu(false)}
+            >
+              <button className="w-full text-left p-2 hover:bg-muted/50 flex items-center justify-between transition-colors">
+                Adaugă în...
+                <Plus className="h-3 w-3" />
+              </button>
+              
+              {/* Submenu */}
+              {hoveredAlbumSubmenu && (
+                <div className="absolute left-full top-0 ml-1 w-48 bg-popover border rounded shadow-lg p-1 backdrop-blur-sm z-70">
+                  {albums.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">Nu există albume</div>
+                  ) : (
+                    albums.map(album => (
+                      <button
+                        key={album.id}
+                        onClick={() => {
+                          if (!contextTargetWriting) return;
+                          setAlbums(albs => albs.map(al => 
+                            al.id === album.id 
+                              ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), contextTargetWriting.id])) } 
+                              : al
+                          ));
+                          setContextMenu({ open: false, x: 0, y: 0, writingId: null });
+                          toast({ title: 'Adăugat', description: `Scrierea a fost adăugată în "${album.name}".` });
+                        }}
+                        className="w-full text-left p-2 hover:bg-muted/50 text-sm transition-colors flex items-center gap-2"
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: album.color || '#7c3aed' }}
+                        />
+                        {album.name}
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          ({album.itemIds.length})
+                        </span>
+                      </button>
+                    ))
+                  )}
+                  <hr className="my-1" />
+                  <button
+                    onClick={() => {
+                      if (!contextTargetWriting) return;
+                      const albumName = window.prompt('Nume album nou:');
+                      if (!albumName) return;
+                      const newAlbum = {
+                        id: String(Date.now()),
+                        name: albumName,
+                        color: '#7c3aed',
+                        itemIds: [contextTargetWriting.id]
+                      };
+                      setAlbums(albs => [newAlbum, ...albs]);
+                      setContextMenu({ open: false, x: 0, y: 0, writingId: null });
+                      toast({ title: 'Album creat', description: `Albumul "${albumName}" a fost creat cu scrierea.` });
+                    }}
+                    className="w-full text-left p-2 hover:bg-muted/50 text-sm transition-colors flex items-center gap-2 text-green-600"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Creează album
+                  </button>
+                </div>
+              )}
             </div>
+            
+            <button 
+              className="w-full text-left p-2 hover:bg-muted/50 transition-colors" 
+              onClick={() => {
+                const id = contextMenu.writingId;
+                if (id == null) return;
+                // move to first
+                setWritings(ws => {
+                  const idx = ws.findIndex(w => w.id === id);
+                  if (idx === -1) return ws;
+                  const copy = [...ws];
+                  const [item] = copy.splice(idx,1);
+                  copy.unshift(item);
+                  return copy;
+                });
+                setContextMenu({ open: false, x:0, y:0, writingId: null });
+                toast({ title: 'Mutat', description: 'Scrierea a fost mutată prima.' });
+              }}
+            >
+              Mută prima
+            </button>
+            
+            <button 
+              className="w-full text-left p-2 hover:bg-muted/50 text-destructive transition-colors" 
+              onClick={() => {
+                const id = contextMenu.writingId;
+                if (id == null) return;
+                setContextMenu({ open: false, x:0, y:0, writingId: null });
+                deleteWriting(id);
+              }}
+            >
+              Șterge
+            </button>
           </div>
         </div>
       )}
