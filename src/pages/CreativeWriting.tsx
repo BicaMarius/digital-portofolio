@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Toggle } from '@/components/ui/toggle';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { AlbumNameDialog } from '@/components/AlbumNameDialog';
 import { AlbumCard } from '@/components/AlbumCard';
@@ -1188,24 +1188,6 @@ const CreativeWriting: React.FC = () => {
                         onClick={() => setIsTrashOpen(true)}
                         title="Coșul de gunoi"
                         className="flex-shrink-0"
-                      >
-                        <Trash className="h-4 w-4" />
-                        <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
-                          {trashedWritings.length}
-                        </span>
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-                    </Button>
-                    {trashedWritings.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setIsTrashOpen(true)}
-                        title="Coșul de gunoi"
                       >
                         <Trash className="h-4 w-4" />
                         <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
