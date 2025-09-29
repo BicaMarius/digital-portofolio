@@ -419,11 +419,13 @@ const CreativeWriting: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterMood, setFilterMood] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'dateModified' | 'dateCreated' | 'title' | 'wordCount'>('dateModified');
   const [searchInAlbums, setSearchInAlbums] = useState(false);
   const [selectedWriting, setSelectedWriting] = useState<WritingPiece | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   
   // Mobile view state - add view mode selector for mobile
   const [mobileViewMode, setMobileViewMode] = useState<'writings' | 'albums'>('writings');
@@ -511,11 +513,27 @@ const CreativeWriting: React.FC = () => {
   const searchPool = searchInAlbums ? [...baseWritings, ...writingsInAlbums] : baseWritings;
 
   // search across title and content, diacritics-insensitive
-  const allVisibleWritings = searchPool.filter(writing => {
+  const filteredWritings = searchPool.filter(writing => {
     const term = normalize(searchTerm.trim());
     if (!term) return (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
     const hay = normalize(writing.title + ' ' + writing.content + ' ' + writing.tags.join(' '));
     return hay.includes(term) && (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
+  });
+
+  // Apply sorting
+  const allVisibleWritings = [...filteredWritings].sort((a, b) => {
+    switch (sortBy) {
+      case 'dateCreated':
+        return new Date(b.dateWritten).getTime() - new Date(a.dateWritten).getTime();
+      case 'dateModified':
+        return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+      case 'title':
+        return a.title.localeCompare(b.title, 'ro');
+      case 'wordCount':
+        return b.wordCount - a.wordCount;
+      default:
+        return 0;
+    }
   });
 
   // Pagination calculations
@@ -1187,22 +1205,32 @@ const CreativeWriting: React.FC = () => {
   <div className="mx-auto w-full max-w-[1600px]">
           {/* Header */}
           <div className="text-center mb-6 animate-fade-in">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <PenTool className="h-6 w-6 text-art-accent" />
-              <h1 className="text-2xl font-bold gradient-text">
+            {isMobile ? (
+              /* Mobile: Simplified header */
+              <h1 className="text-xl font-bold gradient-text">
                 Scriere Creativă
               </h1>
-            </div>
-            <p className="text-base text-muted-foreground max-w-2xl mx-auto">
-              Poezii, povestiri și texte creative din sufletul unui visător
-            </p>
+            ) : (
+              /* Desktop: Full header */
+              <>
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <PenTool className="h-6 w-6 text-art-accent" />
+                  <h1 className="text-2xl font-bold gradient-text">
+                    Scriere Creativă
+                  </h1>
+                </div>
+                <p className="text-base text-muted-foreground max-w-2xl mx-auto">
+                  Poezii, povestiri și texte creative din sufletul unui visător
+                </p>
+              </>
+            )}
           </div>
 
           {/* Controls - responsive: expandable on mobile, normal on desktop */}
           <div className="mb-2">
             {isMobile ? (
-              /* Mobile: Expandable search controls */
-              <div className="bg-surface/30 backdrop-blur-sm rounded-lg p-3 border-art-accent/20 border shadow-lg">
+              /* Mobile: Clean search controls */
+              <div className="p-3">
                 <div className="flex items-center gap-2">
                   {/* Search Input - More space */}
                   <div className="relative flex-1 min-w-0">
@@ -1217,144 +1245,18 @@ const CreativeWriting: React.FC = () => {
                   
                   {/* Compact Controls */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {/* Combined Filter Button */}
-                    <div className="relative">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                        className="px-3 h-8 border-art-accent/30 hover:border-art-accent/50"
-                      >
-                        <Filter className="h-4 w-4" />
-                        {(filterType !== 'all' || filterMood !== 'all') && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-art-accent rounded-full"></div>
-                        )}
-                      </Button>
-                      
-                      {/* Filter Dropdown */}
-                      {isFilterDropdownOpen && (
-                        <div 
-                          className="absolute top-10 right-0 z-[60] bg-background border border-art-accent/30 rounded-lg shadow-lg p-3 pt-7 min-w-[220px]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* Close button */}
-                          <button
-                            type="button"
-                            aria-label="Închide filtrele"
-                            onClick={() => setIsFilterDropdownOpen(false)}
-                            className="absolute top-1.5 right-1.5 h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-art-accent/40"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                          <div className="space-y-3">
-                            <div>
-                              <Label className="text-xs font-medium text-muted-foreground">Tip scriere</Label>
-                              <div className="mt-1">
-                                <button
-                                  type="button"
-                                  className="w-full h-8 px-2 text-left text-sm rounded-md border bg-background/60 hover:bg-background focus:outline-none focus:ring-2 focus:ring-art-accent/50 flex items-center justify-between"
-                                  aria-haspopup="listbox"
-                                  aria-expanded="true"
-                                >
-                                  <span className="truncate">
-                                    {filterType === 'all' ? 'Toate tipurile' : types.find(t => t.key === filterType)?.label || 'Tip'}
-                                  </span>
-                                </button>
-                                <ul
-                                  role="listbox"
-                                  className="mt-2 max-h-48 overflow-auto rounded-md border bg-background/95 backdrop-blur-sm p-1 space-y-1 text-sm"
-                                >
-                                  <li>
-                                    <button
-                                      className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterType==='all'?'bg-muted/60':''}`}
-                                      onClick={() => { setFilterType('all'); setIsFilterDropdownOpen(false); }}
-                                    >Toate tipurile</button>
-                                  </li>
-                                  {types.map(t => (
-                                    <li key={t.key}>
-                                      <button
-                                        className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterType===t.key?'bg-muted/60':''}`}
-                                        onClick={() => { setFilterType(t.key); setIsFilterDropdownOpen(false); }}
-                                      >{t.label}</button>
-                                    </li>
-                                  ))}
-                                  {isAdmin && (
-                                    <li>
-                                      <button
-                                        className="w-full text-left px-2 py-1 rounded-md hover:bg-muted flex items-center gap-2"
-                                        onClick={() => { setIsManageTypesOpen(true); setIsFilterDropdownOpen(false); }}
-                                      >
-                                        <Settings2 className="h-3 w-3" /> Gestionează tipuri
-                                      </button>
-                                    </li>
-                                  )}
-                                </ul>
-                              </div>
-                            </div>
-
-                            <div>
-                              <Label className="text-xs font-medium text-muted-foreground">Stare/Mood</Label>
-                              <div className="mt-1">
-                                <button
-                                  type="button"
-                                  className="w-full h-8 px-2 text-left text-sm rounded-md border bg-background/60 hover:bg-background focus:outline-none focus:ring-2 focus:ring-art-accent/50 flex items-center justify-between"
-                                  aria-haspopup="listbox"
-                                  aria-expanded="true"
-                                >
-                                  <span className="truncate">
-                                    {filterMood === 'all' ? 'Toate' : moods.find(m => m.key === filterMood)?.label || 'Stare'}
-                                  </span>
-                                </button>
-                                <ul
-                                  role="listbox"
-                                  className="mt-2 max-h-48 overflow-auto rounded-md border bg-background/95 backdrop-blur-sm p-1 space-y-1 text-sm"
-                                >
-                                  <li>
-                                    <button
-                                      className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterMood==='all'?'bg-muted/60':''}`}
-                                      onClick={() => { setFilterMood('all'); setIsFilterDropdownOpen(false); }}
-                                    >Toate</button>
-                                  </li>
-                                  {moods.map(m => (
-                                    <li key={m.key}>
-                                      <button
-                                        className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterMood===m.key?'bg-muted/60':''}`}
-                                        onClick={() => { setFilterMood(m.key); setIsFilterDropdownOpen(false); }}
-                                      >{m.label}</button>
-                                    </li>
-                                  ))}
-                                  {isAdmin && (
-                                    <li>
-                                      <button
-                                        className="w-full text-left px-2 py-1 rounded-md hover:bg-muted flex items-center gap-2"
-                                        onClick={() => { setIsManageMoodsOpen(true); setIsFilterDropdownOpen(false); }}
-                                      >
-                                        <Settings2 className="h-3 w-3" /> Gestionează stări
-                                      </button>
-                                    </li>
-                                  )}
-                                </ul>
-                              </div>
-                            </div>
-                            
-                            <div className="pt-2 border-t">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setFilterType('all');
-                                  setFilterMood('all');
-                                  setIsFilterDropdownOpen(false);
-                                }}
-                                className="w-full h-7 text-xs"
-                              >
-                                Resetează filtrele
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    {/* Filter Button */}
+                    <button
+                      onClick={() => setIsFilterModalOpen(true)}
+                      className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center ${
+                        (filterType !== 'all' || filterMood !== 'all')
+                          ? 'bg-art-accent text-white border-art-accent shadow-sm'
+                          : 'bg-background/40 text-muted-foreground border-border hover:text-foreground'
+                      }`}
+                      title="Filtrează și sortează"
+                    >
+                      <Filter className="h-4 w-4" />
+                    </button>
                     
                     {/* Search In Albums Toggle (compact icon) */}
                     <button
@@ -1499,22 +1401,13 @@ const CreativeWriting: React.FC = () => {
                 </div>
               </div>
             )}
-            
-            {/* Click outside to close filter dropdown - only for mobile */}
-            {isMobile && isFilterDropdownOpen && (
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setIsFilterDropdownOpen(false)}
-              />
-            )}
           </div>
 
           {/* Mobile View Selector - only on mobile */}
           {isMobile && (
             <div className="mb-6">
-              <div className="relative flex items-center justify-center">
-                {/* Centered selector */}
-                <div className="flex bg-muted/50 rounded-lg p-1 z-10">
+              <div className="flex items-center justify-center">
+                <div className="flex bg-muted/50 rounded-lg p-1">
                   <button
                     onClick={() => setMobileViewMode('writings')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -1537,20 +1430,20 @@ const CreativeWriting: React.FC = () => {
                     <Book className="h-4 w-4" />
                     Albume ({albums.length})
                   </button>
+                  {/* Trash tab - only show if has items */}
+                  {trashedWritings.length > 0 && (
+                    <button
+                      onClick={() => setIsTrashOpen(true)}
+                      className="flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground relative"
+                      title="Coșul de gunoi"
+                    >
+                      <Trash className="h-4 w-4" />
+                      <span className="text-[10px] bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center leading-none">
+                        {trashedWritings.length}
+                      </span>
+                    </button>
+                  )}
                 </div>
-                {/* Trash button aligned to the right edge */}
-                {trashedWritings.length > 0 && (
-                  <button
-                    onClick={() => setIsTrashOpen(true)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-muted/40 hover:bg-muted border border-border/50 backdrop-blur-sm"
-                    title="Coșul de gunoi"
-                  >
-                    <Trash className="h-4 w-4" />
-                    <span className="text-[10px] bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center leading-none">
-                      {trashedWritings.length}
-                    </span>
-                  </button>
-                )}
               </div>
             </div>
           )}
@@ -2420,6 +2313,102 @@ const CreativeWriting: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Filter Modal */}
+      <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle>Filtrare și Sortare</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Type Filter */}
+            <div>
+              <Label className="text-sm font-medium">Tip scriere</Label>
+              <select 
+                value={filterType} 
+                onChange={(e) => setFilterType(e.target.value)}
+                className="w-full mt-1 p-2 border rounded-md bg-background"
+              >
+                <option value="all">Toate tipurile</option>
+                {types.map(t => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
+              </select>
+              {isAdmin && (
+                <Button
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => { setIsManageTypesOpen(true); setIsFilterModalOpen(false); }}
+                  className="w-full mt-1 text-xs"
+                >
+                  <Settings2 className="h-3 w-3 mr-1" /> Gestionează tipuri
+                </Button>
+              )}
+            </div>
+
+            {/* Mood Filter */}
+            <div>
+              <Label className="text-sm font-medium">Stare/Sentiment</Label>
+              <select 
+                value={filterMood} 
+                onChange={(e) => setFilterMood(e.target.value)}
+                className="w-full mt-1 p-2 border rounded-md bg-background"
+              >
+                <option value="all">Toate stările</option>
+                {moods.map(m => (
+                  <option key={m.key} value={m.key}>{m.label}</option>
+                ))}
+              </select>
+              {isAdmin && (
+                <Button
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => { setIsManageMoodsOpen(true); setIsFilterModalOpen(false); }}
+                  className="w-full mt-1 text-xs"
+                >
+                  <Settings2 className="h-3 w-3 mr-1" /> Gestionează stări
+                </Button>
+              )}
+            </div>
+
+            {/* Sort Options */}
+            <div>
+              <Label className="text-sm font-medium">Sortare după</Label>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value as 'dateModified' | 'dateCreated' | 'title' | 'wordCount')}
+                className="w-full mt-1 p-2 border rounded-md bg-background"
+              >
+                <option value="dateModified">Data modificării</option>
+                <option value="dateCreated">Data creării</option>
+                <option value="title">Titlu</option>
+                <option value="wordCount">Numărul de cuvinte</option>
+              </select>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFilterType('all');
+                  setFilterMood('all');
+                }}
+                className="flex-1"
+              >
+                Resetează filtre
+              </Button>
+              <Button
+                onClick={() => setIsFilterModalOpen(false)}
+                className="flex-1 bg-art-accent hover:bg-art-accent/80"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Albums Section - desktop only */}
       {albums.length > 0 && !isMobile && (
         <div className="mt-1 mx-auto w-full max-w-[1600px] pb-12">
@@ -2521,12 +2510,12 @@ const CreativeWriting: React.FC = () => {
 
       {/* Trash Dialog */}
       <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-sm mx-auto max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg">
               <div className="flex items-center gap-2">
                 <Trash className="h-5 w-5" />
-                Coșul de gunoi ({trashedWritings.length} elemente)
+                Coș de gunoi ({trashedWritings.length})
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -2535,91 +2524,96 @@ const CreativeWriting: React.FC = () => {
             {trashedWritings.length === 0 ? (
               <div className="text-center py-8">
                 <Trash className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Coșul de gunoi este gol</p>
+                <p className="text-muted-foreground">Coșul este gol</p>
               </div>
             ) : (
-              <div className="grid gap-4">
-                {trashedWritings.map(writing => (
-                  <div key={writing.id} className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{writing.title}</h4>
-                      <p className="text-sm text-muted-foreground">{writing.excerpt}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Șters: {writing.deletedAt ? new Date(writing.deletedAt).toLocaleString('ro-RO') : 'N/A'}
+              <div className="space-y-3">
+                {trashedWritings.map(writing => {
+                  const deletedDate = writing.deletedAt ? new Date(writing.deletedAt) : new Date();
+                  const formatDate = (date: Date) => {
+                    const months = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'noi', 'dec'];
+                    return `${date.getDate()}${months[date.getMonth()]} | ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                  };
+                  
+                  return (
+                    <div key={writing.id} className="p-3 border rounded-lg bg-muted/20">
+                      <h4 className="font-medium text-sm mb-1">{writing.title}</h4>
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                        {writing.excerpt || writing.content.substring(0, 80)}...
                       </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          // Restore writing
-                          const restored = { ...writing };
-                          delete restored.deletedAt;
-                          setWritings(ws => [restored, ...ws]);
-                          setTrashedWritings(trash => trash.filter(t => t.id !== writing.id));
-                          toast({ title: 'Restaurat', description: 'Scrierea a fost restaurată.' });
-                        }}
-                      >
-                        <Undo2 className="h-3 w-3 mr-1" />
-                        Restaurează
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          setConfirmDialog({
-                            open: true,
-                            title: 'Șterge definitiv',
-                            message: 'Ești sigur că vrei să ștergi definitiv această scriere? Această acțiune nu poate fi anulată.',
-                            type: 'warning',
-                            confirmText: 'Șterge definitiv',
-                            cancelText: 'Anulează',
-                            onConfirm: () => {
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(deletedDate)}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              // Restore writing
+                              const restored = { ...writing };
+                              delete restored.deletedAt;
+                              setWritings(ws => [restored, ...ws]);
                               setTrashedWritings(trash => trash.filter(t => t.id !== writing.id));
-                              toast({ title: 'Șters definitiv', description: 'Scrierea a fost ștearsă definitiv.' });
-                            }
-                          });
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        Șterge definitiv
-                      </Button>
+                              toast({ title: 'Restaurat', description: 'Scrierea a fost restaurată.' });
+                            }}
+                            className="p-1 hover:bg-background rounded"
+                            title="Restaurează"
+                          >
+                            <Undo2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setConfirmDialog({
+                                open: true,
+                                title: 'Șterge definitiv',
+                                message: 'Ești sigur că vrei să ștergi definitiv această scriere?',
+                                type: 'warning',
+                                confirmText: 'Șterge definitiv',
+                                cancelText: 'Anulează',
+                                onConfirm: () => {
+                                  setTrashedWritings(trash => trash.filter(t => t.id !== writing.id));
+                                  toast({ title: 'Șters definitiv', description: 'Scrierea a fost ștearsă definitiv.' });
+                                }
+                              });
+                            }}
+                            className="p-1 hover:bg-background rounded text-destructive"
+                            title="Șterge definitiv"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
           
           {trashedWritings.length > 0 && (
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  Elementele se șterg automat după 24 de ore.
-                </p>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setConfirmDialog({
-                      open: true,
-                      title: 'Golește coșul',
-                      message: 'Ești sigur că vrei să ștergi definitiv toate elementele din coșul de gunoi?',
-                      type: 'warning',
-                      confirmText: 'Golește coșul',
-                      cancelText: 'Anulează',
-                      onConfirm: () => {
-                        setTrashedWritings([]);
-                        toast({ title: 'Coș golit', description: 'Toate elementele au fost șterse definitiv.' });
-                        setIsTrashOpen(false);
-                      }
-                    });
-                  }}
-                >
-                  <Trash className="h-4 w-4 mr-2" />
-                  Golește coșul
-                </Button>
-              </div>
+            <div className="border-t pt-3">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setConfirmDialog({
+                    open: true,
+                    title: 'Golește coșul',
+                    message: 'Ștergi definitiv toate elementele?',
+                    type: 'warning',
+                    confirmText: 'Golește',
+                    cancelText: 'Anulează',
+                    onConfirm: () => {
+                      setTrashedWritings([]);
+                      toast({ title: 'Coș golit' });
+                      setIsTrashOpen(false);
+                    }
+                  });
+                }}
+                className="w-full"
+              >
+                <Trash className="h-4 w-4 mr-2" />
+                Golește coșul
+              </Button>
             </div>
           )}
         </DialogContent>
