@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2, X, Check, Plus, Minus, Palette, Type, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2, X, Check, Plus, Minus, Palette, Type, GripVertical, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DragDropIndicator } from '@/components/DragDropIndicator';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface WritingPiece {
   id: number;
@@ -46,7 +48,7 @@ interface AlbumCardProps {
   onUpdateAlbum?: (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => void;
 }
 
-const ITEMS_PER_PAGE = 6; // 2x3 grid for better spacing
+const ITEMS_PER_PAGE = 6; // 2x3 grid for better mobile spacing
 
 const albumColors = [
   '#7c3aed', '#f59e0b', '#10b981', '#f97316', 
@@ -69,6 +71,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   onDeleteWritingFromAlbum,
   onUpdateAlbum
 }) => {
+  const isMobile = useIsMobile();
   const [currentPage, setCurrentPage] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -76,10 +79,15 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number; writingId: number } | null>(null);
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
-  const [draggedWritingId, setDraggedWritingId] = useState<number | null>(null);
+  // Drag & drop state (using same logic as main writings grid)
+  const dragItemId = useRef<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [dragOverType, setDragOverType] = useState<'merge' | 'move-left' | 'move-right' | null>(null);
   const [editDialogView, setEditDialogView] = useState<'album' | 'all'>('album');
 
-  const albumWritings = writings.filter(w => album.itemIds.includes(w.id));
+  const albumWritings = album.itemIds
+    .map(id => writings.find(w => w.id === id))
+    .filter((w): w is WritingPiece => w !== undefined); // Maintain order from album.itemIds
   const totalPages = Math.ceil(albumWritings.length / ITEMS_PER_PAGE);
   const currentWritings = albumWritings.slice(
     currentPage * ITEMS_PER_PAGE,
@@ -159,30 +167,109 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, writingId: number) => {
-    setDraggedWritingId(writingId);
-    e.dataTransfer.setData('text/plain', writingId.toString());
+  // Drag & drop functions (same logic as main writings grid)
+  const handleDragStart = (e: React.DragEvent, id: number) => {
+    dragItemId.current = id;
+    e.dataTransfer.setData('text/plain', String(id));
+    e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: React.DragEvent, targetId: number) => {
+  const handleDragOverCard = (e: React.DragEvent, targetId: number) => {
     e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, targetId: number) => {
-    e.preventDefault();
-    if (!draggedWritingId || draggedWritingId === targetId) return;
-
-    const currentItemIds = [...album.itemIds];
-    const draggedIndex = currentItemIds.indexOf(draggedWritingId);
-    const targetIndex = currentItemIds.indexOf(targetId);
-
-    if (draggedIndex !== -1 && targetIndex !== -1) {
-      currentItemIds.splice(draggedIndex, 1);
-      currentItemIds.splice(targetIndex, 0, draggedWritingId);
-      onUpdateAlbum?.(album.id, { itemIds: currentItemIds });
-    }
+    e.stopPropagation(); // Prevent event from bubbling up to album's onDragOver
     
-    setDraggedWritingId(null);
+    const draggedId = dragItemId.current;
+    if (!draggedId || draggedId === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+
+    // Determine drop zone based on mouse position - only left/right for albums, no merge
+    if (x < width * 0.5) {
+      setDragOverType('move-left');
+      setDragOverId(targetId);
+    } else {
+      setDragOverType('move-right'); 
+      setDragOverId(targetId);
+    }
+  };
+
+  const handleDropOnCard = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling up to album's onDrop
+    
+    const sourceId = dragItemId.current;
+    const currentDragOverType = dragOverType; // Save before resetting
+    
+    dragItemId.current = null;
+    setDragOverId(null);
+    setDragOverType(null);
+
+    if (!sourceId || sourceId === targetId) return;
+
+    // Reorder writings within album (no merge functionality in albums)
+    const direction = currentDragOverType === 'move-left' ? 'before' : 'after';
+    reorderWritings(sourceId, targetId, direction);
+  };
+
+  const reorderWritings = (sourceId: number, targetId: number, direction: 'before' | 'after') => {
+    const currentItemIds = [...album.itemIds];
+    const sourceIndex = currentItemIds.findIndex(id => id === sourceId);
+    const targetIndex = currentItemIds.findIndex(id => id === targetId);
+    
+    if (sourceIndex === -1 || targetIndex === -1) return;
+    
+    const [item] = currentItemIds.splice(sourceIndex, 1);
+    const insertIndex = direction === 'before' ? targetIndex : targetIndex + 1;
+    currentItemIds.splice(insertIndex > sourceIndex ? insertIndex - 1 : insertIndex, 0, item);
+    
+    onUpdateAlbum?.(album.id, { itemIds: currentItemIds });
+  };
+
+  const handleDragLeave = () => {
+    setDragOverId(null);
+    setDragOverType(null);
+  };
+
+  // Drag & drop functions specifically for edit dialog (vertical logic)
+  const handleDragOverCardEditDialog = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling up to album's onDragOver
+    
+    const draggedId = dragItemId.current;
+    if (!draggedId || draggedId === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+
+    // Determine drop zone based on vertical mouse position
+    if (y < height * 0.5) {
+      setDragOverType('move-left'); // Reuse 'move-left' to mean 'above'
+      setDragOverId(targetId);
+    } else {
+      setDragOverType('move-right'); // Reuse 'move-right' to mean 'below'
+      setDragOverId(targetId);
+    }
+  };
+
+  const handleDropOnCardEditDialog = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling up to album's onDrop
+    
+    const sourceId = dragItemId.current;
+    const currentDragOverType = dragOverType; // Save before resetting
+    
+    dragItemId.current = null;
+    setDragOverId(null);
+    setDragOverType(null);
+
+    if (!sourceId || sourceId === targetId) return;
+
+    // Reorder writings within album (vertical logic: above/below)
+    const direction = currentDragOverType === 'move-left' ? 'before' : 'after'; // 'move-left' = above, 'move-right' = below
+    reorderWritings(sourceId, targetId, direction);
   };
 
   // Close context menu when clicking elsewhere
@@ -202,8 +289,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => onDrop(e, album.id)}
       >
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <div 
                 className="w-4 h-4 rounded-full flex-shrink-0"
@@ -264,52 +351,81 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Writing previews grid - better spacing and sizing */}
-              <div className={`grid gap-4 ${
+              {/* Writing previews grid - compact consistent spacing */}
+              <div className={`grid gap-3 ${
                 isExpanded 
-                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' 
+                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' 
                   : albumWritings.length === 1 
                     ? 'grid-cols-1' 
-                    : 'grid-cols-1 sm:grid-cols-2'
+                    : 'grid-cols-2'
               }`}>
                 {previewWritings.map((writing, index) => (
                   <div
                     key={writing.id}
-                    className={`p-4 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors relative ${
-                      isExpanded ? 'min-h-[160px]' : 'min-h-[120px]'
+                    className={`p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors relative ${
+                      isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
                     }`}
                     onClick={() => onWritingClick(writing)}
                     onContextMenu={(e) => handleContextMenu(e, writing.id)}
-                    draggable={isAdmin && isExpanded}
-                    onDragStart={(e) => handleDragStart(e, writing.id)}
-                    onDragOver={(e) => handleDragOver(e, writing.id)}
-                    onDrop={(e) => handleDrop(e, writing.id)}
+                    onDragOver={isAdmin && isExpanded ? (e) => handleDragOverCard(e, writing.id) : undefined}
+                    onDrop={isAdmin && isExpanded ? (e) => handleDropOnCard(e, writing.id) : undefined}
+                    onDragLeave={isAdmin && isExpanded ? handleDragLeave : undefined}
                   >
-                    {isAdmin && isExpanded && (
-                      <div className="absolute top-2 right-2 opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-4 w-4" />
-                      </div>
+                    {/* Drag Drop Indicator */}
+                    {isAdmin && isExpanded && dragOverId === writing.id && (
+                      <DragDropIndicator 
+                        type={dragOverType!} 
+                        isActive={true}
+                        context="grid"
+                      />
                     )}
                     
-                    <div className="mb-3">
-                      <h4 className="text-sm font-semibold mb-2 line-clamp-2 pr-6">{writing.title}</h4>
-                      <div className="text-xs text-muted-foreground mb-2 flex items-center gap-3">
-                        <span>{writing.dateWritten}</span>
-                        <span>{writing.wordCount} cuvinte</span>
+                    {isAdmin && isExpanded && (
+                      <span
+                        draggable={true}
+                        onDragStart={(e) => handleDragStart(e, writing.id)}
+                        className="absolute top-2 right-2 opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </span>
+                    )}
+                    
+                    <div className="mb-2">
+                      <h4 className={`${isMobile ? 'text-xs' : 'text-sm'} font-semibold mb-1 line-clamp-2 pr-6`}>{writing.title}</h4>
+                      <div className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-muted-foreground mb-2 flex items-center gap-1`}>
+                        {isMobile ? (
+                          // Compact mobile format: 25mai | 20 (icon)
+                          <>
+                            <span>{writing.dateWritten}</span>
+                            <span>|</span>
+                            <span className="flex items-center gap-1">
+                              {writing.wordCount}
+                              <FileText className="h-2.5 w-2.5" />
+                            </span>
+                          </>
+                        ) : (
+                          // Desktop format
+                          <>
+                            <span>{writing.dateWritten}</span>
+                            <span>{writing.wordCount} cuvinte</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     
-                    <p className="text-xs text-muted-foreground line-clamp-3 mb-3 leading-relaxed">
+                    <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-muted-foreground line-clamp-2 mb-2 leading-relaxed`}>
                       {getFirstVerse(writing.content) || writing.excerpt}
                     </p>
                     
                     <div className="flex items-center justify-between text-xs mt-auto">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                      <Badge variant="outline" className={`${isMobile ? 'text-[9px] px-1 py-0' : 'text-[10px] px-1 py-0.5'}`}>
                         {writing.type === 'poetry' ? 'Poezie' : 
                          writing.type === 'short-story' ? 'Povestire' : 
                          writing.type === 'essay' ? 'Eseu' : writing.type}
                       </Badge>
-                      <span className="text-muted-foreground">{writing.mood}</span>
+                      {!isExpanded && !isMobile && (
+                        <span className="text-muted-foreground text-[10px]">{writing.mood}</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -317,12 +433,12 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                 {/* Show "more" indicator if there are more items and not expanded */}
                 {!isExpanded && albumWritings.length > 4 && (
                   <div 
-                    className="p-4 bg-background/30 rounded border border-dashed flex items-center justify-center cursor-pointer hover:bg-background/50 transition-colors min-h-[120px]"
+                    className="p-3 bg-background/30 rounded border border-dashed flex items-center justify-center cursor-pointer hover:bg-background/50 transition-colors min-h-[110px]"
                     onClick={() => setIsExpanded(true)}
                   >
                     <div className="text-center">
-                      <MoreHorizontal className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground font-medium">
+                      <MoreHorizontal className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground font-medium">
                         +{albumWritings.length - 4} scrieri
                       </span>
                     </div>
@@ -426,6 +542,18 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
               Editează
             </button>
           )}
+          <button 
+            onClick={() => {
+              if (contextMenuPosition) {
+                onDeleteWritingFromAlbum?.(album.id, contextMenuPosition.writingId);
+                setContextMenuPosition(null);
+              }
+            }}
+            className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="h-3 w-3" />
+            Șterge
+          </button>
         </div>
       )}
 
@@ -504,15 +632,31 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             key={writing.id} 
                             className={`flex items-center justify-between p-3 border rounded hover:bg-muted/50 ${
                               isInAlbum ? 'bg-primary/5 border-primary/20' : ''
-                            } cursor-pointer`}
-                            draggable={isInAlbum}
-                            onDragStart={isInAlbum ? (e) => handleDragStart(e, writing.id) : undefined}
-                            onDragOver={isInAlbum ? (e) => handleDragOver(e, writing.id) : undefined}
-                            onDrop={isInAlbum ? (e) => handleDrop(e, writing.id) : undefined}
+                            } cursor-pointer relative`}
+                            onDragOver={isInAlbum ? (e) => handleDragOverCardEditDialog(e, writing.id) : undefined}
+                            onDrop={isInAlbum ? (e) => handleDropOnCardEditDialog(e, writing.id) : undefined}
+                            onDragLeave={isInAlbum ? handleDragLeave : undefined}
                             onClick={() => onWritingClick(writing)}
                           >
+                            {/* Drag Drop Indicator */}
+                            {isInAlbum && dragOverId === writing.id && (
+                              <DragDropIndicator 
+                                type={dragOverType!} 
+                                isActive={true}
+                                context="list"
+                              />
+                            )}
                             <div className="flex items-center gap-3 flex-1">
-                              {isInAlbum && <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />}
+                              {isInAlbum && (
+                                <span
+                                  className="active:cursor-grabbing cursor-grab"
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, writing.id)}
+                                  title="Trage pentru a reordona"
+                                >
+                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                </span>
+                              )}
                               <div className="flex-1">
                                 <h4 className="font-medium text-sm">{writing.title}</h4>
                                 <p className="text-xs text-muted-foreground truncate">

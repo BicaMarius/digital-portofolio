@@ -1,0 +1,28 @@
+/* Custom responsive layout helpers for CreativeWriting page */
+@media (min-width: 1280px) {
+	/* Force denser layout so ~6 cards fit on 1366px width */
+	.writings-grid {
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	}
+	.albums-grid {
+		grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+	}
+}
+
+@media (min-width: 1536px) { /* 2xl refinement */
+	.writings-grid {
+		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+	}
+	.albums-grid {
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	}
+}
+
+@media (min-width: 1800px) { /* ultra-wide */
+	.writings-grid {
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	}
+	.albums-grid {
+		grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+	}
+}
