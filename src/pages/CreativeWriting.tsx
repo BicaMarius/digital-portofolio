@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List } from 'lucide-react';
+import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
@@ -437,17 +437,7 @@ const CreativeWriting: React.FC = () => {
   // Scroll position memory for mobile
   const [writingsScrollPosition, setWritingsScrollPosition] = useState(0);
   
-  // Touch/swipe handling for mobile
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  
-  // Long press handling for mobile
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
-  const [isLongPressing, setIsLongPressing] = useState(false);
-  
-  // Individual card swipe for delete
-  const [cardSwipeState, setCardSwipeState] = useState<{[key: number]: {startX: number, currentX: number, isDragging: boolean}}>({});
-  const [deletingCard, setDeletingCard] = useState<number | null>(null);
+  // Removed legacy touch/long-press/swipe state (moved to tap interaction model)
   
   const writingsGridRef = useRef<HTMLDivElement | null>(null);
 
@@ -499,130 +489,7 @@ const CreativeWriting: React.FC = () => {
   // helper: normalize string removing diacritics and lowercase
   const normalize = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-  // Swipe handling for mobile
-  const minSwipeDistance = 50;
-  
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-  
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-  
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    
-    // Swipe changes between writings and albums view modes
-    if (isLeftSwipe && mobileViewMode === 'writings') {
-      // Swipe left from writings goes to albums
-      setMobileViewMode('albums');
-    }
-    
-    if (isRightSwipe && mobileViewMode === 'albums') {
-      // Swipe right from albums goes back to writings
-      setMobileViewMode('writings');
-    }
-  };
-
-  // Long press handlers for mobile context menu
-  const onTouchStartLongPress = (e: React.TouchEvent, writing: WritingPiece) => {
-    if (!isMobile) return;
-    
-    const timer = setTimeout(() => {
-      setIsLongPressing(true);
-      setContextMenu({ open: true, x: e.touches[0].clientX, y: e.touches[0].clientY, writingId: writing.id });
-      setContextTargetWriting(writing);
-      // Vibrate if supported
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-    }, 500); // 500ms long press
-    
-    setLongPressTimer(timer);
-  };
-
-  const onTouchEndLongPress = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-    
-    setTimeout(() => {
-      setIsLongPressing(false);
-    }, 100);
-  };
-
-  // Individual card swipe handlers for delete
-  const onCardTouchStart = (e: React.TouchEvent, writingId: number) => {
-    if (!isMobile || isLongPressing) return;
-    
-    const touch = e.touches[0];
-    setCardSwipeState(prev => ({
-      ...prev,
-      [writingId]: {
-        startX: touch.clientX,
-        currentX: touch.clientX,
-        isDragging: false
-      }
-    }));
-  };
-
-  const onCardTouchMove = (e: React.TouchEvent, writingId: number) => {
-    if (!isMobile || isLongPressing) return;
-    
-    const touch = e.touches[0];
-    const state = cardSwipeState[writingId];
-    if (!state) return;
-
-    const deltaX = touch.clientX - state.startX;
-    
-    setCardSwipeState(prev => ({
-      ...prev,
-      [writingId]: {
-        ...state,
-        currentX: touch.clientX,
-        isDragging: Math.abs(deltaX) > 10
-      }
-    }));
-  };
-
-  const onCardTouchEnd = (writingId: number) => {
-    if (!isMobile || isLongPressing) return;
-    
-    const state = cardSwipeState[writingId];
-    if (!state) return;
-
-    const deltaX = state.currentX - state.startX;
-    const isLeftSwipe = deltaX < -80; // threshold for delete
-
-    if (isLeftSwipe) {
-      // Delete animation and action
-      setDeletingCard(writingId);
-      setTimeout(() => {
-        // Move to trash
-        const writing = writings.find(w => w.id === writingId);
-        if (writing) {
-          setTrashedWritings(prev => [...prev, { ...writing, deletedAt: new Date().toISOString() }]);
-          setWritings(prev => prev.filter(w => w.id !== writingId));
-          toast({ title: 'Șters', description: 'Scrierea a fost mutată în coșul de gunoi.' });
-        }
-        setDeletingCard(null);
-      }, 300);
-    }
-
-    // Reset state
-    setCardSwipeState(prev => {
-      const newState = { ...prev };
-      delete newState[writingId];
-      return newState;
-    });
-  };
+  // Removed legacy gesture handlers
 
   // Get writings that are not in albums and not deleted
   const writingsNotInAlbums = writings.filter(w => {
@@ -630,8 +497,21 @@ const CreativeWriting: React.FC = () => {
     return !albums.some(album => album.itemIds.includes(w.id));
   });
 
+  // Get all writings in albums (for search in albums mode)
+  const writingsInAlbums = searchInAlbums ? writings.filter(w => {
+    if (w.deletedAt) return false;
+    return albums.some(album => album.itemIds.includes(w.id));
+  }).map(w => {
+    const album = albums.find(a => a.itemIds.includes(w.id));
+    return { ...w, _albumId: album?.id, _albumColor: album?.color };
+  }) : [];
+
+  // Combine base writings with album writings when searching in albums
+  const baseWritings = isAdmin ? writingsNotInAlbums : writingsNotInAlbums.filter(w => !w.isPrivate);
+  const searchPool = searchInAlbums ? [...baseWritings, ...writingsInAlbums] : baseWritings;
+
   // search across title and content, diacritics-insensitive
-  const allVisibleWritings = (isAdmin ? writingsNotInAlbums : writingsNotInAlbums.filter(w => !w.isPrivate)).filter(writing => {
+  const allVisibleWritings = searchPool.filter(writing => {
     const term = normalize(searchTerm.trim());
     if (!term) return (filterType === 'all' || writing.type === filterType) && (filterMood === 'all' || writing.mood === filterMood);
     const hay = normalize(writing.title + ' ' + writing.content + ' ' + writing.tags.join(' '));
@@ -905,6 +785,8 @@ const CreativeWriting: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; writingId: number | null }>({ open: false, x: 0, y: 0, writingId: null });
   const [contextTargetWriting, setContextTargetWriting] = useState<WritingPiece | null>(null);
   const [hoveredAlbumSubmenu, setHoveredAlbumSubmenu] = useState(false);
+  // Mobile action bar selection
+  const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
 
   // Close context menu when clicking outside
   React.useEffect(() => {
@@ -1167,6 +1049,16 @@ const CreativeWriting: React.FC = () => {
     });
   };
 
+  const moveWritingToTop = (writingId: number) => {
+    setWritings(prev => {
+      const target = prev.find(w => w.id === writingId);
+      if (!target) return prev;
+      const others = prev.filter(w => w.id !== writingId);
+      return [target, ...others];
+    });
+    toast({ title: 'Mutat sus', description: 'Scrierea a fost mutată pe prima poziție.' });
+  };
+
   const deleteAlbumAndWritings = (albumId: string) => {
     const album = albums.find(a => a.id === albumId);
     if (!album) return;
@@ -1312,27 +1204,19 @@ const CreativeWriting: React.FC = () => {
               /* Mobile: Expandable search controls */
               <div className="bg-surface/30 backdrop-blur-sm rounded-lg p-3 border-art-accent/20 border shadow-lg">
                 <div className="flex items-center gap-2">
-                  {/* Expandable Search Input */}
-                  <div className={`relative transition-all duration-300 ${
-                    isSearchExpanded ? 'flex-1' : 'flex-1'
-                  }`}>
+                  {/* Search Input - More space */}
+                  <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      onFocus={() => setIsSearchExpanded(true)}
-                      onBlur={() => {
-                        if (!searchTerm) setIsSearchExpanded(false);
-                      }}
                       className="pl-10 h-9 bg-background/50 border-art-accent/30 focus:border-art-accent/50"
                     />
                   </div>
                   
-                  {/* Controls that hide when search is expanded */}
-                  <div className={`flex items-center gap-2 transition-all duration-300 ${
-                    isSearchExpanded ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-                  }`}>
+                  {/* Compact Controls */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     {/* Combined Filter Button */}
                     <div className="relative">
                       <Button
@@ -1350,64 +1234,107 @@ const CreativeWriting: React.FC = () => {
                       {/* Filter Dropdown */}
                       {isFilterDropdownOpen && (
                         <div 
-                          className="absolute top-10 right-0 z-[60] bg-background border border-art-accent/30 rounded-lg shadow-lg p-3 min-w-[200px]"
+                          className="absolute top-10 right-0 z-[60] bg-background border border-art-accent/30 rounded-lg shadow-lg p-3 pt-7 min-w-[220px]"
                           onClick={(e) => e.stopPropagation()}
                         >
+                          {/* Close button */}
+                          <button
+                            type="button"
+                            aria-label="Închide filtrele"
+                            onClick={() => setIsFilterDropdownOpen(false)}
+                            className="absolute top-1.5 right-1.5 h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-art-accent/40"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                           <div className="space-y-3">
                             <div>
                               <Label className="text-xs font-medium text-muted-foreground">Tip scriere</Label>
-                              <Select value={filterType} onValueChange={(value) => {
-                                if (value === '__manage_types') {
-                                  setIsManageTypesOpen(true);
-                                  setIsFilterDropdownOpen(false);
-                                } else {
-                                  setFilterType(value);
-                                }
-                              }}>
-                                <SelectTrigger className="h-8 mt-1">
-                                  <SelectValue placeholder="Tip" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">Toate tipurile</SelectItem>
-                                  {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
+                              <div className="mt-1">
+                                <button
+                                  type="button"
+                                  className="w-full h-8 px-2 text-left text-sm rounded-md border bg-background/60 hover:bg-background focus:outline-none focus:ring-2 focus:ring-art-accent/50 flex items-center justify-between"
+                                  aria-haspopup="listbox"
+                                  aria-expanded="true"
+                                >
+                                  <span className="truncate">
+                                    {filterType === 'all' ? 'Toate tipurile' : types.find(t => t.key === filterType)?.label || 'Tip'}
+                                  </span>
+                                </button>
+                                <ul
+                                  role="listbox"
+                                  className="mt-2 max-h-48 overflow-auto rounded-md border bg-background/95 backdrop-blur-sm p-1 space-y-1 text-sm"
+                                >
+                                  <li>
+                                    <button
+                                      className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterType==='all'?'bg-muted/60':''}`}
+                                      onClick={() => { setFilterType('all'); setIsFilterDropdownOpen(false); }}
+                                    >Toate tipurile</button>
+                                  </li>
+                                  {types.map(t => (
+                                    <li key={t.key}>
+                                      <button
+                                        className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterType===t.key?'bg-muted/60':''}`}
+                                        onClick={() => { setFilterType(t.key); setIsFilterDropdownOpen(false); }}
+                                      >{t.label}</button>
+                                    </li>
+                                  ))}
                                   {isAdmin && (
-                                    <SelectItem value="__manage_types">
-                                      <div className="flex items-center gap-2">
-                                        <Settings2 className="h-3 w-3" />
-                                        Gestionează tipuri
-                                      </div>
-                                    </SelectItem>
+                                    <li>
+                                      <button
+                                        className="w-full text-left px-2 py-1 rounded-md hover:bg-muted flex items-center gap-2"
+                                        onClick={() => { setIsManageTypesOpen(true); setIsFilterDropdownOpen(false); }}
+                                      >
+                                        <Settings2 className="h-3 w-3" /> Gestionează tipuri
+                                      </button>
+                                    </li>
                                   )}
-                                </SelectContent>
-                              </Select>
+                                </ul>
+                              </div>
                             </div>
-                            
+
                             <div>
                               <Label className="text-xs font-medium text-muted-foreground">Stare/Mood</Label>
-                              <Select value={filterMood} onValueChange={(value) => {
-                                if (value === '__manage_moods') {
-                                  setIsManageMoodsOpen(true);
-                                  setIsFilterDropdownOpen(false);
-                                } else {
-                                  setFilterMood(value);
-                                }
-                              }}>
-                                <SelectTrigger className="h-8 mt-1">
-                                  <SelectValue placeholder="Stare" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">Toate</SelectItem>
-                                  {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
+                              <div className="mt-1">
+                                <button
+                                  type="button"
+                                  className="w-full h-8 px-2 text-left text-sm rounded-md border bg-background/60 hover:bg-background focus:outline-none focus:ring-2 focus:ring-art-accent/50 flex items-center justify-between"
+                                  aria-haspopup="listbox"
+                                  aria-expanded="true"
+                                >
+                                  <span className="truncate">
+                                    {filterMood === 'all' ? 'Toate' : moods.find(m => m.key === filterMood)?.label || 'Stare'}
+                                  </span>
+                                </button>
+                                <ul
+                                  role="listbox"
+                                  className="mt-2 max-h-48 overflow-auto rounded-md border bg-background/95 backdrop-blur-sm p-1 space-y-1 text-sm"
+                                >
+                                  <li>
+                                    <button
+                                      className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterMood==='all'?'bg-muted/60':''}`}
+                                      onClick={() => { setFilterMood('all'); setIsFilterDropdownOpen(false); }}
+                                    >Toate</button>
+                                  </li>
+                                  {moods.map(m => (
+                                    <li key={m.key}>
+                                      <button
+                                        className={`w-full text-left px-2 py-1 rounded-md hover:bg-muted ${filterMood===m.key?'bg-muted/60':''}`}
+                                        onClick={() => { setFilterMood(m.key); setIsFilterDropdownOpen(false); }}
+                                      >{m.label}</button>
+                                    </li>
+                                  ))}
                                   {isAdmin && (
-                                    <SelectItem value="__manage_moods">
-                                      <div className="flex items-center gap-2">
-                                        <Settings2 className="h-3 w-3" />
-                                        Gestionează stări
-                                      </div>
-                                    </SelectItem>
+                                    <li>
+                                      <button
+                                        className="w-full text-left px-2 py-1 rounded-md hover:bg-muted flex items-center gap-2"
+                                        onClick={() => { setIsManageMoodsOpen(true); setIsFilterDropdownOpen(false); }}
+                                      >
+                                        <Settings2 className="h-3 w-3" /> Gestionează stări
+                                      </button>
+                                    </li>
                                   )}
-                                </SelectContent>
-                              </Select>
+                                </ul>
+                              </div>
                             </div>
                             
                             <div className="pt-2 border-t">
@@ -1429,42 +1356,18 @@ const CreativeWriting: React.FC = () => {
                       )}
                     </div>
                     
-                    {/* Album Toggle */}
-                    <Button
-                      variant={searchInAlbums ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSearchInAlbums(!searchInAlbums)}
-                      className="px-3 h-8 border-art-accent/30 hover:border-art-accent/50"
-                      title="Caută în albume"
+                    {/* Search In Albums Toggle (compact icon) */}
+                    <button
+                      onClick={() => setSearchInAlbums(v => !v)}
+                      className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center ${
+                        searchInAlbums
+                          ? 'bg-art-accent text-white border-art-accent shadow-sm'
+                          : 'bg-background/40 text-muted-foreground border-border hover:text-foreground'
+                      }`}
+                      title={searchInAlbums ? "Caută în toate albumele" : "Caută doar în biblioteca principală"}
                     >
                       <Album className="h-4 w-4" />
-                    </Button>
-                    
-                    {/* Actions */}
-                    {isAdmin && (
-                      <>
-                        <Button 
-                          className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md px-3 h-8"
-                          onClick={startNewEditing}
-                          title="Adaugă text nou"
-                        >
-                          <PenTool className="h-4 w-4" />
-                        </Button>
-                        {trashedWritings.length > 0 && (
-                          <Button 
-                            variant="outline" 
-                            onClick={() => setIsTrashOpen(true)}
-                            title="Coșul de gunoi"
-                            className="px-3 h-8 flex items-center gap-1"
-                          >
-                            <Trash className="h-4 w-4" />
-                            <span className="text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
-                              {trashedWritings.length}
-                            </span>
-                          </Button>
-                        )}
-                      </>
-                    )}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1609,8 +1512,9 @@ const CreativeWriting: React.FC = () => {
           {/* Mobile View Selector - only on mobile */}
           {isMobile && (
             <div className="mb-6">
-              <div className="flex items-center justify-center">
-                <div className="flex bg-muted/50 rounded-lg p-1">
+              <div className="relative flex items-center justify-center">
+                {/* Centered selector */}
+                <div className="flex bg-muted/50 rounded-lg p-1 z-10">
                   <button
                     onClick={() => setMobileViewMode('writings')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -1634,6 +1538,19 @@ const CreativeWriting: React.FC = () => {
                     Albume ({albums.length})
                   </button>
                 </div>
+                {/* Trash button aligned to the right edge */}
+                {trashedWritings.length > 0 && (
+                  <button
+                    onClick={() => setIsTrashOpen(true)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-muted/40 hover:bg-muted border border-border/50 backdrop-blur-sm"
+                    title="Coșul de gunoi"
+                  >
+                    <Trash className="h-4 w-4" />
+                    <span className="text-[10px] bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center leading-none">
+                      {trashedWritings.length}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1649,8 +1566,8 @@ const CreativeWriting: React.FC = () => {
             {/* Add total count */}
             <span className="text-xs text-muted-foreground">
               Total: {isMobile 
-                ? (mobileViewMode === 'writings' ? writingsNotInAlbums.length : albums.length)
-                : writingsNotInAlbums.length
+                ? (mobileViewMode === 'writings' ? allVisibleWritings.length : albums.length)
+                : allVisibleWritings.length
               }
             </span>
           </div>
@@ -1658,12 +1575,7 @@ const CreativeWriting: React.FC = () => {
           {/* Main Content Area */}
           {isMobile ? (
             // Mobile Layout
-            <div 
-              className="space-y-4 mb-6"
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-            >
+            <div className="space-y-4 mb-6">
               {mobileViewMode === 'writings' ? (
                 // Mobile Writings - narrow rectangular cards
                 <>
@@ -1681,30 +1593,7 @@ const CreativeWriting: React.FC = () => {
                         setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
                         setContextTargetWriting(writing);
                       }}
-                      onTouchStart={(e) => {
-                        onTouchStartLongPress(e, writing);
-                        onCardTouchStart(e, writing.id);
-                      }}
-                      onTouchMove={(e) => onCardTouchMove(e, writing.id)}
-                      onTouchEnd={() => {
-                        onTouchEndLongPress();
-                        onCardTouchEnd(writing.id);
-                      }}
-                      onTouchCancel={() => {
-                        onTouchEndLongPress();
-                        onCardTouchEnd(writing.id);
-                      }}
-                      style={{
-                        transform: cardSwipeState[writing.id]?.isDragging 
-                          ? `translateX(${Math.min(0, cardSwipeState[writing.id].currentX - cardSwipeState[writing.id].startX)}px)`
-                          : deletingCard === writing.id 
-                            ? 'translateX(-100%)' 
-                            : 'translateX(0)',
-                        transition: cardSwipeState[writing.id]?.isDragging || deletingCard === writing.id 
-                          ? 'transform 0.3s ease-out' 
-                          : 'none',
-                        opacity: deletingCard === writing.id ? 0 : 1
-                      }}
+                      /* Removed touch gesture handlers and swipe transform */
                     >
                       {/* Drag Drop Indicator */}
                       {dragOverId === writing.id && (
@@ -1715,13 +1604,49 @@ const CreativeWriting: React.FC = () => {
                         />
                       )}
                       <Card 
-                        className={`cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in ${
+                        className={`cursor-pointer group animate-scale-in relative ${
                           dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
+                        } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''} ${
+                          '_albumColor' in writing && writing._albumColor 
+                            ? 'border-2' 
+                            : 'border-art-accent/20 hover:border-art-accent/50'
                         }`}
-                        style={{ animationDelay: `${index * 100}ms` }}
-                        onClick={() => setSelectedWriting(writing)}
+                        style={{ 
+                          animationDelay: `${index * 100}ms`,
+                          ...('_albumColor' in writing && writing._albumColor && {
+                            borderColor: `${writing._albumColor}99`, // 60% opacity
+                            '--tw-ring-color': `${writing._albumColor}66` // 40% opacity for ring
+                          })
+                        }}
+                        onClick={() => {
+                          if (mobileSelectedWritingId === writing.id) {
+                            // second tap opens
+                            setSelectedWriting(writing);
+                          } else {
+                            setMobileSelectedWritingId(writing.id);
+                          }
+                        }}
                       >
                         <CardContent className="p-3 relative">
+                          {/* Mobile action bar */}
+                          {mobileSelectedWritingId === writing.id && isMobile && (
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Mută prima" onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); }}>
+                                <ArrowUp className="h-4 w-4" />
+                              </Button>
+                              {albums.length > 0 && (
+                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Adaugă în album" onClick={(e) => { e.stopPropagation(); setAlbumNameDialog({ open: true, sourceId: writing.id, targetId: null }); }}>
+                                  <FolderPlus className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Șterge" onClick={(e) => { e.stopPropagation(); deleteWriting(writing.id); setMobileSelectedWritingId(null); }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Închide" onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                           {/* Tag in top-right corner */}
                           <div className="absolute top-2 right-2">
                             <Badge 
@@ -2515,9 +2440,6 @@ const CreativeWriting: React.FC = () => {
             <div className="mobile-albums-container">
               <div 
                 className="albums-grid grid grid-cols-1 gap-5 mb-6 px-4"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
               >
                 {albums
                   .slice(mobileAlbumCurrentPage * mobileAlbumsPerPage, (mobileAlbumCurrentPage + 1) * mobileAlbumsPerPage)
@@ -2584,6 +2506,17 @@ const CreativeWriting: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Floating Add Writing Button (Mobile) */}
+      {isMobile && isAdmin && mobileViewMode === 'writings' && !isEditorOpen && (
+        <button
+          onClick={startNewEditing}
+          className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full shadow-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center active:scale-95 transition-transform"
+          title="Adaugă scriere"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
       )}
 
       {/* Trash Dialog */}
