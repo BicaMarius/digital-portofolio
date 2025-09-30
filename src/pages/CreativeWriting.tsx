@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus } from 'lucide-react';
+import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
@@ -438,7 +438,7 @@ const CreativeWriting: React.FC = () => {
   
   // Mobile album pagination
   const [mobileAlbumCurrentPage, setMobileAlbumCurrentPage] = useState(0);
-  const [mobileAlbumsPerPage] = useState(2); // 2 albums per page on mobile
+  const [mobileAlbumsPerPage] = useState(4); // 4 albums per page on mobile
   
   // Scroll position memory for mobile
   const [writingsScrollPosition, setWritingsScrollPosition] = useState(0);
@@ -984,12 +984,14 @@ const CreativeWriting: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; writingId: number | null }>({ open: false, x: 0, y: 0, writingId: null });
   const [contextTargetWriting, setContextTargetWriting] = useState<WritingPiece | null>(null);
   const [hoveredAlbumSubmenu, setHoveredAlbumSubmenu] = useState(false);
+  const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; writingId: number | null }>({ open: false, writingId: null });
   // Mobile action bar selection
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
 
-  // Close context menu when clicking outside
+  // Close context menu and mobile action bar when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // Close context menu
       if (contextMenu.open) {
         // Don't close on right-click events that are opening a context menu
         if (e.type === 'contextmenu') {
@@ -998,15 +1000,20 @@ const CreativeWriting: React.FC = () => {
         setContextMenu({ open: false, x: 0, y: 0, writingId: null });
         setHoveredAlbumSubmenu(false);
       }
+      
+      // Close mobile action bar
+      if (mobileSelectedWritingId !== null) {
+        setMobileSelectedWritingId(null);
+      }
     };
 
-    if (contextMenu.open) {
+    if (contextMenu.open || mobileSelectedWritingId !== null) {
       document.addEventListener('click', handleClickOutside);
       return () => {
         document.removeEventListener('click', handleClickOutside);
       };
     }
-  }, [contextMenu.open]);
+  }, [contextMenu.open, mobileSelectedWritingId]);
 
   // helper to start editor with autosave drafts
   const startNewEditing = () => {
@@ -1283,25 +1290,43 @@ const CreativeWriting: React.FC = () => {
   };
 
   const discardAlbum = (albumId: string) => {
+    console.log('=== DISCARD ALBUM START ===');
+    console.log('discardAlbum called with albumId:', albumId);
+    console.log('Current albums:', albums);
+    
     const album = albums.find(a => a.id === albumId);
-    if (!album) return;
+    console.log('album found:', album);
+    if (!album) {
+      console.log('Album not found, returning');
+      return;
+    }
 
-    setConfirmDialog({
-      open: true,
-      title: 'Desfă albumul',
-      message: `Ești sigur că vrei să desfaci albumul "${album.name}"? Scrierile se vor întoarce în biblioteca principală.`,
-      type: 'info',
-      confirmText: 'Desfă albumul',
-      cancelText: 'Anulează',
-      onConfirm: () => {
-        // Just remove the album, writings stay in the main list
-        setAlbums(albums => albums.filter(a => a.id !== albumId));
-        toast({
-          title: 'Album desfăcut',
-          description: 'Scrierile au fost returnate în biblioteca principală.'
-        });
-      }
-    });
+    console.log('About to filter albums...');
+    console.log('Albums before filter:', albums.length);
+    
+    try {
+      setAlbums(albums => {
+        console.log('Inside setAlbums callback');
+        const newAlbums = albums.filter(a => a.id !== albumId);
+        console.log('Albums after filter:', newAlbums.length);
+        return newAlbums;
+      });
+      console.log('setAlbums called successfully');
+    } catch (error) {
+      console.error('Error in setAlbums:', error);
+    }
+
+    try {
+      toast({
+        title: 'Album desfăcut',
+        description: 'Scrierile au fost returnate în biblioteca principală.'
+      });
+      console.log('Toast called successfully');
+    } catch (error) {
+      console.error('Error in toast:', error);
+    }
+    
+    console.log('=== DISCARD ALBUM END ===');
   };
 
   const editAlbum = (albumId: string) => {
@@ -1416,7 +1441,7 @@ const CreativeWriting: React.FC = () => {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className={`pl-10 h-9 border-art-accent/30 focus:border-art-accent/50 ${
                         searchInAlbums 
-                          ? 'bg-art-accent/10 border-art-accent/50' 
+                          ? 'bg-background/50 border-art-accent/30' 
                           : 'bg-background/50'
                       }`}
                     />
@@ -1721,9 +1746,8 @@ const CreativeWriting: React.FC = () => {
                               {albums.length > 0 && (
                                 <Button size="icon" variant="ghost" className="h-7 w-7" title="Adaugă în album" onClick={(e) => { 
                                   e.stopPropagation(); 
-                                  setContextTargetWriting(writing);
-                                  setContextMenu({ open: true, x: e.currentTarget.getBoundingClientRect().left, y: e.currentTarget.getBoundingClientRect().bottom + 5, writingId: writing.id });
-                                  setHoveredAlbumSubmenu(true);
+                                  setAddToAlbumDialog({ open: true, writingId: writing.id });
+                                  setMobileSelectedWritingId(null);
                                 }}>
                                   <FolderPlus className="h-4 w-4" />
                                 </Button>
@@ -1818,6 +1842,8 @@ const CreativeWriting: React.FC = () => {
                             ));
                           }}
                           onDeleteAlbum={deleteAlbumAndWritings}
+                          onEditAlbum={editAlbum}
+                          onDiscardAlbum={discardAlbum}
                           onAddWritingsToAlbum={(albumId, writingIds) => {
                             setAlbums(prev => prev.map(a => 
                               a.id === albumId 
@@ -1856,17 +1882,17 @@ const CreativeWriting: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Mobile Album pagination dots */}
+                  {/* Mobile Album pagination dots only */}
                   {albums.length > mobileAlbumsPerPage && (
                     <div className="flex justify-center items-center gap-2 mt-4">
                       {Array.from({ length: Math.ceil(albums.length / mobileAlbumsPerPage) }).map((_, index) => (
                         <button
                           key={index}
                           onClick={() => setMobileAlbumCurrentPage(index)}
-                          className={`w-2 h-2 rounded-full transition-all ${
+                          className={`rounded-full transition-all touch-manipulation ${
                             index === mobileAlbumCurrentPage 
-                              ? 'bg-art-accent w-6' 
-                              : 'bg-art-accent/30'
+                              ? 'bg-art-accent w-8 h-3' 
+                              : 'bg-art-accent/30 w-3 h-3'
                           }`}
                           aria-label={`Go to album page ${index + 1}`}
                         />
@@ -2745,17 +2771,17 @@ const CreativeWriting: React.FC = () => {
                   ))}
               </div>
               
-              {/* Album pagination dots for mobile */}
+              {/* Album pagination dots only for mobile */}
               {albums.length > mobileAlbumsPerPage && (
                 <div className="flex justify-center items-center gap-2 mt-4">
                   {Array.from({ length: Math.ceil(albums.length / mobileAlbumsPerPage) }).map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setMobileAlbumCurrentPage(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
+                      className={`rounded-full transition-all touch-manipulation ${
                         index === mobileAlbumCurrentPage 
-                          ? 'bg-art-accent w-6' 
-                          : 'bg-art-accent/30'
+                          ? 'bg-art-accent w-8 h-3' 
+                          : 'bg-art-accent/30 w-3 h-3'
                       }`}
                       aria-label={`Go to album page ${index + 1}`}
                     />
@@ -2946,15 +2972,22 @@ const CreativeWriting: React.FC = () => {
             >
               <button 
                 className="w-full text-left p-2 hover:bg-muted/50 flex items-center justify-between transition-colors"
-                onClick={() => isMobile ? setHoveredAlbumSubmenu(!hoveredAlbumSubmenu) : undefined}
+                onClick={() => {
+                  if (isMobile) {
+                    setAddToAlbumDialog({ open: true, writingId: contextTargetWriting?.id || null });
+                    setContextMenu({ open: false, x: 0, y: 0, writingId: null });
+                  } else {
+                    setHoveredAlbumSubmenu(!hoveredAlbumSubmenu);
+                  }
+                }}
               >
                 Adaugă în...
                 <Plus className="h-3 w-3" />
               </button>
               
               {/* Submenu */}
-              {hoveredAlbumSubmenu && (
-                <div className="absolute left-full top-0 ml-1 w-48 bg-popover border rounded shadow-lg p-1 backdrop-blur-sm z-70">
+              {hoveredAlbumSubmenu && !isMobile && (
+                <div className={`absolute ${isMobile ? 'right-full top-0 mr-1 w-64 max-w-[85vw]' : 'left-full top-0 ml-1 w-48'} bg-popover border rounded shadow-lg p-1 backdrop-blur-sm z-70 ${isMobile ? 'max-h-60 overflow-y-auto' : ''}`}>
                   {albums.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground">Nu există albume</div>
                   ) : (
@@ -3055,6 +3088,131 @@ const CreativeWriting: React.FC = () => {
         onOpenChange={(open) => setAlbumNameDialog(prev => ({ ...prev, open }))}
         onConfirm={createAlbumFromWritings}
       />
+
+      {/* Add to Album Dialog */}
+      <Dialog open={addToAlbumDialog.open} onOpenChange={(open) => setAddToAlbumDialog({ open, writingId: null })}>
+        <DialogContent className="sm:max-w-md max-w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>Adaugă în album</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {albums.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">Nu există albume create încă</p>
+                <Button
+                  onClick={() => {
+                    const albumName = window.prompt('Nume album nou:');
+                    if (!albumName || !addToAlbumDialog.writingId) return;
+                    const newAlbum = {
+                      id: String(Date.now()),
+                      name: albumName,
+                      color: '#7c3aed',
+                      itemIds: [addToAlbumDialog.writingId]
+                    };
+                    setAlbums(albs => [newAlbum, ...albs]);
+                    setAddToAlbumDialog({ open: false, writingId: null });
+                    toast({ title: 'Album creat', description: `Albumul "${albumName}" a fost creat cu scrierea.` });
+                  }}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Creează primul album
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {albums.map(album => (
+                  <Button
+                    key={album.id}
+                    variant="outline"
+                    onClick={() => {
+                      if (!addToAlbumDialog.writingId) return;
+                      setAlbums(albs => albs.map(al => 
+                        al.id === album.id 
+                          ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), addToAlbumDialog.writingId!])) } 
+                          : al
+                      ));
+                      setAddToAlbumDialog({ open: false, writingId: null });
+                      toast({ title: 'Adăugat', description: `Scrierea a fost adăugată în "${album.name}".` });
+                    }}
+                    className="w-full justify-start gap-3 h-12"
+                  >
+                    <div 
+                      className="w-4 h-4 rounded-full flex-shrink-0" 
+                      style={{ backgroundColor: album.color || '#7c3aed' }}
+                    />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">{album.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {album.itemIds.length} {album.itemIds.length === 1 ? 'scriere' : 'scrieri'}
+                      </div>
+                    </div>
+                  </Button>
+                ))}
+                
+                <hr className="my-3" />
+                
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const albumName = window.prompt('Nume album nou:');
+                    if (!albumName || !addToAlbumDialog.writingId) return;
+                    const newAlbum = {
+                      id: String(Date.now()),
+                      name: albumName,
+                      color: '#7c3aed',
+                      itemIds: [addToAlbumDialog.writingId]
+                    };
+                    setAlbums(albs => [newAlbum, ...albs]);
+                    setAddToAlbumDialog({ open: false, writingId: null });
+                    toast({ title: 'Album creat', description: `Albumul "${albumName}" a fost creat cu scrierea.` });
+                  }}
+                  className="w-full justify-start gap-3 h-12 text-green-600 border-green-200 hover:bg-green-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  <div className="text-left">
+                    <div className="font-medium">Creează album nou</div>
+                    <div className="text-xs text-muted-foreground">Cu această scriere</div>
+                  </div>
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fixed floating album navigation arrows for mobile */}
+      {isMobile && mobileViewMode === 'albums' && albums.length > mobileAlbumsPerPage && (
+        <>
+          {/* Left arrow */}
+          <button
+            onClick={() => setMobileAlbumCurrentPage(prev => Math.max(0, prev - 1))}
+            disabled={mobileAlbumCurrentPage === 0}
+            className={`fixed left-1 top-1/2 -translate-y-1/2 z-50 p-2 rounded-full shadow-lg backdrop-blur-sm transition-all touch-manipulation ${
+              mobileAlbumCurrentPage === 0 
+                ? 'bg-background/20 opacity-30' 
+                : 'bg-background/80 hover:bg-background active:scale-95'
+            }`}
+            aria-label="Previous album page"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+
+          {/* Right arrow */}
+          <button
+            onClick={() => setMobileAlbumCurrentPage(prev => Math.min(Math.ceil(albums.length / mobileAlbumsPerPage) - 1, prev + 1))}
+            disabled={mobileAlbumCurrentPage === Math.ceil(albums.length / mobileAlbumsPerPage) - 1}
+            className={`fixed right-1 top-1/2 -translate-y-1/2 z-50 p-2 rounded-full shadow-lg backdrop-blur-sm transition-all touch-manipulation ${
+              mobileAlbumCurrentPage === Math.ceil(albums.length / mobileAlbumsPerPage) - 1
+                ? 'bg-background/20 opacity-30'
+                : 'bg-background/80 hover:bg-background active:scale-95'
+            }`}
+            aria-label="Next album page"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
     </div>
   );
 };

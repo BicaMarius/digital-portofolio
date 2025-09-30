@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DragDropIndicator } from '@/components/DragDropIndicator';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface WritingPiece {
@@ -48,8 +49,6 @@ interface AlbumCardProps {
   onUpdateAlbum?: (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => void;
 }
 
-const ITEMS_PER_PAGE = 8; // 2x4 grid on desktop (falls back naturally on narrower screens)
-
 const albumColors = [
   '#7c3aed', '#f59e0b', '#10b981', '#f97316', 
   '#ef4444', '#06b6d4', '#8b5cf6', '#f97316'
@@ -80,11 +79,20 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
+  const [confirmDiscardDialog, setConfirmDiscardDialog] = useState(false);
+  
+  // Swipe state for mobile navigation
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  
   // Drag & drop state (using same logic as main writings grid)
   const dragItemId = useRef<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [dragOverType, setDragOverType] = useState<'merge' | 'move-left' | 'move-right' | null>(null);
   const [editDialogView, setEditDialogView] = useState<'album' | 'all'>('album');
+
+  // Dynamic items per page based on device type
+  const ITEMS_PER_PAGE = isMobile ? 6 : 8; // 6 for mobile (2x3), 8 for desktop (2x4)
 
   const albumWritings = album.itemIds
     .map(id => writings.find(w => w.id === id))
@@ -273,6 +281,37 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
     reorderWritings(sourceId, targetId, direction);
   };
 
+  // Swipe handlers for mobile navigation
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile || !isExpanded) return;
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isMobile || !isExpanded) return;
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!isMobile || !isExpanded || !touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && currentPage < totalPages - 1) {
+      // Swipe left = next page
+      setCurrentPage(prev => Math.min(totalPages - 1, prev + 1));
+    }
+    if (isRightSwipe && currentPage > 0) {
+      // Swipe right = previous page
+      setCurrentPage(prev => Math.max(0, prev - 1));
+    }
+  };
+
   // Close context menu when clicking elsewhere
   React.useEffect(() => {
     const handleClick = () => setContextMenuPosition(null);
@@ -321,12 +360,10 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                   size="sm" 
                   variant="outline"
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
-                    onDiscardAlbum?.(album.id);
-                  }}
-                  onTouchEnd={(e) => {
-                    e.stopPropagation();
-                    onDiscardAlbum?.(album.id);
+                    console.log('Album discard button clicked, album id:', album.id);
+                    setConfirmDiscardDialog(true);
                   }}
                   title="Desfă albumul"
                   className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} p-0 touch-manipulation`}
@@ -357,13 +394,18 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
           ) : (
             <div className="space-y-4">
               {/* Writing previews grid - compact consistent spacing */}
-              <div className={`grid gap-3 ${
-                isExpanded 
-                  ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' 
-                  : albumWritings.length === 1 
-                    ? 'grid-cols-1' 
-                    : 'grid-cols-2'
-              }`}>
+              <div 
+                className={`grid gap-3 ${
+                  isExpanded 
+                    ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' 
+                    : albumWritings.length === 1 
+                      ? 'grid-cols-1' 
+                      : 'grid-cols-2'
+                }`}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+              >
                 {previewWritings.map((writing, index) => (
                   <div
                     key={writing.id}
@@ -758,6 +800,39 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for album discard */}
+      <ConfirmationDialog
+        open={confirmDiscardDialog}
+        onOpenChange={setConfirmDiscardDialog}
+        title="Desfă albumul"
+        message={`Ești sigur că vrei să desfaci albumul "${album.name}"? Scrierile se vor întoarce în biblioteca principală.`}
+        type="info"
+        confirmText="Desfă albumul"
+        cancelText="Anulează"
+        onConfirm={() => {
+          console.log('Confirming album discard...');
+          console.log('onDiscardAlbum function available:', typeof onDiscardAlbum);
+          console.log('onDiscardAlbum function:', onDiscardAlbum);
+          console.log('About to call onDiscardAlbum with:', album.id);
+          try {
+            if (onDiscardAlbum) {
+              onDiscardAlbum(album.id);
+              console.log('onDiscardAlbum called successfully');
+            } else {
+              console.error('onDiscardAlbum is not available');
+            }
+          } catch (error) {
+            console.error('Error calling onDiscardAlbum:', error);
+          }
+          setConfirmDiscardDialog(false);
+          console.log('Dialog closed');
+        }}
+        onCancel={() => {
+          console.log('Cancelling album discard...');
+          setConfirmDiscardDialog(false);
+        }}
+      />
     </>
   );
 };
