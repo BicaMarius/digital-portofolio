@@ -35,6 +35,10 @@ interface WritingPiece {
   deletedAt?: string;
 }
 
+// Extended writing used internally to maintain a manual order for drag & drop.
+// Persisted shape can omit 'order' safely; when missing it's inferred by index.
+interface OrderedWriting extends WritingPiece { order: number }
+
 interface Album {
   id: string;
   name: string;
@@ -444,7 +448,11 @@ const CreativeWriting: React.FC = () => {
   const writingsGridRef = useRef<HTMLDivElement | null>(null);
 
   // make writings editable in local state (mock persists in-memory only)
-  const [writings, setWritings] = useState<WritingPiece[]>(mockWritings);
+  // Add a manual order field so drag & drop reordering isn't lost by sorting
+  const [writings, setWritings] = useState<OrderedWriting[]>(
+    mockWritings.map((w, idx) => ({ ...w, order: idx }))
+  );
+  const [useManualOrder, setUseManualOrder] = useState(false);
   
   // albums state (must be declared early to avoid temporal dead zone)
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -458,19 +466,19 @@ const CreativeWriting: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(6); // columns * 2
 
   // admin-managed type and mood lists
-  const [types, setTypes] = useState<Array<{ key: string; label: string }>>([
-    { key: 'poetry', label: 'Poezie' },
-    { key: 'short-story', label: 'Povestire' },
-    { key: 'essay', label: 'Eseu' },
-    { key: 'article', label: 'Articol' },
-    { key: 'song-lyrics', label: 'Versuri' }
+  const [types, setTypes] = useState<Array<{ name: string; color: string }>>([
+    { name: 'Poezie', color: 'bg-pink-500/20 text-pink-400' },
+    { name: 'Povestire', color: 'bg-green-500/20 text-green-400' },
+    { name: 'Eseu', color: 'bg-blue-500/20 text-blue-400' },
+    { name: 'Articol', color: 'bg-gray-500/20 text-gray-400' },
+    { name: 'Versuri', color: 'bg-purple-500/20 text-purple-400' }
   ]);
-  const [moods, setMoods] = useState<Array<{ key: string; label: string }>>([
-    { key: 'melancholic', label: 'Melancolic' },
-    { key: 'joyful', label: 'Vesel' },
-    { key: 'contemplative', label: 'Contemplativ' },
-    { key: 'passionate', label: 'Pasional' },
-    { key: 'nostalgic', label: 'Nostalgic' }
+  const [moods, setMoods] = useState<Array<{ name: string; color: string }>>([
+    { name: 'Melancolic', color: 'bg-blue-500/20 text-blue-400' },
+    { name: 'Vesel', color: 'bg-yellow-500/20 text-yellow-400' },
+    { name: 'Contemplativ', color: 'bg-purple-500/20 text-purple-400' },
+    { name: 'Pasional', color: 'bg-red-500/20 text-red-400' },
+    { name: 'Nostalgic', color: 'bg-orange-500/20 text-orange-400' }
   ]);
 
   // editor dialog state
@@ -479,14 +487,28 @@ const CreativeWriting: React.FC = () => {
   const editorRef = React.useRef<HTMLDivElement | null>(null);
   const [isManageTypesOpen, setIsManageTypesOpen] = useState(false);
   const [isManageMoodsOpen, setIsManageMoodsOpen] = useState(false);
-  const [newTypeKey, setNewTypeKey] = useState('');
   const [newTypeLabel, setNewTypeLabel] = useState('');
-  const [newMoodKey, setNewMoodKey] = useState('');
+  const [newTypeColor, setNewTypeColor] = useState('bg-gray-500/20 text-gray-400');
   const [newMoodLabel, setNewMoodLabel] = useState('');
+  const [newMoodColor, setNewMoodColor] = useState('bg-gray-500/20 text-gray-400');
   
   // Edit dialog states
-  const [editingType, setEditingType] = useState<{ key: string; label: string } | null>(null);
-  const [editingMood, setEditingMood] = useState<{ key: string; label: string } | null>(null);
+  const [editingType, setEditingType] = useState<{ name: string; color: string } | null>(null);
+  const [editingMood, setEditingMood] = useState<{ name: string; color: string } | null>(null);
+
+  // Predefined color options for types
+  const colorOptions = [
+    { label: 'Roz', value: 'bg-pink-500/20 text-pink-400' },
+    { label: 'Verde', value: 'bg-green-500/20 text-green-400' },
+    { label: 'Albastru', value: 'bg-blue-500/20 text-blue-400' },
+    { label: 'Portocaliu', value: 'bg-orange-500/20 text-orange-400' },
+    { label: 'Violet', value: 'bg-purple-500/20 text-purple-400' },
+    { label: 'Roșu', value: 'bg-red-500/20 text-red-400' },
+    { label: 'Galben', value: 'bg-yellow-500/20 text-yellow-400' },
+    { label: 'Cyan', value: 'bg-cyan-500/20 text-cyan-400' },
+    { label: 'Indigo', value: 'bg-indigo-500/20 text-indigo-400' },
+    { label: 'Gri', value: 'bg-gray-500/20 text-gray-400' }
+  ];
 
   // helper: normalize string removing diacritics and lowercase
   const normalize = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -509,7 +531,8 @@ const CreativeWriting: React.FC = () => {
   }) : [];
 
   // Combine base writings with album writings when searching in albums
-  const baseWritings = isAdmin ? writingsNotInAlbums : writingsNotInAlbums.filter(w => !w.isPrivate);
+  // Show identical set for admins and non-admins (read-only mode just gates actions)
+  const baseWritings = writingsNotInAlbums;
   const searchPool = searchInAlbums ? [...baseWritings, ...writingsInAlbums] : baseWritings;
 
   // search across title and content, diacritics-insensitive
@@ -521,7 +544,13 @@ const CreativeWriting: React.FC = () => {
   });
 
   // Apply sorting
+  // Apply sorting unless a manual drag order is in effect
   const allVisibleWritings = [...filteredWritings].sort((a, b) => {
+    if (useManualOrder) {
+      const ao = (a as OrderedWriting).order ?? 0;
+      const bo = (b as OrderedWriting).order ?? 0;
+      return ao - bo;
+    }
     switch (sortBy) {
       case 'dateCreated':
         return new Date(b.dateWritten).getTime() - new Date(a.dateWritten).getTime();
@@ -627,12 +656,14 @@ const CreativeWriting: React.FC = () => {
     };
     setWritings(ws => {
       if (ws.some(w => w.id === updated.id)) {
-        return ws.map(w => w.id === updated.id ? updated : w);
+        return ws.map(w => w.id === updated.id ? { ...(w as OrderedWriting), ...updated } : w);
       }
-      // new item: assign new id
+      // new item: assign new id & order to top (0) and shift others
       const nextId = Math.max(0, ...ws.map(w => w.id)) + 1;
       updated.id = nextId;
-      return [updated, ...ws];
+      const newItem: OrderedWriting = { ...(updated as WritingPiece), order: 0 };
+      const shifted = ws.map(w => ({ ...w, order: w.order + 1 }));
+      return [newItem, ...shifted];
     });
     setIsEditorOpen(false);
     toast({ title: 'Salvat', description: 'Textul a fost salvat în bibliotecă.' });
@@ -640,17 +671,17 @@ const CreativeWriting: React.FC = () => {
 
   // manage types/moods add/remove
   const addType = () => {
-    if (!newTypeKey || !newTypeLabel) return;
-    setTypes(t => [...t, { key: newTypeKey, label: newTypeLabel }]);
-    setNewTypeKey(''); setNewTypeLabel('');
+    if (!newTypeLabel.trim()) return;
+    setTypes(t => [...t, { name: newTypeLabel, color: newTypeColor }]);
+    setNewTypeLabel(''); setNewTypeColor('bg-gray-500/20 text-gray-400');
   };
-  const removeType = (key: string) => setTypes(t => t.filter(i => i.key !== key));
+  const removeType = (name: string) => setTypes(t => t.filter(i => i.name !== name));
   const addMood = () => {
-    if (!newMoodKey || !newMoodLabel) return;
-    setMoods(m => [...m, { key: newMoodKey, label: newMoodLabel }]);
-    setNewMoodKey(''); setNewMoodLabel('');
+    if (!newMoodLabel.trim()) return;
+    setMoods(m => [...m, { name: newMoodLabel, color: newMoodColor }]);
+    setNewMoodLabel(''); setNewMoodColor('bg-gray-500/20 text-gray-400');
   };
-  const removeMood = (key: string) => setMoods(m => m.filter(i => i.key !== key));
+  const removeMood = (name: string) => setMoods(m => m.filter(i => i.name !== name));
 
   // when editor opens, populate contentEditable
   useEffect(() => {
@@ -673,27 +704,31 @@ const CreativeWriting: React.FC = () => {
 
   // responsive columns based on actual grid width (ensures exactly 2 rows visible)
   useEffect(() => {
-  const targetCardMin = 250; // increased base card width for larger cards
-  const maxColumns = 12;
+    const targetCardMin = 250; // base desired min card width
+    const maxColumns = 12;
     const calc = () => {
       const el = writingsGridRef.current;
       if (!el) return;
       const style = window.getComputedStyle(el);
       const gap = parseFloat(style.columnGap || '20');
       const width = el.clientWidth;
-      // compute columns by subtracting gaps progressively
       let cols = Math.floor((width + gap) / (targetCardMin + gap));
       cols = Math.max(1, Math.min(maxColumns, cols));
-  // Force maximum columns at breakpoints for better card sizing
-  if (width >= 1000 && cols < 4) cols = 4;
-  if (width >= 1180 && cols < 5) cols = 5; // standard laptop ~1280 inc margin
-  if (width < 2100 && cols > 5) cols = 5; // limit to 5 columns on Full HD (1920px)
-  if (width >= 2100 && cols < 6) cols = 6; // wider desktop for very large screens
-  if (width >= 2500 && cols < 7) cols = 7; // ultra wide screens
-      setColumns(cols);
-      setItemsPerPage(cols * 2); // exactly 2 rows
+      const viewport = window.innerWidth;
+      // Ensure at least 4 columns on desktop widths even if container narrower due to initial layout timing
+      if (viewport >= 1024 && cols < 4) cols = 4;
+      // Existing adaptive rules
+      if (width >= 1000 && cols < 4) cols = 4;
+      if (width >= 1180 && cols < 5) cols = 5;
+      if (width < 2100 && cols > 5) cols = 5;
+      if (width >= 2100 && cols < 6) cols = 6;
+      if (width >= 2500 && cols < 7) cols = 7;
+      setColumns(prev => prev !== cols ? cols : prev);
+      setItemsPerPage(cols * 2); // keep 2 rows visible
     };
+    // Run twice: immediately and after next paint (in case ref width changes once mounted)
     calc();
+    requestAnimationFrame(calc);
     const obs = new ResizeObserver(() => calc());
     if (writingsGridRef.current) obs.observe(writingsGridRef.current);
     window.addEventListener('resize', calc);
@@ -703,17 +738,124 @@ const CreativeWriting: React.FC = () => {
     };
   }, []);
 
+  // Keep itemsPerPage synced if columns changes externally
+  useEffect(() => {
+    setItemsPerPage(columns * 2);
+  }, [columns]);
+
+
+  // Helper functions for migrating old data
+  const getDefaultTypeColor = (key: string): string => {
+    switch (key) {
+      case 'poetry':
+      case 'Poezie': return 'bg-pink-500/20 text-pink-400';
+      case 'short-story':
+      case 'Povestire': return 'bg-green-500/20 text-green-400';
+      case 'essay':
+      case 'Eseu': return 'bg-blue-500/20 text-blue-400';
+      case 'article':
+      case 'Articol': return 'bg-gray-500/20 text-gray-400';
+      case 'song-lyrics':
+      case 'Versuri': return 'bg-purple-500/20 text-purple-400';
+      default: return 'bg-gray-500/20 text-gray-400';
+    }
+  };
+
+  const getDefaultMoodColor = (key: string): string => {
+    switch (key) {
+      case 'melancholic':
+      case 'Melancolic': return 'bg-blue-500/20 text-blue-400';
+      case 'joyful':
+      case 'Vesel': return 'bg-yellow-500/20 text-yellow-400';
+      case 'contemplative':
+      case 'Contemplativ': return 'bg-purple-500/20 text-purple-400';
+      case 'passionate':
+      case 'Pasional': return 'bg-red-500/20 text-red-400';
+      case 'nostalgic':
+      case 'Nostalgic': return 'bg-orange-500/20 text-orange-400';
+      default: return 'bg-gray-500/20 text-gray-400';
+    }
+  };
+
+  // Function to migrate old key-based writings to name-based
+  const migrateWritingTypes = (writings: WritingPiece[]): WritingPiece[] => {
+    return writings.map(w => ({
+      ...w,
+      type: w.type === 'poetry' ? 'Poezie' :
+            w.type === 'short-story' ? 'Povestire' :
+            w.type === 'essay' ? 'Eseu' :
+            w.type === 'article' ? 'Articol' :
+            w.type === 'song-lyrics' ? 'Versuri' : w.type,
+      mood: w.mood === 'melancholic' ? 'Melancolic' :
+            w.mood === 'joyful' ? 'Vesel' :
+            w.mood === 'contemplative' ? 'Contemplativ' :
+            w.mood === 'passionate' ? 'Pasional' :
+            w.mood === 'nostalgic' ? 'Nostalgic' : w.mood
+    }));
+  };
 
   // persistence: load from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem('cw_writings');
-    if (saved) setWritings(JSON.parse(saved));
     const st = localStorage.getItem('cw_types');
-    if (st) setTypes(JSON.parse(st));
+    if (st) {
+      const loadedTypes = JSON.parse(st);
+      // Migrate old types to include colors if they don't have them
+      const migratedTypes = loadedTypes.map((t: { key?: string; label?: string; name?: string; color?: string }) => ({
+        name: t.name || t.label || t.key || 'Unknown',
+        color: t.color || getDefaultTypeColor(t.key || t.name || t.label || '')
+      }));
+      setTypes(migratedTypes);
+    }
+    
     const sm = localStorage.getItem('cw_moods');
-    if (sm) setMoods(JSON.parse(sm));
+    if (sm) {
+      const loadedMoods = JSON.parse(sm);
+      // Migrate old moods to include colors if they don't have them
+      const migratedMoods = loadedMoods.map((m: { key?: string; label?: string; name?: string; color?: string }) => ({
+        name: m.name || m.label || m.key || 'Unknown',
+        color: m.color || getDefaultMoodColor(m.key || m.name || m.label || '')
+      }));
+      setMoods(migratedMoods);
+    }
+
+    // Migrate writings to use new name-based system
+    const saved = localStorage.getItem('cw_writings');
+    if (saved) {
+      const loadedWritings = JSON.parse(saved);
+  const migratedWritings = migrateWritingTypes(loadedWritings).map((w: WritingPiece, idx: number) => ({ ...w, order: idx }));
+  setWritings(migratedWritings as OrderedWriting[]);
+    }
+    
     const sa = localStorage.getItem('cw_albums');
-    if (sa) setAlbums(JSON.parse(sa));
+    if (sa) {
+      setAlbums(JSON.parse(sa));
+    } else {
+      // Set default albums if none exist
+      const defaultAlbums: Album[] = [
+        {
+          id: 'favorite-poems',
+          name: 'Poezii Favorite',
+          color: '#EC4899',
+          icon: 'Heart',
+          itemIds: []
+        },
+        {
+          id: 'short-stories',
+          name: 'Povestiri Scurte',
+          color: '#10B981',
+          icon: 'Book',
+          itemIds: []
+        },
+        {
+          id: 'personal-essays',
+          name: 'Eseuri Personale',
+          color: '#3B82F6',
+          icon: 'FileText',
+          itemIds: []
+        }
+      ];
+      setAlbums(defaultAlbums);
+    }
     const trash = localStorage.getItem('cw_trash');
     if (trash) setTrashedWritings(JSON.parse(trash));
     
@@ -726,11 +868,50 @@ const CreativeWriting: React.FC = () => {
     }));
   }, []);
 
-  // save on changes
-  useEffect(() => { localStorage.setItem('cw_writings', JSON.stringify(writings)); }, [writings]);
-  useEffect(() => { localStorage.setItem('cw_types', JSON.stringify(types)); }, [types]);
-  useEffect(() => { localStorage.setItem('cw_moods', JSON.stringify(moods)); }, [moods]);
-  useEffect(() => { localStorage.setItem('cw_albums', JSON.stringify(albums)); }, [albums]);
+  // Sync function for cloud storage (placeholder for backend integration)
+  const syncDataToCloud = useCallback(async (dataType: string, data: unknown) => {
+    if (!isAdmin) return;
+    
+    try {
+      // TODO: Replace with actual backend API call
+      // await fetch('/api/creative-writing/sync', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ dataType, data, timestamp: Date.now() })
+      // });
+      
+      // For now, just store in a separate localStorage key for "cloud" simulation
+      const cloudKey = `cw_cloud_${dataType}`;
+      const cloudData = {
+        data,
+        timestamp: Date.now(),
+        deviceId: navigator.userAgent // Simple device identification
+      };
+      localStorage.setItem(cloudKey, JSON.stringify(cloudData));
+      
+      console.log(`Synced ${dataType} to cloud simulation`);
+    } catch (error) {
+      console.error(`Failed to sync ${dataType}:`, error);
+    }
+  }, [isAdmin]);
+
+  // save on changes and sync for admin
+  useEffect(() => { 
+    localStorage.setItem('cw_writings', JSON.stringify(writings)); 
+    if (isAdmin) syncDataToCloud('writings', writings);
+  }, [writings, isAdmin, syncDataToCloud]);
+  useEffect(() => { 
+    localStorage.setItem('cw_types', JSON.stringify(types)); 
+    if (isAdmin) syncDataToCloud('types', types);
+  }, [types, isAdmin, syncDataToCloud]);
+  useEffect(() => { 
+    localStorage.setItem('cw_moods', JSON.stringify(moods)); 
+    if (isAdmin) syncDataToCloud('moods', moods);
+  }, [moods, isAdmin, syncDataToCloud]);
+  useEffect(() => { 
+    localStorage.setItem('cw_albums', JSON.stringify(albums)); 
+    if (isAdmin) syncDataToCloud('albums', albums);
+  }, [albums, isAdmin, syncDataToCloud]);
   useEffect(() => { localStorage.setItem('cw_trash', JSON.stringify(trashedWritings)); }, [trashedWritings]);
 
   // Reset mobile page when search/filter changes
@@ -835,14 +1016,14 @@ const CreativeWriting: React.FC = () => {
     openEditorFor({
       id: 0,
       title: '',
-      type: (types[0] && types[0].key) || 'poetry',
+      type: types[0]?.name || 'Poezie',
       content: '',
       excerpt: '',
       wordCount: 0,
       dateWritten: new Date().toISOString().slice(0,10),
       lastModified: new Date().toISOString().slice(0,10),
       tags: [],
-      mood: (moods[0] && moods[0].key) || 'contemplative',
+      mood: moods[0]?.name || 'Contemplativ',
       published: false
     });
   };
@@ -923,21 +1104,21 @@ const CreativeWriting: React.FC = () => {
         targetId
       });
     } else {
-      // Reorder writings
+      // Reorder writings manually
       const direction = dragOverType === 'move-left' ? 'before' : 'after';
       setWritings(ws => {
         const copy = [...ws];
         const sourceIndex = copy.findIndex(w => w.id === sourceId);
         const targetIndex = copy.findIndex(w => w.id === targetId);
-        
         if (sourceIndex === -1 || targetIndex === -1) return ws;
-        
         const [item] = copy.splice(sourceIndex, 1);
         const insertIndex = direction === 'before' ? targetIndex : targetIndex + 1;
         copy.splice(insertIndex > sourceIndex ? insertIndex - 1 : insertIndex, 0, item);
-        
+        // Reassign order values sequentially
+  (copy as OrderedWriting[]).forEach((w, i) => { w.order = i; });
         return copy;
       });
+      setUseManualOrder(true);
     }
   };
 
@@ -1006,36 +1187,23 @@ const CreativeWriting: React.FC = () => {
   };
 
   const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'poetry': return 'Poezie';
-      case 'short-story': return 'Povestire';
-      case 'essay': return 'Eseu';
-      case 'article': return 'Articol';
-      case 'song-lyrics': return 'Versuri';
-      default: return type;
-    }
+    const typeConfig = types.find(t => t.name === type);
+    return typeConfig?.name || type;
+  };
+
+  const getTypeColor = (type: string) => {
+    const typeConfig = types.find(t => t.name === type);
+    return typeConfig?.color || 'bg-muted text-muted-foreground';
   };
 
   const getMoodColor = (mood: string) => {
-    switch (mood) {
-      case 'melancholic': return 'bg-blue-500/20 text-blue-400';
-      case 'joyful': return 'bg-yellow-500/20 text-yellow-400';
-      case 'contemplative': return 'bg-purple-500/20 text-purple-400';
-      case 'passionate': return 'bg-red-500/20 text-red-400';
-      case 'nostalgic': return 'bg-orange-500/20 text-orange-400';
-      default: return 'bg-muted text-muted-foreground';
-    }
+    const moodConfig = moods.find(m => m.name === mood);
+    return moodConfig?.color || 'bg-muted text-muted-foreground';
   };
 
   const getMoodLabel = (mood: string) => {
-    switch (mood) {
-      case 'melancholic': return 'Melancolic';
-      case 'joyful': return 'Vesel';
-      case 'contemplative': return 'Contemplativ';
-      case 'passionate': return 'Pasional';
-      case 'nostalgic': return 'Nostalgic';
-      default: return mood;
-    }
+    const moodConfig = moods.find(m => m.name === mood);
+    return moodConfig?.name || mood;
   };
 
   const deleteWriting = (writingId: number) => {
@@ -1236,10 +1404,14 @@ const CreativeWriting: React.FC = () => {
                   <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder={searchInAlbums ? "Caută în toate scrierile..." : "Caută scrieri..."}
+                      placeholder={searchInAlbums ? "Caută în toate..." : "Caută scrieri..."}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 h-9 bg-background/50 border-art-accent/30 focus:border-art-accent/50"
+                      className={`pl-10 h-9 border-art-accent/30 focus:border-art-accent/50 ${
+                        searchInAlbums 
+                          ? 'bg-art-accent/10 border-art-accent/50' 
+                          : 'bg-background/50'
+                      }`}
                     />
                   </div>
                   
@@ -1333,7 +1505,7 @@ const CreativeWriting: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Toate tipurile</SelectItem>
-                          {types.map(t => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
+                          {types.map(t => (<SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>))}
                           {isAdmin && (
                             <SelectItem value="__manage_types">
                               <div className="flex items-center gap-2">
@@ -1357,7 +1529,7 @@ const CreativeWriting: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Toate</SelectItem>
-                          {moods.map(m => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}
+                          {moods.map(m => (<SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>))}
                           {isAdmin && (
                             <SelectItem value="__manage_moods">
                               <div className="flex items-center gap-2">
@@ -1482,6 +1654,11 @@ const CreativeWriting: React.FC = () => {
                       onDrop={(e) => onDropOnCard(e, writing.id)}
                       onDragLeave={onDragLeave}
                       onContextMenu={(e) => {
+                        if (!isAdmin) {
+                          // Blochează meniul custom și pe cel implicit
+                          e.preventDefault();
+                          return;
+                        }
                         e.preventDefault();
                         setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
                         setContextTargetWriting(writing);
@@ -1543,8 +1720,7 @@ const CreativeWriting: React.FC = () => {
                           {/* Tag in top-right corner */}
                           <div className="absolute top-2 right-2">
                             <Badge 
-                              variant="secondary"
-                              className="text-xs"
+                              className={`text-xs ${getTypeColor(writing.type)}`}
                             >
                               {getTypeLabel(writing.type)}
                             </Badge>
@@ -1639,7 +1815,7 @@ const CreativeWriting: React.FC = () => {
                                 : a
                             ));
                           }}
-                          onDeleteWritingFromAlbum={(albumId, writingId) => {
+                          onDeleteWritingFromAlbum={(_albumId, writingId) => {
                             // Move writing to trash
                             const writing = writings.find(w => w.id === writingId);
                             if (writing) {
@@ -1701,6 +1877,10 @@ const CreativeWriting: React.FC = () => {
                     onDrop={(e) => onDropOnCard(e, writing.id)}
                     onDragLeave={onDragLeave}
                     onContextMenu={(e) => {
+                      if (!isAdmin) {
+                        e.preventDefault();
+                        return;
+                      }
                       e.preventDefault();
                       setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
                       setContextTargetWriting(writing);
@@ -1772,8 +1952,7 @@ const CreativeWriting: React.FC = () => {
                               {getMoodLabel(writing.mood)}
                             </Badge>
                             <Badge 
-                              variant="secondary"
-                              className="text-xs"
+                              className={`text-xs ${getTypeColor(writing.type)}`}
                             >
                               {getTypeLabel(writing.type)}
                             </Badge>
@@ -1981,17 +2160,17 @@ const CreativeWriting: React.FC = () => {
                 {/* Filters bar - horizontal scroll */}
                 <div className="p-3 border-b bg-muted/20">
                   <div className="flex gap-2 overflow-x-auto pb-2">
-                    <Select value={editing?.type || types[0]?.key} onValueChange={(v) => setEditing(ed => ed ? { ...ed, type: v } as WritingPiece : ed)}>
+                    <Select value={editing?.type || types[0]?.name} onValueChange={(v) => setEditing(ed => ed ? { ...ed, type: v } as WritingPiece : ed)}>
                       <SelectTrigger className="w-24 h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>{types.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}</SelectContent>
+                      <SelectContent>{types.map(t => <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
-                    <Select value={editing?.mood || moods[0]?.key} onValueChange={(v) => setEditing(ed => ed ? { ...ed, mood: v } as WritingPiece : ed)}>
+                    <Select value={editing?.mood || moods[0]?.name} onValueChange={(v) => setEditing(ed => ed ? { ...ed, mood: v } as WritingPiece : ed)}>
                       <SelectTrigger className="w-24 h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>{moods.map(m => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}</SelectContent>
+                      <SelectContent>{moods.map(m => <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
                     </Select>
                     <div className="flex items-center gap-2 px-2 rounded border bg-background">
                       <Switch 
@@ -2059,13 +2238,13 @@ const CreativeWriting: React.FC = () => {
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <Input placeholder="Titlu" value={editing?.title || ''} onChange={(e) => setEditing(ed => ed ? { ...ed, title: e.target.value } : ed)} />
-                  <Select value={editing?.type || types[0]?.key} onValueChange={(v) => setEditing(ed => ed ? { ...ed, type: v } as WritingPiece : ed)}>
+                  <Select value={editing?.type || types[0]?.name} onValueChange={(v) => setEditing(ed => ed ? { ...ed, type: v } as WritingPiece : ed)}>
                     <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>{types.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{types.map(t => <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
                   </Select>
-                  <Select value={editing?.mood || moods[0]?.key} onValueChange={(v) => setEditing(ed => ed ? { ...ed, mood: v } as WritingPiece : ed)}>
+                  <Select value={editing?.mood || moods[0]?.name} onValueChange={(v) => setEditing(ed => ed ? { ...ed, mood: v } as WritingPiece : ed)}>
                     <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>{moods.map(m => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{moods.map(m => <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
 
@@ -2125,24 +2304,28 @@ const CreativeWriting: React.FC = () => {
           <DialogHeader><DialogTitle>Gestionează tipuri</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4">
             {types.map(t => (
-              <Card key={t.key} className="p-4">
+              <Card key={t.name} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="font-medium">{t.label}</div>
-                    <div className="text-xs text-muted-foreground">{t.key}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{t.name}</div>
+                      <Badge className={`text-xs`} style={{ backgroundColor: t.color, color: '#fff' }}>
+                        {t.name}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button 
                       size="sm" 
                       variant="outline" 
-                      onClick={() => setEditingType({ key: t.key, label: t.label })}
+                      onClick={() => setEditingType({ name: t.name, color: t.color })}
                     >
                       Edit
                     </Button>
                     <Button 
                       size="sm" 
                       variant="destructive" 
-                      onClick={() => removeType(t.key)}
+                      onClick={() => removeType(t.name)}
                     >
                       Șterge
                     </Button>
@@ -2159,13 +2342,32 @@ const CreativeWriting: React.FC = () => {
                   value={newTypeLabel} 
                   onChange={(e) => setNewTypeLabel(e.target.value)} 
                 />
+                <div>
+                  <Label className="text-sm font-medium">Culoare</Label>
+                  <Select value={newTypeColor} onValueChange={setNewTypeColor}>
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue placeholder="Selectează culoarea..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {colorOptions.map(color => (
+                        <SelectItem key={color.value} value={color.value}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${color.value}`}></div>
+                            {color.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button 
                   onClick={() => {
                     if (newTypeLabel.trim()) {
                       const key = newTypeLabel.toLowerCase().replace(/\s+/g, '-');
+                      setNewTypeLabel(key);
                       addType();
                       setNewTypeLabel('');
-                      setNewTypeKey('');
+                      setNewTypeLabel('');
                     }
                   }}
                   className="w-full"
@@ -2187,16 +2389,39 @@ const CreativeWriting: React.FC = () => {
               <Label htmlFor="edit-type-name">Nume categorie</Label>
               <Input 
                 id="edit-type-name"
-                value={editingType?.label || ''} 
-                onChange={(e) => setEditingType(prev => prev ? { ...prev, label: e.target.value } : null)} 
+                value={editingType?.name || ''} 
+                onChange={(e) => setEditingType(prev => prev ? { ...prev, name: e.target.value } : null)} 
               />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Culoare</Label>
+              <Select 
+                value={editingType?.color || 'bg-gray-500/20 text-gray-400'} 
+                onValueChange={(value) => setEditingType(prev => prev ? { ...prev, color: value } : null)}
+              >
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Selectează culoarea..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {colorOptions.map(color => (
+                    <SelectItem key={color.value} value={color.value}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${color.value}`}></div>
+                        {color.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-2">
               <Button 
                 onClick={() => {
                   if (editingType) {
-                    const newKey = editingType.label.toLowerCase().replace(/\s+/g, '-');
-                    setTypes(ts => ts.map(x => x.key === editingType.key ? { key: newKey, label: editingType.label } : x));
+                    setTypes(ts => ts.map(x => x.name === editingType.name ? { 
+                      name: editingType.name, 
+                      color: editingType.color 
+                    } : x));
                     setEditingType(null);
                   }
                 }}
@@ -2222,24 +2447,28 @@ const CreativeWriting: React.FC = () => {
           <DialogHeader><DialogTitle>Gestionează stări</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4">
             {moods.map(m => (
-              <Card key={m.key} className="p-4">
+              <Card key={m.name} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="font-medium">{m.label}</div>
-                    <div className="text-xs text-muted-foreground">{m.key}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{m.name}</div>
+                      <Badge className={`text-xs`} style={{ backgroundColor: m.color, color: '#fff' }}>
+                        {m.name}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button 
                       size="sm" 
                       variant="outline" 
-                      onClick={() => setEditingMood({ key: m.key, label: m.label })}
+                      onClick={() => setEditingMood({ name: m.name, color: m.color })}
                     >
                       Edit
                     </Button>
                     <Button 
                       size="sm" 
                       variant="destructive" 
-                      onClick={() => removeMood(m.key)}
+                      onClick={() => removeMood(m.name)}
                     >
                       Șterge
                     </Button>
@@ -2256,13 +2485,32 @@ const CreativeWriting: React.FC = () => {
                   value={newMoodLabel} 
                   onChange={(e) => setNewMoodLabel(e.target.value)} 
                 />
+                <div>
+                  <Label className="text-sm font-medium">Culoare</Label>
+                  <Select value={newMoodColor} onValueChange={setNewMoodColor}>
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue placeholder="Selectează culoarea..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {colorOptions.map(color => (
+                        <SelectItem key={color.value} value={color.value}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${color.value}`}></div>
+                            {color.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button 
                   onClick={() => {
                     if (newMoodLabel.trim()) {
                       const key = newMoodLabel.toLowerCase().replace(/\s+/g, '-');
+                      setNewMoodLabel(key);
                       addMood();
                       setNewMoodLabel('');
-                      setNewMoodKey('');
+                      setNewMoodLabel('');
                     }
                   }}
                   className="w-full"
@@ -2284,16 +2532,39 @@ const CreativeWriting: React.FC = () => {
               <Label htmlFor="edit-mood-name">Nume stare</Label>
               <Input 
                 id="edit-mood-name"
-                value={editingMood?.label || ''} 
-                onChange={(e) => setEditingMood(prev => prev ? { ...prev, label: e.target.value } : null)} 
+                value={editingMood?.name || ''} 
+                onChange={(e) => setEditingMood(prev => prev ? { ...prev, name: e.target.value } : null)} 
               />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Culoare</Label>
+              <Select 
+                value={editingMood?.color || 'bg-gray-500/20 text-gray-400'} 
+                onValueChange={(value) => setEditingMood(prev => prev ? { ...prev, color: value } : null)}
+              >
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Selectează culoarea..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {colorOptions.map(color => (
+                    <SelectItem key={color.value} value={color.value}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${color.value}`}></div>
+                        {color.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-2">
               <Button 
                 onClick={() => {
                   if (editingMood) {
-                    const newKey = editingMood.label.toLowerCase().replace(/\s+/g, '-');
-                    setMoods(ms => ms.map(x => x.key === editingMood.key ? { key: newKey, label: editingMood.label } : x));
+                    setMoods(ms => ms.map(x => x.name === editingMood.name ? { 
+                      name: editingMood.name, 
+                      color: editingMood.color 
+                    } : x));
                     setEditingMood(null);
                   }
                 }}
@@ -2324,16 +2595,17 @@ const CreativeWriting: React.FC = () => {
             {/* Type Filter */}
             <div>
               <Label className="text-sm font-medium">Tip scriere</Label>
-              <select 
-                value={filterType} 
-                onChange={(e) => setFilterType(e.target.value)}
-                className="w-full mt-1 p-2 border rounded-md bg-background"
-              >
-                <option value="all">Toate tipurile</option>
-                {types.map(t => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-full mt-1 bg-background border-art-accent/30 focus:border-art-accent/50">
+                  <SelectValue placeholder="Selectează tipul..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate tipurile</SelectItem>
+                  {types.map(t => (
+                    <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {isAdmin && (
                 <Button
                   variant="ghost" 
@@ -2349,16 +2621,17 @@ const CreativeWriting: React.FC = () => {
             {/* Mood Filter */}
             <div>
               <Label className="text-sm font-medium">Stare/Sentiment</Label>
-              <select 
-                value={filterMood} 
-                onChange={(e) => setFilterMood(e.target.value)}
-                className="w-full mt-1 p-2 border rounded-md bg-background"
-              >
-                <option value="all">Toate stările</option>
-                {moods.map(m => (
-                  <option key={m.key} value={m.key}>{m.label}</option>
-                ))}
-              </select>
+              <Select value={filterMood} onValueChange={setFilterMood}>
+                <SelectTrigger className="w-full mt-1 bg-background border-art-accent/30 focus:border-art-accent/50">
+                  <SelectValue placeholder="Selectează starea..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate stările</SelectItem>
+                  {moods.map(m => (
+                    <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {isAdmin && (
                 <Button
                   variant="ghost" 
@@ -2374,16 +2647,17 @@ const CreativeWriting: React.FC = () => {
             {/* Sort Options */}
             <div>
               <Label className="text-sm font-medium">Sortare după</Label>
-              <select 
-                value={sortBy} 
-                onChange={(e) => setSortBy(e.target.value as 'dateModified' | 'dateCreated' | 'title' | 'wordCount')}
-                className="w-full mt-1 p-2 border rounded-md bg-background"
-              >
-                <option value="dateModified">Data modificării</option>
-                <option value="dateCreated">Data creării</option>
-                <option value="title">Titlu</option>
-                <option value="wordCount">Numărul de cuvinte</option>
-              </select>
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'dateModified' | 'dateCreated' | 'title' | 'wordCount')}>
+                <SelectTrigger className="w-full mt-1 bg-background border-art-accent/30 focus:border-art-accent/50">
+                  <SelectValue placeholder="Selectează sortarea..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dateModified">Data modificării</SelectItem>
+                  <SelectItem value="dateCreated">Data creării</SelectItem>
+                  <SelectItem value="title">Titlu</SelectItem>
+                  <SelectItem value="wordCount">Numărul de cuvinte</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Action Buttons */}
@@ -2393,6 +2667,7 @@ const CreativeWriting: React.FC = () => {
                 onClick={() => {
                   setFilterType('all');
                   setFilterMood('all');
+                  setSortBy('dateModified');
                 }}
                 className="flex-1"
               >
@@ -2549,9 +2824,13 @@ const CreativeWriting: React.FC = () => {
                           <button
                             onClick={() => {
                               // Restore writing
-                              const restored = { ...writing };
+                              const restored: OrderedWriting = { ...(writing as WritingPiece), order: 0 };
                               delete restored.deletedAt;
-                              setWritings(ws => [restored, ...ws]);
+                              setWritings(ws => {
+                                // shift existing orders
+                                const shifted = ws.map(w => ({ ...w, order: w.order + 1 }));
+                                return [restored, ...shifted];
+                              });
                               setTrashedWritings(trash => trash.filter(t => t.id !== writing.id));
                               toast({ title: 'Restaurat', description: 'Scrierea a fost restaurată.' });
                             }}

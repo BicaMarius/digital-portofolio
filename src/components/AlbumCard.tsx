@@ -48,7 +48,7 @@ interface AlbumCardProps {
   onUpdateAlbum?: (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => void;
 }
 
-const ITEMS_PER_PAGE = 6; // 2x3 grid for better mobile spacing
+const ITEMS_PER_PAGE = 8; // 2x4 grid on desktop (falls back naturally on narrower screens)
 
 const albumColors = [
   '#7c3aed', '#f59e0b', '#10b981', '#f97316', 
@@ -366,7 +366,10 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                       isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
                     }`}
                     onClick={() => onWritingClick(writing)}
-                    onContextMenu={(e) => handleContextMenu(e, writing.id)}
+                    onContextMenu={(e) => {
+                      if (!isAdmin) { e.preventDefault(); return; }
+                      handleContextMenu(e, writing.id);
+                    }}
                     onDragOver={isAdmin && isExpanded ? (e) => handleDragOverCard(e, writing.id) : undefined}
                     onDrop={isAdmin && isExpanded ? (e) => handleDropOnCard(e, writing.id) : undefined}
                     onDragLeave={isAdmin && isExpanded ? handleDragLeave : undefined}
