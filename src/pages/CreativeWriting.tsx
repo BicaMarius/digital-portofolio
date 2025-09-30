@@ -1283,7 +1283,6 @@ const CreativeWriting: React.FC = () => {
   };
 
   const discardAlbum = (albumId: string) => {
-    console.log('discardAlbum called with:', albumId);
     const album = albums.find(a => a.id === albumId);
     if (!album) return;
 
@@ -1443,7 +1442,7 @@ const CreativeWriting: React.FC = () => {
                       onClick={() => setSearchInAlbums(v => !v)}
                       className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center ${
                         searchInAlbums
-                          ? 'bg-art-accent text-white border-art-accent shadow-sm'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
                           : 'bg-background/40 text-muted-foreground border-border hover:text-foreground'
                       }`}
                       title={searchInAlbums ? "Caută în toate albumele" : "Caută doar în biblioteca principală"}
@@ -1656,25 +1655,27 @@ const CreativeWriting: React.FC = () => {
                     <div
                       key={writing.id}
                       className="relative"
-                      draggable={isAdmin}
-                      onDragStart={(e) => onDragStart(e, writing.id)}
-                      onDragOver={(e) => onDragOverCard(e, writing.id)}
-                      onDrop={(e) => onDropOnCard(e, writing.id)}
-                      onDragLeave={onDragLeave}
-                      onContextMenu={(e) => {
-                        if (!isAdmin) {
-                          // Blochează meniul custom și pe cel implicit
+                      draggable={isAdmin && !isMobile}
+                      onDragStart={!isMobile ? (e) => onDragStart(e, writing.id) : undefined}
+                      onDragOver={!isMobile ? (e) => onDragOverCard(e, writing.id) : undefined}
+                      onDrop={!isMobile ? (e) => onDropOnCard(e, writing.id) : undefined}
+                      onDragLeave={!isMobile ? onDragLeave : undefined}
+                      {...(!isMobile && {
+                        onContextMenu: (e) => {
+                          if (!isAdmin) {
+                            // Blochează meniul custom și pe cel implicit
+                            e.preventDefault();
+                            return;
+                          }
                           e.preventDefault();
-                          return;
+                          setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
+                          setContextTargetWriting(writing);
                         }
-                        e.preventDefault();
-                        setContextMenu({ open: true, x: e.clientX, y: e.clientY, writingId: writing.id });
-                        setContextTargetWriting(writing);
-                      }}
+                      })}
                       /* Removed touch gesture handlers and swipe transform */
                     >
                       {/* Drag Drop Indicator */}
-                      {dragOverId === writing.id && (
+                      {dragOverId === writing.id && !isMobile && (
                         <DragDropIndicator 
                           type={dragOverType!} 
                           isActive={true} 
@@ -1697,12 +1698,38 @@ const CreativeWriting: React.FC = () => {
                           })
                         }}
                         onClick={() => {
-                          if (mobileSelectedWritingId === writing.id) {
-                            // second tap opens
-                            setSelectedWriting(writing);
-                          } else {
+                          // Click simplu = preview direct
+                          setSelectedWriting(writing);
+                        }}
+                        onTouchStart={(e) => {
+                          if (!isMobile || !isAdmin) return;
+                          const touch = e.touches[0];
+                          const touchStartTime = Date.now();
+                          const touchStartX = touch.clientX;
+                          const touchStartY = touch.clientY;
+                          
+                          const longPressTimer = setTimeout(() => {
+                            // Long press = opțiuni
                             setMobileSelectedWritingId(writing.id);
-                          }
+                          }, 500);
+                          
+                          const handleTouchEnd = () => {
+                            clearTimeout(longPressTimer);
+                            document.removeEventListener('touchend', handleTouchEnd);
+                            document.removeEventListener('touchmove', handleTouchMove);
+                          };
+                          
+                          const handleTouchMove = (moveEvent: TouchEvent) => {
+                            const touch = moveEvent.touches[0];
+                            const deltaX = Math.abs(touch.clientX - touchStartX);
+                            const deltaY = Math.abs(touch.clientY - touchStartY);
+                            if (deltaX > 10 || deltaY > 10) {
+                              clearTimeout(longPressTimer);
+                            }
+                          };
+                          
+                          document.addEventListener('touchend', handleTouchEnd);
+                          document.addEventListener('touchmove', handleTouchMove);
                         }}
                       >
                         <CardContent className="p-3 relative">
@@ -1882,11 +1909,11 @@ const CreativeWriting: React.FC = () => {
                   <div
                     key={writing.id}
                     className="relative w-full h-full"
-                    draggable={isAdmin}
-                    onDragStart={(e) => onDragStart(e, writing.id)}
-                    onDragOver={(e) => onDragOverCard(e, writing.id)}
-                    onDrop={(e) => onDropOnCard(e, writing.id)}
-                    onDragLeave={onDragLeave}
+                    draggable={isAdmin && !isMobile}
+                    onDragStart={!isMobile ? (e) => onDragStart(e, writing.id) : undefined}
+                    onDragOver={!isMobile ? (e) => onDragOverCard(e, writing.id) : undefined}
+                    onDrop={!isMobile ? (e) => onDropOnCard(e, writing.id) : undefined}
+                    onDragLeave={!isMobile ? onDragLeave : undefined}
                     onContextMenu={(e) => {
                       if (!isAdmin) {
                         e.preventDefault();
@@ -1898,7 +1925,7 @@ const CreativeWriting: React.FC = () => {
                     }}
                   >
                     {/* Drag Drop Indicator */}
-                    {dragOverId === writing.id && (
+                    {dragOverId === writing.id && !isMobile && (
                       <DragDropIndicator 
                         type={dragOverType!} 
                         isActive={true} 
@@ -2100,7 +2127,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Reading Modal */}
       <Dialog open={!!selectedWriting} onOpenChange={() => setSelectedWriting(null)}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedWriting && (
             <div>
               <DialogHeader className="pb-6">
@@ -2250,11 +2277,11 @@ const CreativeWriting: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Input placeholder="Titlu" value={editing?.title || ''} onChange={(e) => setEditing(ed => ed ? { ...ed, title: e.target.value } : ed)} />
                   <Select value={editing?.type || types[0]?.name} onValueChange={(v) => setEditing(ed => ed ? { ...ed, type: v } as WritingPiece : ed)}>
-                    <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[120px] sm:w-[180px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{types.map(t => <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
                   </Select>
                   <Select value={editing?.mood || moods[0]?.name} onValueChange={(v) => setEditing(ed => ed ? { ...ed, mood: v } as WritingPiece : ed)}>
-                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[100px] sm:w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{moods.map(m => <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
@@ -2311,7 +2338,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Manage Types Dialog */}
       <Dialog open={isManageTypesOpen} onOpenChange={setIsManageTypesOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[90vw] sm:max-w-md">
           <DialogHeader><DialogTitle>Gestionează tipuri</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4">
             {types.map(t => (
@@ -2393,7 +2420,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Edit Type Dialog */}
       <Dialog open={!!editingType} onOpenChange={(open) => !open && setEditingType(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-[90vw] sm:max-w-sm">
           <DialogHeader><DialogTitle>Editează tip</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
@@ -2454,7 +2481,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Manage Moods Dialog */}
       <Dialog open={isManageMoodsOpen} onOpenChange={setIsManageMoodsOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[90vw] sm:max-w-md">
           <DialogHeader><DialogTitle>Gestionează stări</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4">
             {moods.map(m => (
