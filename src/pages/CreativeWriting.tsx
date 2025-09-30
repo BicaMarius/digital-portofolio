@@ -1698,38 +1698,17 @@ const CreativeWriting: React.FC = () => {
                           })
                         }}
                         onClick={() => {
-                          // Click simplu = preview direct
-                          setSelectedWriting(writing);
+                          if (!isMobile || !isAdmin) {
+                            // Pe desktop sau non-admin = preview direct
+                            setSelectedWriting(writing);
+                            return;
+                          }
+                          // Pe mobil admin: click = afișează opțiuni
+                          setMobileSelectedWritingId(writing.id);
                         }}
-                        onTouchStart={(e) => {
-                          if (!isMobile || !isAdmin) return;
-                          const touch = e.touches[0];
-                          const touchStartTime = Date.now();
-                          const touchStartX = touch.clientX;
-                          const touchStartY = touch.clientY;
-                          
-                          const longPressTimer = setTimeout(() => {
-                            // Long press = opțiuni
-                            setMobileSelectedWritingId(writing.id);
-                          }, 500);
-                          
-                          const handleTouchEnd = () => {
-                            clearTimeout(longPressTimer);
-                            document.removeEventListener('touchend', handleTouchEnd);
-                            document.removeEventListener('touchmove', handleTouchMove);
-                          };
-                          
-                          const handleTouchMove = (moveEvent: TouchEvent) => {
-                            const touch = moveEvent.touches[0];
-                            const deltaX = Math.abs(touch.clientX - touchStartX);
-                            const deltaY = Math.abs(touch.clientY - touchStartY);
-                            if (deltaX > 10 || deltaY > 10) {
-                              clearTimeout(longPressTimer);
-                            }
-                          };
-                          
-                          document.addEventListener('touchend', handleTouchEnd);
-                          document.addEventListener('touchmove', handleTouchMove);
+                        onDoubleClick={() => {
+                          // Double click = preview direct
+                          setSelectedWriting(writing);
                         }}
                       >
                         <CardContent className="p-3 relative">

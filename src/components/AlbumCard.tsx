@@ -370,36 +370,18 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     className={`p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors relative ${
                       isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
                     }`}
-                    onClick={() => onWritingClick(writing)}
-                    onTouchStart={(e) => {
-                      if (!isMobile || !isAdmin) return;
-                      const touch = e.touches[0];
-                      const touchStartTime = Date.now();
-                      const touchStartX = touch.clientX;
-                      const touchStartY = touch.clientY;
-                      
-                      const longPressTimer = setTimeout(() => {
-                        // Long press = opțiuni pentru albumuri
-                        setMobileSelectedWritingId(writing.id);
-                      }, 500);
-                      
-                      const handleTouchEnd = () => {
-                        clearTimeout(longPressTimer);
-                        document.removeEventListener('touchend', handleTouchEnd);
-                        document.removeEventListener('touchmove', handleTouchMove);
-                      };
-                      
-                      const handleTouchMove = (moveEvent: TouchEvent) => {
-                        const touch = moveEvent.touches[0];
-                        const deltaX = Math.abs(touch.clientX - touchStartX);
-                        const deltaY = Math.abs(touch.clientY - touchStartY);
-                        if (deltaX > 10 || deltaY > 10) {
-                          clearTimeout(longPressTimer);
-                        }
-                      };
-                      
-                      document.addEventListener('touchend', handleTouchEnd);
-                      document.addEventListener('touchmove', handleTouchMove);
+                    onClick={() => {
+                      if (!isMobile || !isAdmin) {
+                        // Pe desktop sau non-admin = preview direct
+                        onWritingClick(writing);
+                        return;
+                      }
+                      // Pe mobil admin: click = afișează opțiuni
+                      setMobileSelectedWritingId(writing.id);
+                    }}
+                    onDoubleClick={() => {
+                      // Double click = preview direct
+                      onWritingClick(writing);
                     }}
                     {...(!isMobile && {
                       onContextMenu: (e) => {
