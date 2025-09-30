@@ -991,6 +991,8 @@ const CreativeWriting: React.FC = () => {
   // Close context menu and mobile action bar when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
       // Close context menu
       if (contextMenu.open) {
         // Don't close on right-click events that are opening a context menu
@@ -1001,8 +1003,22 @@ const CreativeWriting: React.FC = () => {
         setHoveredAlbumSubmenu(false);
       }
       
-      // Close mobile action bar
+      // Close mobile action bar - but not if clicking on a writing card or action bar itself
       if (mobileSelectedWritingId !== null) {
+        // Don't close if clicking on the mobile action bar itself
+        if (target.closest('[data-mobile-action-bar]')) {
+          return;
+        }
+        
+        // Don't close if clicking on a writing card that currently has no action bar open
+        // This allows clicking between writings to switch action bars
+        const writingCard = target.closest('[data-writing-card]');
+        if (writingCard) {
+          // Get the writing ID from the card to determine behavior
+          return; // Let the card's onClick handle the logic
+        }
+        
+        // Close if clicking anywhere else
         setMobileSelectedWritingId(null);
       }
     };
@@ -1708,6 +1724,7 @@ const CreativeWriting: React.FC = () => {
                         />
                       )}
                       <Card 
+                        data-writing-card="true"
                         className={`cursor-pointer group animate-scale-in relative ${
                           dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
                         } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''} ${
@@ -1739,7 +1756,7 @@ const CreativeWriting: React.FC = () => {
                         <CardContent className="p-3 relative">
                           {/* Mobile action bar */}
                           {mobileSelectedWritingId === writing.id && isMobile && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
+                            <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
                               <Button size="icon" variant="ghost" className="h-7 w-7" title="Mută prima" onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); }}>
                                 <ArrowUp className="h-4 w-4" />
                               </Button>
@@ -1937,6 +1954,7 @@ const CreativeWriting: React.FC = () => {
                       />
                     )}
                     <Card 
+                      data-writing-card="true"
                       className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in h-full flex flex-col min-h-[240px] ${
                         dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
                       }`
@@ -2132,14 +2150,14 @@ const CreativeWriting: React.FC = () => {
 
       {/* Reading Modal */}
       <Dialog open={!!selectedWriting} onOpenChange={() => setSelectedWriting(null)}>
-              <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedWriting && (
             <div>
               <DialogHeader className="pb-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <DialogTitle className="text-2xl mb-2">{selectedWriting.title}</DialogTitle>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-xl sm:text-2xl mb-2 pr-8 sm:pr-0">{selectedWriting.title}</DialogTitle>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         {getTypeIcon(selectedWriting.type)}
                         {getTypeLabel(selectedWriting.type)}
@@ -2154,7 +2172,7 @@ const CreativeWriting: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <Badge className={getMoodColor(selectedWriting.mood)}>
+                  <Badge className={`${getMoodColor(selectedWriting.mood)} shrink-0 sm:mt-0 mt-2 self-start`}>
                     {getMoodLabel(selectedWriting.mood)}
                   </Badge>
                 </div>
