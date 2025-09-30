@@ -1159,12 +1159,15 @@ const CreativeWriting: React.FC = () => {
 
   const createAlbumFromWritings = (name: string, color: string) => {
     const { sourceId, targetId } = albumNameDialog;
-    if (!sourceId || !targetId) return;
+    
+    // Create album with available IDs (can be empty, single item, or pair)
+    const itemIds = [sourceId, targetId].filter(id => id !== null) as number[];
+    
     const newAlbum: Album = {
       id: String(Date.now()),
       name,
       color,
-      itemIds: [sourceId, targetId]
+      itemIds
     };
 
     setAlbums(albs => [newAlbum, ...albs]);
@@ -1240,8 +1243,12 @@ const CreativeWriting: React.FC = () => {
       const target = prev.find(w => w.id === writingId);
       if (!target) return prev;
       const others = prev.filter(w => w.id !== writingId);
-      return [target, ...others];
+      const reordered = [target, ...others] as OrderedWriting[];
+      // Reassign order values
+      reordered.forEach((w, i) => { w.order = i; });
+      return reordered;
     });
+    setUseManualOrder(true);
     toast({ title: 'Mutat sus', description: 'Scrierea a fost mutată pe prima poziție.' });
   };
 
@@ -1276,6 +1283,7 @@ const CreativeWriting: React.FC = () => {
   };
 
   const discardAlbum = (albumId: string) => {
+    console.log('discardAlbum called with:', albumId);
     const album = albums.find(a => a.id === albumId);
     if (!album) return;
 
@@ -1705,7 +1713,12 @@ const CreativeWriting: React.FC = () => {
                                 <ArrowUp className="h-4 w-4" />
                               </Button>
                               {albums.length > 0 && (
-                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Adaugă în album" onClick={(e) => { e.stopPropagation(); setAlbumNameDialog({ open: true, sourceId: writing.id, targetId: null }); }}>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Adaugă în album" onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setContextTargetWriting(writing);
+                                  setContextMenu({ open: true, x: e.currentTarget.getBoundingClientRect().left, y: e.currentTarget.getBoundingClientRect().bottom + 5, writingId: writing.id });
+                                  setHoveredAlbumSubmenu(true);
+                                }}>
                                   <FolderPlus className="h-4 w-4" />
                                 </Button>
                               )}
@@ -1798,9 +1811,7 @@ const CreativeWriting: React.FC = () => {
                               a.id === albumId ? { ...a, ...updates } : a
                             ));
                           }}
-                          onDeleteAlbum={(albumId) => {
-                            setAlbums(prev => prev.filter(a => a.id !== albumId));
-                          }}
+                          onDeleteAlbum={deleteAlbumAndWritings}
                           onAddWritingsToAlbum={(albumId, writingIds) => {
                             setAlbums(prev => prev.map(a => 
                               a.id === albumId 
@@ -2924,10 +2935,13 @@ const CreativeWriting: React.FC = () => {
             {/* Add to... with hover submenu */}
             <div 
               className="relative"
-              onMouseEnter={() => setHoveredAlbumSubmenu(true)}
-              onMouseLeave={() => setHoveredAlbumSubmenu(false)}
+              onMouseEnter={() => !isMobile && setHoveredAlbumSubmenu(true)}
+              onMouseLeave={() => !isMobile && setHoveredAlbumSubmenu(false)}
             >
-              <button className="w-full text-left p-2 hover:bg-muted/50 flex items-center justify-between transition-colors">
+              <button 
+                className="w-full text-left p-2 hover:bg-muted/50 flex items-center justify-between transition-colors"
+                onClick={() => isMobile ? setHoveredAlbumSubmenu(!hoveredAlbumSubmenu) : undefined}
+              >
                 Adaugă în...
                 <Plus className="h-3 w-3" />
               </button>
@@ -2998,11 +3012,14 @@ const CreativeWriting: React.FC = () => {
                 setWritings(ws => {
                   const idx = ws.findIndex(w => w.id === id);
                   if (idx === -1) return ws;
-                  const copy = [...ws];
+                  const copy = [...ws] as OrderedWriting[];
                   const [item] = copy.splice(idx,1);
                   copy.unshift(item);
+                  // Reassign order values
+                  copy.forEach((w, i) => { w.order = i; });
                   return copy;
                 });
+                setUseManualOrder(true);
                 setContextMenu({ open: false, x:0, y:0, writingId: null });
                 toast({ title: 'Mutat', description: 'Scrierea a fost mutată prima.' });
               }}

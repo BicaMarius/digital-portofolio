@@ -312,7 +312,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     handleEditAlbum();
                   }}
                   title="Editează album"
-                  className="h-8 w-8 p-0"
+                  className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} p-0 touch-manipulation`}
                 >
                   <Edit className="h-3 w-3" />
                 </Button>
@@ -321,10 +321,11 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                   variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log('Discard album clicked:', album.id, onDiscardAlbum);
                     onDiscardAlbum?.(album.id);
                   }}
                   title="Desfă albumul"
-                  className="h-8 w-8 p-0"
+                  className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} p-0 touch-manipulation`}
                 >
                   <Undo2 className="h-3 w-3" />
                 </Button>
@@ -336,7 +337,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     onDeleteAlbum?.(album.id);
                   }}
                   title="Șterge albumul și scrierile"
-                  className="h-8 w-8 p-0"
+                  className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} p-0 touch-manipulation`}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -562,19 +563,19 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
 
       {/* Edit Album Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw] sm:w-full overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl lg:max-w-4xl xl:max-w-6xl max-h-[85vh] sm:max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
+          <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
             <DialogTitle className="flex items-center gap-3">
               <Edit className="h-5 w-5" />
               Editează Album
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6 pb-4">
             {/* Album Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+            <div className="grid grid-cols-1 gap-3 p-3 bg-muted/30 rounded-lg">
               <div className="space-y-2">
-                <Label htmlFor="albumName" className="flex items-center gap-2">
+                <Label htmlFor="albumName" className="flex items-center gap-2 text-sm">
                   <Type className="h-4 w-4" />
                   Nume album
                 </Label>
@@ -582,19 +583,20 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                   id="albumName"
                   value={albumName}
                   onChange={(e) => setAlbumName(e.target.value)}
+                  className="text-sm"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+                <Label className="flex items-center gap-2 text-sm">
                   <Palette className="h-4 w-4" />
                   Culoare
                 </Label>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-1.5 flex-wrap">
                   {albumColors.map(color => (
                     <button
                       key={color}
                       onClick={() => setAlbumColor(color)}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      className={`w-7 h-7 rounded-full border-2 transition-all ${
                         albumColor === color ? 'border-foreground scale-110' : 'border-border'
                       }`}
                       style={{ backgroundColor: color }}
@@ -633,7 +635,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                         return (
                           <div 
                             key={writing.id} 
-                            className={`flex items-center justify-between p-3 border rounded hover:bg-muted/50 ${
+                            className={`flex items-center justify-between p-2 border rounded hover:bg-muted/50 ${
                               isInAlbum ? 'bg-primary/5 border-primary/20' : ''
                             } cursor-pointer relative`}
                             onDragOver={isInAlbum ? (e) => handleDragOverCardEditDialog(e, writing.id) : undefined}
@@ -649,35 +651,36 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                 context="list"
                               />
                             )}
-                            <div className="flex items-center gap-3 flex-1">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
                               {isInAlbum && (
                                 <span
-                                  className="active:cursor-grabbing cursor-grab"
+                                  className="active:cursor-grabbing cursor-grab flex-shrink-0"
                                   draggable
                                   onDragStart={(e) => handleDragStart(e, writing.id)}
                                   title="Trage pentru a reordona"
                                 >
-                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                  <GripVertical className="h-3 w-3 text-muted-foreground" />
                                 </span>
                               )}
-                              <div className="flex-1">
-                                <h4 className="font-medium text-sm">{writing.title}</h4>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {getFirstVerse(writing.content) || writing.excerpt}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-xs leading-tight truncate">{writing.title}</h4>
+                                <p className="text-[10px] text-muted-foreground truncate leading-tight">
+                                  {getFirstVerse(writing.content)?.substring(0, 50) || writing.excerpt?.substring(0, 50)}...
                                 </p>
                               </div>
                             </div>
-                            <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 size="sm"
                                 variant={isInAlbum ? "outline" : "default"}
                                 onClick={() => toggleWritingInAlbum(writing.id, isInAlbum)}
                                 title={isInAlbum ? "Scoate din album" : "Adaugă în album"}
+                                className="h-6 w-6 p-0"
                               >
-                                {isInAlbum ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                                {isInAlbum ? <Minus className="h-2.5 w-2.5" /> : <Plus className="h-2.5 w-2.5" />}
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => onEditWriting?.(writing)} title="Editează">
-                                <Edit className="h-3 w-3" />
+                              <Button size="sm" variant="outline" onClick={() => onEditWriting?.(writing)} title="Editează" className="h-6 w-6 p-0">
+                                <Edit className="h-2.5 w-2.5" />
                               </Button>
                               {isInAlbum && (
                                 <Button
@@ -685,8 +688,9 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                   variant="destructive"
                                   onClick={() => onDeleteWritingFromAlbum?.(album.id, writing.id)}
                                   title="Șterge definitiv"
+                                  className="h-6 w-6 p-0"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-2.5 w-2.5" />
                                 </Button>
                               )}
                             </div>
@@ -706,14 +710,14 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-between pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              <X className="h-4 w-4 mr-2" />
+          <div className="sticky bottom-0 bg-background z-10 flex justify-between gap-2 pt-3 border-t mt-4">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="flex-1 text-xs h-8">
+              <X className="h-3 w-3 mr-1" />
               Anulează
             </Button>
-            <Button onClick={handleSaveAlbum}>
-              <Check className="h-4 w-4 mr-2" />
-              Salvează modificările
+            <Button onClick={handleSaveAlbum} className="flex-1 text-xs h-8">
+              <Check className="h-3 w-3 mr-1" />
+              Salvează
             </Button>
           </div>
         </DialogContent>
