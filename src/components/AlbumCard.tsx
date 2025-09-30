@@ -80,6 +80,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
   const [confirmDiscardDialog, setConfirmDiscardDialog] = useState(false);
+  const [clickTimeout, setClickTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // Swipe state for mobile navigation
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -418,10 +419,29 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                         onWritingClick(writing);
                         return;
                       }
-                      // Pe mobil admin: click = afișează opțiuni
-                      setMobileSelectedWritingId(writing.id);
+                      
+                      // Pe mobil admin: folosește timeout pentru a evita conflictul cu double-click
+                      if (clickTimeout) {
+                        clearTimeout(clickTimeout);
+                        setClickTimeout(null);
+                        return;
+                      }
+                      
+                      const timeout = setTimeout(() => {
+                        // Single click = afișează opțiuni
+                        setMobileSelectedWritingId(writing.id);
+                        setClickTimeout(null);
+                      }, 300);
+                      
+                      setClickTimeout(timeout);
                     }}
                     onDoubleClick={() => {
+                      // Clear single click timeout dacă există
+                      if (clickTimeout) {
+                        clearTimeout(clickTimeout);
+                        setClickTimeout(null);
+                      }
+                      
                       // Double click = preview direct
                       onWritingClick(writing);
                     }}

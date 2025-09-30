@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
@@ -453,6 +453,10 @@ const CreativeWriting: React.FC = () => {
     mockWritings.map((w, idx) => ({ ...w, order: idx }))
   );
   const [useManualOrder, setUseManualOrder] = useState(false);
+  
+  // Track writings that have been manually moved to top (prioritized)
+  // Store both the writing ID and its original position
+  const [prioritizedWritings, setPrioritizedWritings] = useState<Map<number, number>>(new Map());
   
   // albums state (must be declared early to avoid temporal dead zone)
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -1031,6 +1035,46 @@ const CreativeWriting: React.FC = () => {
     }
   }, [contextMenu.open, mobileSelectedWritingId]);
 
+  // Handle mobile back button behavior
+  React.useEffect(() => {
+    if (!isMobile) return;
+
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent default browser back behavior
+      e.preventDefault();
+      
+      // Custom navigation logic based on current state
+      if (isEditorOpen) {
+        // If editor is open, close it instead of going back
+        setIsEditorOpen(false);
+        return;
+      }
+      
+      if (selectedWriting) {
+        // If preview is open, close it instead of going back
+        setSelectedWriting(null);
+        return;
+      }
+      
+      if (mobileSelectedWritingId !== null) {
+        // If mobile action bar is open, close it instead of going back
+        setMobileSelectedWritingId(null);
+        return;
+      }
+      
+      // If no modal/overlay is open, allow normal back navigation
+      window.history.back();
+    };
+
+    // Add a dummy history entry to intercept back button
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isMobile, isEditorOpen, selectedWriting, mobileSelectedWritingId]);
+
   // helper to start editor with autosave drafts
   const startNewEditing = () => {
     // Clear any existing draft for new writing
@@ -1263,8 +1307,13 @@ const CreativeWriting: React.FC = () => {
 
   const moveWritingToTop = (writingId: number) => {
     setWritings(prev => {
+      const targetIndex = prev.findIndex(w => w.id === writingId);
       const target = prev.find(w => w.id === writingId);
-      if (!target) return prev;
+      if (!target || targetIndex === -1) return prev;
+      
+      // Store original position before moving
+      setPrioritizedWritings(prevMap => new Map(prevMap.set(writingId, targetIndex)));
+      
       const others = prev.filter(w => w.id !== writingId);
       const reordered = [target, ...others] as OrderedWriting[];
       // Reassign order values
@@ -1272,7 +1321,41 @@ const CreativeWriting: React.FC = () => {
       return reordered;
     });
     setUseManualOrder(true);
-    toast({ title: 'Mutat sus', description: 'Scrierea a fost mutată pe prima poziție.' });
+    
+    toast({ title: 'Mutat sus', description: 'Scrierea a fost prioritizată pe prima poziție.' });
+  };
+
+  const removePriority = (writingId: number) => {
+    const originalPosition = prioritizedWritings.get(writingId);
+    
+    // Remove from prioritized tracking
+    setPrioritizedWritings(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(writingId);
+      return newMap;
+    });
+
+    // Restore to exact original position
+    setWritings(prev => {
+      const currentIndex = prev.findIndex(w => w.id === writingId);
+      const target = prev.find(w => w.id === writingId);
+      
+      if (!target || currentIndex === -1 || originalPosition === undefined) return prev;
+      
+      // Remove from current position
+      const withoutTarget = prev.filter(w => w.id !== writingId);
+      
+      // Insert at original position (adjust for removed item)
+      const adjustedPosition = Math.min(originalPosition, withoutTarget.length);
+      const result = [...withoutTarget];
+      result.splice(adjustedPosition, 0, target);
+      
+      // Reassign order values
+      result.forEach((w, i) => { w.order = i; });
+      return result as OrderedWriting[];
+    });
+
+    toast({ title: 'Prioritate anulată', description: 'Scrierea a fost restabilită la poziția originală.' });
   };
 
   const deleteAlbumAndWritings = (albumId: string) => {
@@ -1757,9 +1840,15 @@ const CreativeWriting: React.FC = () => {
                           {/* Mobile action bar */}
                           {mobileSelectedWritingId === writing.id && isMobile && (
                             <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Mută prima" onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); }}>
-                                <ArrowUp className="h-4 w-4" />
-                              </Button>
+                              {prioritizedWritings.has(writing.id) ? (
+                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Anulează prioritate" onClick={(e) => { e.stopPropagation(); removePriority(writing.id); setMobileSelectedWritingId(null); }}>
+                                  <ArrowUpFromLine className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Mută prima" onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); setMobileSelectedWritingId(null); }}>
+                                  <ArrowUp className="h-4 w-4" />
+                                </Button>
+                              )}
                               {albums.length > 0 && (
                                 <Button size="icon" variant="ghost" className="h-7 w-7" title="Adaugă în album" onClick={(e) => { 
                                   e.stopPropagation(); 
@@ -1801,21 +1890,30 @@ const CreativeWriting: React.FC = () => {
                             <div className="text-xs text-muted-foreground">
                               {writing.lastModified} | {writing.wordCount} cuvinte
                             </div>
-                            {isAdmin && (
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setEditing(writing); 
-                                  setIsEditorOpen(true); 
-                                }}
-                                title="Editează"
-                                className="h-6 w-6 p-0 flex-shrink-0"
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {/* Priority indicator */}
+                              {prioritizedWritings.has(writing.id) && (
+                                <div className="bg-primary/20 text-primary rounded-full p-1" title="Prioritizată">
+                                  <Pin className="h-3 w-3" />
+                                </div>
+                              )}
+                              {/* Edit button */}
+                              {isAdmin && (
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setEditing(writing); 
+                                    setIsEditorOpen(true); 
+                                  }}
+                                  title="Editează"
+                                  className="h-6 w-6 p-0 flex-shrink-0"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -1967,6 +2065,11 @@ const CreativeWriting: React.FC = () => {
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             {getTypeIcon(writing.type)}
                             <CardTitle className="text-base font-semibold line-clamp-2 leading-tight">{writing.title}</CardTitle>
+                            {prioritizedWritings.has(writing.id) && (
+                              <div className="bg-primary/20 text-primary rounded-full p-1 shrink-0" title="Prioritizată">
+                                <Pin className="h-3 w-3" />
+                              </div>
+                            )}
                           </div>
                           {isAdmin && (
                             <div className="flex gap-1 ml-2 flex-shrink-0">
@@ -2206,14 +2309,7 @@ const CreativeWriting: React.FC = () => {
                 <div className="text-sm font-medium text-center">
                   {editing?.title || 'Text nou'}
                 </div>
-                <Button 
-                  onClick={saveEditing} 
-                  size="sm" 
-                  className="rounded-full p-2 h-8 w-8"
-                  title="Salvează"
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
+                <div className="w-9"></div> {/* Spacer for centering */}
               </div>
               
               {/* Mobile content area */}
@@ -3061,27 +3157,33 @@ const CreativeWriting: React.FC = () => {
             </div>
             
             <button 
-              className="w-full text-left p-2 hover:bg-muted/50 transition-colors" 
+              className="w-full text-left p-2 hover:bg-muted/50 transition-colors flex items-center gap-2" 
               onClick={() => {
                 const id = contextMenu.writingId;
                 if (id == null) return;
-                // move to first
-                setWritings(ws => {
-                  const idx = ws.findIndex(w => w.id === id);
-                  if (idx === -1) return ws;
-                  const copy = [...ws] as OrderedWriting[];
-                  const [item] = copy.splice(idx,1);
-                  copy.unshift(item);
-                  // Reassign order values
-                  copy.forEach((w, i) => { w.order = i; });
-                  return copy;
-                });
-                setUseManualOrder(true);
+                
+                if (prioritizedWritings.has(id)) {
+                  // Remove priority
+                  removePriority(id);
+                } else {
+                  // Move to first
+                  moveWritingToTop(id);
+                }
+                
                 setContextMenu({ open: false, x:0, y:0, writingId: null });
-                toast({ title: 'Mutat', description: 'Scrierea a fost mutată prima.' });
               }}
             >
-              Mută prima
+              {prioritizedWritings.has(contextMenu.writingId || 0) ? (
+                <>
+                  <ArrowUpFromLine className="h-4 w-4" />
+                  Anulează prioritate
+                </>
+              ) : (
+                <>
+                  <ArrowUp className="h-4 w-4" />
+                  Mută prima
+                </>
+              )}
             </button>
             
             <button 
