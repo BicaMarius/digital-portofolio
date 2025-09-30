@@ -1839,7 +1839,7 @@ const CreativeWriting: React.FC = () => {
                         <CardContent className="p-3 relative">
                           {/* Mobile action bar */}
                           {mobileSelectedWritingId === writing.id && isMobile && (
-                            <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
+                            <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border">
                               {prioritizedWritings.has(writing.id) ? (
                                 <Button size="icon" variant="ghost" className="h-7 w-7" title="Anulează prioritate" onClick={(e) => { e.stopPropagation(); removePriority(writing.id); setMobileSelectedWritingId(null); }}>
                                   <ArrowUpFromLine className="h-4 w-4" />
