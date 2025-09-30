@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine } from 'lucide-react';
+import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine, Check } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
@@ -680,6 +680,46 @@ const CreativeWriting: React.FC = () => {
     setNewTypeLabel(''); setNewTypeColor('bg-gray-500/20 text-gray-400');
   };
   const removeType = (name: string) => setTypes(t => t.filter(i => i.name !== name));
+  
+  // Helper functions for real-time editing
+  const updateEditingType = (updates: Partial<{ name: string; color: string }>) => {
+    if (!editingType) return;
+    const oldName = editingType.name;
+    const newEditingType = { ...editingType, ...updates };
+    setEditingType(newEditingType);
+    
+    // Update the main types array in real-time
+    setTypes(ts => ts.map(t => 
+      t.name === oldName ? newEditingType : t
+    ));
+    
+    // If name changed, update all writings that use this type
+    if (updates.name && updates.name !== oldName) {
+      setWritings(ws => ws.map(w => 
+        w.type === oldName ? { ...w, type: updates.name } : w
+      ));
+    }
+  };
+  
+  const updateEditingMood = (updates: Partial<{ name: string; color: string }>) => {
+    if (!editingMood) return;
+    const oldName = editingMood.name;
+    const newEditingMood = { ...editingMood, ...updates };
+    setEditingMood(newEditingMood);
+    
+    // Update the main moods array in real-time
+    setMoods(ms => ms.map(m => 
+      m.name === oldName ? newEditingMood : m
+    ));
+    
+    // If name changed, update all writings that use this mood
+    if (updates.name && updates.name !== oldName) {
+      setWritings(ws => ws.map(w => 
+        w.mood === oldName ? { ...w, mood: updates.name } : w
+      ));
+    }
+  };
+  
   const addMood = () => {
     if (!newMoodLabel.trim()) return;
     setMoods(m => [...m, { name: newMoodLabel, color: newMoodColor }]);
@@ -2457,52 +2497,62 @@ const CreativeWriting: React.FC = () => {
 
       {/* Manage Types Dialog */}
       <Dialog open={isManageTypesOpen} onOpenChange={setIsManageTypesOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md">
+        <DialogContent className="max-w-[95vw] w-full sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Gestionează tipuri</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4">
-            {types.map(t => (
-              <Card key={t.name} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">{t.name}</div>
-                      <Badge className={`text-xs`} style={{ backgroundColor: t.color, color: '#fff' }}>
-                        {t.name}
-                      </Badge>
+            {types.map(t => {
+              // Show editing values if this type is being edited
+              const isEditing = editingType && editingType.name === t.name;
+              const displayName = isEditing ? editingType.name : t.name;
+              const displayColor = isEditing ? editingType.color : t.color;
+              
+              return (
+                <Card key={t.name} className="p-3 sm:p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div 
+                        className="font-medium text-sm sm:text-base px-2 py-1 rounded text-white"
+                        style={{ backgroundColor: displayColor }}
+                      >
+                        {displayName}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => setEditingType({ name: t.name, color: t.color })}
+                        className="h-8 px-3 text-xs"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={() => removeType(t.name)}
+                        className="h-8 px-3 text-xs"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => setEditingType({ name: t.name, color: t.color })}
-                    >
-                      Edit
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="destructive" 
-                      onClick={() => removeType(t.name)}
-                    >
-                      Șterge
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
 
-            <Card className="p-4 border-dashed">
+            <Card className="p-3 sm:p-4 border-dashed">
               <div className="text-sm font-medium mb-3">Tip nou</div>
               <div className="space-y-3">
                 <Input 
                   placeholder="Nume categorie" 
                   value={newTypeLabel} 
-                  onChange={(e) => setNewTypeLabel(e.target.value)} 
+                  onChange={(e) => setNewTypeLabel(e.target.value)}
+                  className="text-sm"
                 />
                 <div>
                   <Label className="text-sm font-medium">Culoare</Label>
                   <Select value={newTypeColor} onValueChange={setNewTypeColor}>
-                    <SelectTrigger className="w-full mt-1">
+                    <SelectTrigger className="w-full mt-1 h-10">
                       <SelectValue placeholder="Selectează culoarea..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -2546,15 +2596,15 @@ const CreativeWriting: React.FC = () => {
               <Label htmlFor="edit-type-name">Nume categorie</Label>
               <Input 
                 id="edit-type-name"
-                value={editingType?.name || ''} 
-                onChange={(e) => setEditingType(prev => prev ? { ...prev, name: e.target.value } : null)} 
+                value={editingType?.name || ''}
+                onChange={(e) => updateEditingType({ name: e.target.value })} 
               />
             </div>
             <div>
               <Label className="text-sm font-medium">Culoare</Label>
               <Select 
-                value={editingType?.color || 'bg-gray-500/20 text-gray-400'} 
-                onValueChange={(value) => setEditingType(prev => prev ? { ...prev, color: value } : null)}
+                value={editingType?.color || 'bg-gray-500/20 text-gray-400'}
+                onValueChange={(value) => updateEditingType({ color: value })}
               >
                 <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Selectează culoarea..." />
@@ -2571,27 +2621,12 @@ const CreativeWriting: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => {
-                  if (editingType) {
-                    setTypes(ts => ts.map(x => x.name === editingType.name ? { 
-                      name: editingType.name, 
-                      color: editingType.color 
-                    } : x));
-                    setEditingType(null);
-                  }
-                }}
-                className="flex-1"
-              >
-                Salvează
-              </Button>
+            <div className="flex justify-end">
               <Button 
                 variant="outline" 
                 onClick={() => setEditingType(null)}
-                className="flex-1"
               >
-                Anulează
+                Închide
               </Button>
             </div>
           </div>
@@ -2600,39 +2635,46 @@ const CreativeWriting: React.FC = () => {
 
       {/* Manage Moods Dialog */}
       <Dialog open={isManageMoodsOpen} onOpenChange={setIsManageMoodsOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md">
+        <DialogContent className="max-w-[95vw] w-full sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Gestionează stări</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4">
-            {moods.map(m => (
-              <Card key={m.name} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">{m.name}</div>
-                      <Badge className={`text-xs`} style={{ backgroundColor: m.color, color: '#fff' }}>
-                        {m.name}
-                      </Badge>
+            {moods.map(m => {
+              // Show editing values if this mood is being edited
+              const isEditing = editingMood && editingMood.name === m.name;
+              const displayName = isEditing ? editingMood.name : m.name;
+              const displayColor = isEditing ? editingMood.color : m.color;
+              
+              return (
+                <Card key={m.name} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div 
+                        className="font-medium text-sm sm:text-base px-2 py-1 rounded text-white"
+                        style={{ backgroundColor: displayColor }}
+                      >
+                        {displayName}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => setEditingMood({ name: m.name, color: m.color })}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={() => removeMood(m.name)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => setEditingMood({ name: m.name, color: m.color })}
-                    >
-                      Edit
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="destructive" 
-                      onClick={() => removeMood(m.name)}
-                    >
-                      Șterge
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
 
             <Card className="p-4 border-dashed">
               <div className="text-sm font-medium mb-3">Stare nouă</div>
@@ -2689,15 +2731,15 @@ const CreativeWriting: React.FC = () => {
               <Label htmlFor="edit-mood-name">Nume stare</Label>
               <Input 
                 id="edit-mood-name"
-                value={editingMood?.name || ''} 
-                onChange={(e) => setEditingMood(prev => prev ? { ...prev, name: e.target.value } : null)} 
+                value={editingMood?.name || ''}
+                onChange={(e) => updateEditingMood({ name: e.target.value })} 
               />
             </div>
             <div>
               <Label className="text-sm font-medium">Culoare</Label>
               <Select 
-                value={editingMood?.color || 'bg-gray-500/20 text-gray-400'} 
-                onValueChange={(value) => setEditingMood(prev => prev ? { ...prev, color: value } : null)}
+                value={editingMood?.color || 'bg-gray-500/20 text-gray-400'}
+                onValueChange={(value) => updateEditingMood({ color: value })}
               >
                 <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Selectează culoarea..." />
@@ -2714,27 +2756,12 @@ const CreativeWriting: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => {
-                  if (editingMood) {
-                    setMoods(ms => ms.map(x => x.name === editingMood.name ? { 
-                      name: editingMood.name, 
-                      color: editingMood.color 
-                    } : x));
-                    setEditingMood(null);
-                  }
-                }}
-                className="flex-1"
-              >
-                Salvează
-              </Button>
+            <div className="flex justify-end">
               <Button 
                 variant="outline" 
                 onClick={() => setEditingMood(null)}
-                className="flex-1"
               >
-                Anulează
+                Închide
               </Button>
             </div>
           </div>
@@ -3135,17 +3162,12 @@ const CreativeWriting: React.FC = () => {
                   <button
                     onClick={() => {
                       if (!contextTargetWriting) return;
-                      const albumName = window.prompt('Nume album nou:');
-                      if (!albumName) return;
-                      const newAlbum = {
-                        id: String(Date.now()),
-                        name: albumName,
-                        color: '#7c3aed',
-                        itemIds: [contextTargetWriting.id]
-                      };
-                      setAlbums(albs => [newAlbum, ...albs]);
+                      setAlbumNameDialog({ 
+                        open: true, 
+                        sourceId: contextTargetWriting.id, 
+                        targetId: null 
+                      });
                       setContextMenu({ open: false, x: 0, y: 0, writingId: null });
-                      toast({ title: 'Album creat', description: `Albumul "${albumName}" a fost creat cu scrierea.` });
                     }}
                     className="w-full text-left p-2 hover:bg-muted/50 text-sm transition-colors flex items-center gap-2 text-green-600"
                   >
@@ -3221,17 +3243,12 @@ const CreativeWriting: React.FC = () => {
                 <p className="text-muted-foreground mb-4">Nu există albume create încă</p>
                 <Button
                   onClick={() => {
-                    const albumName = window.prompt('Nume album nou:');
-                    if (!albumName || !addToAlbumDialog.writingId) return;
-                    const newAlbum = {
-                      id: String(Date.now()),
-                      name: albumName,
-                      color: '#7c3aed',
-                      itemIds: [addToAlbumDialog.writingId]
-                    };
-                    setAlbums(albs => [newAlbum, ...albs]);
+                    setAlbumNameDialog({ 
+                      open: true, 
+                      sourceId: addToAlbumDialog.writingId, 
+                      targetId: null 
+                    });
                     setAddToAlbumDialog({ open: false, writingId: null });
-                    toast({ title: 'Album creat', description: `Albumul "${albumName}" a fost creat cu scrierea.` });
                   }}
                   className="gap-2"
                 >
@@ -3275,17 +3292,12 @@ const CreativeWriting: React.FC = () => {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    const albumName = window.prompt('Nume album nou:');
-                    if (!albumName || !addToAlbumDialog.writingId) return;
-                    const newAlbum = {
-                      id: String(Date.now()),
-                      name: albumName,
-                      color: '#7c3aed',
-                      itemIds: [addToAlbumDialog.writingId]
-                    };
-                    setAlbums(albs => [newAlbum, ...albs]);
+                    setAlbumNameDialog({ 
+                      open: true, 
+                      sourceId: addToAlbumDialog.writingId, 
+                      targetId: null 
+                    });
                     setAddToAlbumDialog({ open: false, writingId: null });
-                    toast({ title: 'Album creat', description: `Albumul "${albumName}" a fost creat cu scrierea.` });
                   }}
                   className="w-full justify-start gap-3 h-12 text-green-600 border-green-200 hover:bg-green-50"
                 >
