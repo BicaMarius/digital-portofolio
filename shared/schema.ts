@@ -21,7 +21,9 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   createdAt: true,
   updatedAt: true,
 });
+export const updateProjectSchema = insertProjectSchema.partial();
 export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type UpdateProject = z.infer<typeof updateProjectSchema>;
 export type Project = typeof projects.$inferSelect;
 
 // Gallery items table
@@ -41,7 +43,9 @@ export const insertGalleryItemSchema = createInsertSchema(galleryItems).omit({
   createdAt: true,
   updatedAt: true,
 });
+export const updateGalleryItemSchema = insertGalleryItemSchema.partial();
 export type InsertGalleryItem = z.infer<typeof insertGalleryItemSchema>;
+export type UpdateGalleryItem = z.infer<typeof updateGalleryItemSchema>;
 export type GalleryItem = typeof galleryItems.$inferSelect;
 
 // CV data table
@@ -79,7 +83,9 @@ export const writings = pgTable("writings", {
 export const insertWritingSchema = createInsertSchema(writings).omit({
   id: true,
 });
+export const updateWritingSchema = insertWritingSchema.partial();
 export type InsertWriting = z.infer<typeof insertWritingSchema>;
+export type UpdateWriting = z.infer<typeof updateWritingSchema>;
 export type Writing = typeof writings.$inferSelect;
 
 // Albums table
@@ -94,7 +100,9 @@ export const albums = pgTable("albums", {
 export const insertAlbumSchema = createInsertSchema(albums).omit({
   id: true,
 });
+export const updateAlbumSchema = insertAlbumSchema.partial();
 export type InsertAlbum = z.infer<typeof insertAlbumSchema>;
+export type UpdateAlbum = z.infer<typeof updateAlbumSchema>;
 export type Album = typeof albums.$inferSelect;
 
 // Tags table
@@ -108,5 +116,7 @@ export const tags = pgTable("tags", {
 export const insertTagSchema = createInsertSchema(tags).omit({
   id: true,
 });
+export const updateTagSchema = insertTagSchema.partial();
 export type InsertTag = z.infer<typeof insertTagSchema>;
+export type UpdateTag = z.infer<typeof updateTagSchema>;
 export type Tag = typeof tags.$inferSelect;

@@ -3,11 +3,16 @@ import { z } from "zod";
 import type { IStorage } from "./storage";
 import {
   insertProjectSchema,
+  updateProjectSchema,
   insertGalleryItemSchema,
+  updateGalleryItemSchema,
   insertCVDataSchema,
   insertWritingSchema,
+  updateWritingSchema,
   insertAlbumSchema,
+  updateAlbumSchema,
   insertTagSchema,
+  updateTagSchema,
 } from "@shared/schema";
 
 export function registerRoutes(app: Express, storage: IStorage) {
@@ -60,7 +65,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.patch("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const updates = insertProjectSchema.partial().parse(req.body);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const updates = updateProjectSchema.parse(req.body);
       const updatedProject = await storage.updateProject(id, updates);
       if (!updatedProject) {
         return res.status(404).json({ error: "Project not found" });
@@ -136,7 +144,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.patch("/api/gallery/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const updates = insertGalleryItemSchema.partial().parse(req.body);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid gallery item ID" });
+      }
+      const updates = updateGalleryItemSchema.parse(req.body);
       const updatedItem = await storage.updateGalleryItem(id, updates);
       if (!updatedItem) {
         return res.status(404).json({ error: "Gallery item not found" });
@@ -237,7 +248,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.patch("/api/writings/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const updates = insertWritingSchema.partial().parse(req.body);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid writing ID" });
+      }
+      const updates = updateWritingSchema.parse(req.body);
       const updatedWriting = await storage.updateWriting(id, updates);
       if (!updatedWriting) {
         return res.status(404).json({ error: "Writing not found" });
@@ -303,7 +317,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.patch("/api/albums/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const updates = insertAlbumSchema.partial().parse(req.body);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid album ID" });
+      }
+      const updates = updateAlbumSchema.parse(req.body);
       const updatedAlbum = await storage.updateAlbum(id, updates);
       if (!updatedAlbum) {
         return res.status(404).json({ error: "Album not found" });
@@ -369,7 +386,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.patch("/api/tags/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const updates = insertTagSchema.partial().parse(req.body);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid tag ID" });
+      }
+      const updates = updateTagSchema.parse(req.body);
       const updatedTag = await storage.updateTag(id, updates);
       if (!updatedTag) {
         return res.status(404).json({ error: "Tag not found" });

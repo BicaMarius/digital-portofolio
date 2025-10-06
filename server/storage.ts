@@ -1,16 +1,21 @@
 import type {
   Project,
   InsertProject,
+  UpdateProject,
   GalleryItem,
   InsertGalleryItem,
+  UpdateGalleryItem,
   CVData,
   InsertCVData,
   Writing,
   InsertWriting,
+  UpdateWriting,
   Album,
   InsertAlbum,
+  UpdateAlbum,
   Tag,
   InsertTag,
+  UpdateTag,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -19,7 +24,7 @@ export interface IStorage {
   getProjectById(id: number): Promise<Project | null>;
   getProjectsByCategory(category: string): Promise<Project[]>;
   createProject(project: InsertProject): Promise<Project>;
-  updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | null>;
+  updateProject(id: number, updates: UpdateProject): Promise<Project | null>;
   deleteProject(id: number): Promise<boolean>;
 
   // Gallery Items
@@ -27,7 +32,7 @@ export interface IStorage {
   getGalleryItemById(id: number): Promise<GalleryItem | null>;
   getGalleryItemsByCategory(category: string): Promise<GalleryItem[]>;
   createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem>;
-  updateGalleryItem(id: number, updates: Partial<InsertGalleryItem>): Promise<GalleryItem | null>;
+  updateGalleryItem(id: number, updates: UpdateGalleryItem): Promise<GalleryItem | null>;
   deleteGalleryItem(id: number): Promise<boolean>;
 
   // CV Data
@@ -39,21 +44,21 @@ export interface IStorage {
   getWritings(): Promise<Writing[]>;
   getWritingById(id: number): Promise<Writing | null>;
   createWriting(writing: InsertWriting): Promise<Writing>;
-  updateWriting(id: number, updates: Partial<InsertWriting>): Promise<Writing | null>;
+  updateWriting(id: number, updates: UpdateWriting): Promise<Writing | null>;
   deleteWriting(id: number): Promise<boolean>;
 
   // Albums
   getAlbums(): Promise<Album[]>;
   getAlbumById(id: number): Promise<Album | null>;
   createAlbum(album: InsertAlbum): Promise<Album>;
-  updateAlbum(id: number, updates: Partial<InsertAlbum>): Promise<Album | null>;
+  updateAlbum(id: number, updates: UpdateAlbum): Promise<Album | null>;
   deleteAlbum(id: number): Promise<boolean>;
 
   // Tags
   getTags(): Promise<Tag[]>;
   getTagById(id: number): Promise<Tag | null>;
   createTag(tag: InsertTag): Promise<Tag>;
-  updateTag(id: number, updates: Partial<InsertTag>): Promise<Tag | null>;
+  updateTag(id: number, updates: UpdateTag): Promise<Tag | null>;
   deleteTag(id: number): Promise<boolean>;
 }
 
@@ -100,7 +105,7 @@ export class MemStorage implements IStorage {
 
   async updateProject(
     id: number,
-    updates: Partial<InsertProject>
+    updates: UpdateProject
   ): Promise<Project | null> {
     const project = this.projects.get(id);
     if (!project) return null;
@@ -146,7 +151,7 @@ export class MemStorage implements IStorage {
 
   async updateGalleryItem(
     id: number,
-    updates: Partial<InsertGalleryItem>
+    updates: UpdateGalleryItem
   ): Promise<GalleryItem | null> {
     const item = this.galleryItems.get(id);
     if (!item) return null;
@@ -205,7 +210,7 @@ export class MemStorage implements IStorage {
 
   async updateWriting(
     id: number,
-    updates: Partial<InsertWriting>
+    updates: UpdateWriting
   ): Promise<Writing | null> {
     const writing = this.writings.get(id);
     if (!writing) return null;
@@ -242,7 +247,7 @@ export class MemStorage implements IStorage {
 
   async updateAlbum(
     id: number,
-    updates: Partial<InsertAlbum>
+    updates: UpdateAlbum
   ): Promise<Album | null> {
     const album = this.albums.get(id);
     if (!album) return null;
@@ -277,7 +282,7 @@ export class MemStorage implements IStorage {
     return newTag;
   }
 
-  async updateTag(id: number, updates: Partial<InsertTag>): Promise<Tag | null> {
+  async updateTag(id: number, updates: UpdateTag): Promise<Tag | null> {
     const tag = this.tags.get(id);
     if (!tag) return null;
 
