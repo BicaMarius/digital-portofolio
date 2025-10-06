@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine, Check } from 'lucide-react';
+import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine, Check, LogOut } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
@@ -17,9 +18,28 @@ import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { AlbumNameDialog } from '@/components/AlbumNameDialog';
 import { AlbumCard } from '@/components/AlbumCard';
 import { DragDropIndicator } from '@/components/DragDropIndicator';
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  getWritings, 
+  createWriting, 
+  updateWriting, 
+  softDeleteWriting,
+  permanentDeleteWriting,
+  getDeletedWritings,
+  restoreWriting,
+  getWritingAlbums,
+  createWritingAlbum,
+  updateWritingAlbum,
+  softDeleteAlbum,
+  permanentDeleteAlbum,
+  getDeletedAlbums,
+  restoreAlbum,
+  WritingPiece as SupabaseWritingPiece,
+  WritingAlbum as SupabaseAlbum
+} from '@/lib/writingBackend';
 
 interface WritingPiece {
-  id: number;
+  id: string;
   title: string;
   // allow dynamic types/moods managed by admin
   type: string;
@@ -44,7 +64,7 @@ interface Album {
   name: string;
   color?: string;
   icon?: string;
-  itemIds: number[];
+  itemIds: string[];
 }
 
 const mockWritings: WritingPiece[] = [

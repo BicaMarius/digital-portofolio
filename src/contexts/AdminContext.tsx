@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { AdminContextType } from '@/types';
-import { ADMIN_CREDENTIALS } from '@/constants';
+import { supabase } from '@/integrations/supabase/client';
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
@@ -18,28 +18,92 @@ interface AdminProviderProps {
 
 export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const login = (username: string, password: string): boolean => {
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-      setIsAdmin(true);
-      localStorage.setItem('portfolio_admin', 'true');
-      return true;
-    }
-    return false;
-  };
+  // Check authentication status on mount
+  useEffect(() => {
+    checkAuth();
 
-  const logout = () => {
-    setIsAdmin(false);
-    localStorage.removeItem('portfolio_admin');
-  };
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        await checkAdminStatus(session.user.id);
+      } else {
+        setIsAdmin(false);
+        setLoading(false);
+      }
+    });
 
-  // Check localStorage on component mount
-  React.useEffect(() => {
-    const adminStatus = localStorage.getItem('portfolio_admin');
-    if (adminStatus === 'true') {
-      setIsAdmin(true);
-    }
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await checkAdminStatus(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setLoading(false);
+    }
+  };
+
+  const checkAdminStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      
+      setIsAdmin(data?.is_admin || false);
+    } catch (error) {
+      console.error('Admin check error:', error);
+      setIsAdmin(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username,
+        password: password,
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        await checkAdminStatus(data.session.user.id);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsAdmin(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  if (loading) {
+    return null; // Or a loading spinner
+  }
 
   return (
     <AdminContext.Provider value={{ isAdmin, login, logout }}>

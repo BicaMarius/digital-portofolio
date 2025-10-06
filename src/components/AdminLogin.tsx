@@ -18,9 +18,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ open, onOpenChange }) =>
   const [error, setError] = useState('');
   const { login } = useAdmin();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login('BicaMarius', password);
+    const success = await login('BicaMarius', password);
     if (success) {
       toast.success('Conectat ca admin!', {
         description: 'Acum poți edita și administra portofoliul.',

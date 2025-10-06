@@ -16,6 +16,7 @@ import AiMl from "./pages/AiMl";
 import UiUxDesign from "./pages/UiUxDesign";
 import TraditionalArt from "./pages/TraditionalArt";
 import CreativeWriting from "./pages/CreativeWriting";
+import { WritingAuth } from "./pages/WritingAuth";
 
 const queryClient = new QueryClient();
 
@@ -37,7 +38,8 @@ const App = () => (
               <Route path="/ai-ml" element={<AiMl />} />
               <Route path="/ui-ux" element={<UiUxDesign />} />
               <Route path="/traditional-art" element={<TraditionalArt />} />
-              <Route path="/writing" element={<CreativeWriting />} />
+              <Route path="/writing-auth" element={<WritingAuth />} />
+              <Route path="/creative-writing" element={<CreativeWriting />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

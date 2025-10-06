@@ -58,8 +58,8 @@ export interface PortfolioCategory {
 
 export interface AdminContextType {
   isAdmin: boolean;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
 }
 
 export interface DataContextType {
