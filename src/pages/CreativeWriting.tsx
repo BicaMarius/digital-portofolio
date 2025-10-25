@@ -1279,7 +1279,7 @@ const CreativeWriting: React.FC = () => {
     setDragOverType(null);
   };
 
-  const onDropOnAlbum = (e: React.DragEvent, albumId: string) => {
+  const onDropOnAlbum = async (e: React.DragEvent, albumId: string) => {
     e.preventDefault();
     const sourceId = Number(e.dataTransfer.getData('text/plain'));
     if (!sourceId) return;
@@ -1292,15 +1292,24 @@ const CreativeWriting: React.FC = () => {
     }
 
     // Remove writing from all other albums (move, don't copy)
-    setAlbums(albums => albums.map(album => {
+    const updated = albums.map(album => {
       if (album.id === albumId) {
-        // Add to target album
         return { ...album, itemIds: Array.from(new Set([...album.itemIds, sourceId])) };
       } else {
-        // Remove from any other albums
         return { ...album, itemIds: album.itemIds.filter(id => id !== sourceId) };
       }
-    }));
+    });
+    setAlbums(updated);
+
+    try {
+      // Persist updates for all albums that changed
+      const changed = updated.filter((a, idx) => a.itemIds !== albums[idx]?.itemIds);
+      await Promise.all(
+        changed.map(a => updateAlbumMutation.mutateAsync({ id: Number(a.id), updates: { itemIds: a.itemIds } }))
+      );
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut salva mutarea în cloud.', variant: 'destructive' });
+    }
     
     setDragOverAlbumId(null);
     toast({ 
@@ -1500,7 +1509,7 @@ const CreativeWriting: React.FC = () => {
     });
   };
 
-  const discardAlbum = (albumId: string) => {
+  const discardAlbum = async (albumId: string) => {
     console.log('=== DISCARD ALBUM START ===');
     console.log('discardAlbum called with albumId:', albumId);
     console.log('Current albums:', albums);
@@ -1523,8 +1532,11 @@ const CreativeWriting: React.FC = () => {
         return newAlbums;
       });
       console.log('setAlbums called successfully');
+      // Also delete from DB
+      await deleteAlbumMutation.mutateAsync(Number(albumId));
     } catch (error) {
-      console.error('Error in setAlbums:', error);
+      console.error('Error in discardAlbum:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut desființa albumul.', variant: 'destructive' });
     }
 
     try {
@@ -1557,54 +1569,52 @@ const CreativeWriting: React.FC = () => {
     });
   };
 
-  const addWritingsToAlbum = (albumId: string, writingIds: number[]) => {
-    setAlbums(albums => albums.map(a => 
-      a.id === albumId 
-        ? { ...a, itemIds: [...a.itemIds, ...writingIds] }
-        : a
-    ));
-    
-    toast({
-      title: 'Scrieri adăugate',
-      description: `${writingIds.length} scrieri au fost adăugate în album.`
-    });
+  const addWritingsToAlbum = async (albumId: string, writingIds: number[]) => {
+    const target = albums.find(a => a.id === albumId);
+    const nextIds = Array.from(new Set([...(target?.itemIds || []), ...writingIds]));
+    setAlbums(albums => albums.map(a => a.id === albumId ? { ...a, itemIds: nextIds } : a));
+    try {
+      await updateAlbumMutation.mutateAsync({ id: Number(albumId), updates: { itemIds: nextIds } });
+      toast({ title: 'Scrieri adăugate', description: `${writingIds.length} scrieri au fost adăugate în album.` });
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza albumul în cloud.', variant: 'destructive' });
+    }
   };
 
-  const removeWritingFromAlbum = (albumId: string, writingId: number) => {
-    setAlbums(albums => albums.map(a => 
-      a.id === albumId 
-        ? { ...a, itemIds: a.itemIds.filter(id => id !== writingId) }
-        : a
-    ));
-    
-    toast({
-      title: 'Scriere scoasă din album',
-      description: 'Scrierea a fost returnată în biblioteca principală.'
-    });
+  const removeWritingFromAlbum = async (albumId: string, writingId: number) => {
+    const nextIds = albums.find(a => a.id === albumId)?.itemIds.filter(id => id !== writingId) || [];
+    setAlbums(albums => albums.map(a => a.id === albumId ? { ...a, itemIds: nextIds } : a));
+    try {
+      await updateAlbumMutation.mutateAsync({ id: Number(albumId), updates: { itemIds: nextIds } });
+      toast({ title: 'Scriere scoasă din album', description: 'Scrierea a fost returnată în biblioteca principală.' });
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut scoate scrierea din album în cloud.', variant: 'destructive' });
+    }
   };
 
-  const deleteWritingFromAlbum = (albumId: string, writingId: number) => {
+  const deleteWritingFromAlbum = async (albumId: string, writingId: number) => {
     // First remove from album
-    setAlbums(albums => albums.map(a => 
-      a.id === albumId 
-        ? { ...a, itemIds: a.itemIds.filter(id => id !== writingId) }
-        : a
-    ));
+    const nextIds = albums.find(a => a.id === albumId)?.itemIds.filter(id => id !== writingId) || [];
+    setAlbums(albums => albums.map(a => a.id === albumId ? { ...a, itemIds: nextIds } : a));
+    try {
+      await updateAlbumMutation.mutateAsync({ id: Number(albumId), updates: { itemIds: nextIds } });
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza albumul în cloud.', variant: 'destructive' });
+    }
     
     // Then delete the writing (move to trash)
     deleteWriting(writingId);
   };
 
-  const updateAlbum = (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => {
-    setAlbums(albums => albums.map(a => 
-      a.id === albumId ? { ...a, ...updates } : a
-    ));
-    
-    if (updates.name || updates.color) {
-      toast({
-        title: 'Album actualizat',
-        description: 'Modificările au fost salvate cu succes.'
-      });
+  const updateAlbum = async (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => {
+    setAlbums(albums => albums.map(a => a.id === albumId ? { ...a, ...updates } : a));
+    try {
+      await updateAlbumMutation.mutateAsync({ id: Number(albumId), updates });
+      if (updates.name || updates.color) {
+        toast({ title: 'Album actualizat', description: 'Modificările au fost salvate cu succes.' });
+      }
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza albumul în cloud.', variant: 'destructive' });
     }
   };
 
