@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { db } from '../server/db';
-import { writings } from '../shared/schema';
+import { db } from '../server/db.js';
+import { writings } from '../shared/schema.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
