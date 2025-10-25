@@ -7,7 +7,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With'
+  );
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -30,9 +33,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'PATCH') {
+      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const [updatedWriting] = await db
         .update(writings)
-        .set(req.body)
+        .set(payload)
         .where(eq(writings.id, writingId))
         .returning();
       
@@ -51,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!deletedWriting) {
         return res.status(404).json({ error: 'Writing not found' });
       }
-      return res.status(200).json({ success: true });
+      return res.status(204).end();
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
