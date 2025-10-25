@@ -298,3 +298,183 @@ export class MemStorage implements IStorage {
     return this.tags.delete(id);
   }
 }
+
+// Database Storage implementation using Drizzle ORM
+import { db } from "./db";
+import * as schema from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+const { projects, galleryItems, cvData, writings, albums, tags } = schema;
+
+export class DbStorage implements IStorage {
+  // Projects
+  async getProjects(): Promise<Project[]> {
+    return await db.select().from(projects);
+  }
+
+  async getProjectById(id: number): Promise<Project | null> {
+    const result = await db.select().from(projects).where(eq(projects.id, id));
+    return result[0] || null;
+  }
+
+  async getProjectsByCategory(category: string): Promise<Project[]> {
+    return await db.select().from(projects).where(eq(projects.category, category));
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const result = await db.insert(projects).values(project).returning();
+    return result[0];
+  }
+
+  async updateProject(id: number, updates: UpdateProject): Promise<Project | null> {
+    const result = await db
+      .update(projects)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteProject(id: number): Promise<boolean> {
+    const result = await db.delete(projects).where(eq(projects.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Gallery Items
+  async getGalleryItems(): Promise<GalleryItem[]> {
+    return await db.select().from(galleryItems);
+  }
+
+  async getGalleryItemById(id: number): Promise<GalleryItem | null> {
+    const result = await db.select().from(galleryItems).where(eq(galleryItems.id, id));
+    return result[0] || null;
+  }
+
+  async getGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
+    return await db.select().from(galleryItems).where(eq(galleryItems.category, category));
+  }
+
+  async createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem> {
+    const result = await db.insert(galleryItems).values(item).returning();
+    return result[0];
+  }
+
+  async updateGalleryItem(id: number, updates: UpdateGalleryItem): Promise<GalleryItem | null> {
+    const result = await db
+      .update(galleryItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(galleryItems.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteGalleryItem(id: number): Promise<boolean> {
+    const result = await db.delete(galleryItems).where(eq(galleryItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // CV Data
+  async getCVData(): Promise<CVData | null> {
+    const result = await db.select().from(cvData).limit(1);
+    return result[0] || null;
+  }
+
+  async createCVData(cv: InsertCVData): Promise<CVData> {
+    // Delete existing CV first
+    await db.delete(cvData);
+    const result = await db.insert(cvData).values(cv).returning();
+    return result[0];
+  }
+
+  async deleteCVData(): Promise<boolean> {
+    const result = await db.delete(cvData).returning();
+    return result.length > 0;
+  }
+
+  // Writings
+  async getWritings(): Promise<Writing[]> {
+    return await db.select().from(writings);
+  }
+
+  async getWritingById(id: number): Promise<Writing | null> {
+    const result = await db.select().from(writings).where(eq(writings.id, id));
+    return result[0] || null;
+  }
+
+  async createWriting(writing: InsertWriting): Promise<Writing> {
+    const result = await db.insert(writings).values(writing).returning();
+    return result[0];
+  }
+
+  async updateWriting(id: number, updates: UpdateWriting): Promise<Writing | null> {
+    const result = await db
+      .update(writings)
+      .set(updates)
+      .where(eq(writings.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteWriting(id: number): Promise<boolean> {
+    const result = await db.delete(writings).where(eq(writings.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Albums
+  async getAlbums(): Promise<Album[]> {
+    return await db.select().from(albums);
+  }
+
+  async getAlbumById(id: number): Promise<Album | null> {
+    const result = await db.select().from(albums).where(eq(albums.id, id));
+    return result[0] || null;
+  }
+
+  async createAlbum(album: InsertAlbum): Promise<Album> {
+    const result = await db.insert(albums).values(album).returning();
+    return result[0];
+  }
+
+  async updateAlbum(id: number, updates: UpdateAlbum): Promise<Album | null> {
+    const result = await db
+      .update(albums)
+      .set(updates)
+      .where(eq(albums.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteAlbum(id: number): Promise<boolean> {
+    const result = await db.delete(albums).where(eq(albums.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Tags
+  async getTags(): Promise<Tag[]> {
+    return await db.select().from(tags);
+  }
+
+  async getTagById(id: number): Promise<Tag | null> {
+    const result = await db.select().from(tags).where(eq(tags.id, id));
+    return result[0] || null;
+  }
+
+  async createTag(tag: InsertTag): Promise<Tag> {
+    const result = await db.insert(tags).values(tag).returning();
+    return result[0];
+  }
+
+  async updateTag(id: number, updates: UpdateTag): Promise<Tag | null> {
+    const result = await db
+      .update(tags)
+      .set(updates)
+      .where(eq(tags.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteTag(id: number): Promise<boolean> {
+    const result = await db.delete(tags).where(eq(tags.id, id)).returning();
+    return result.length > 0;
+  }
+}

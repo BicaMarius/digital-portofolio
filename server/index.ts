@@ -1,7 +1,8 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { MemStorage } from "./storage";
+import { DbStorage } from "./storage";
 
 const app = express();
 app.use(express.json());
@@ -38,7 +39,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const storage = new MemStorage();
+  const storage = new DbStorage();
   registerRoutes(app, storage);
 
   const server = await setupVite(app);

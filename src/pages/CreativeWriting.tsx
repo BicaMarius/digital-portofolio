@@ -17,6 +17,20 @@ import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { AlbumNameDialog } from '@/components/AlbumNameDialog';
 import { AlbumCard } from '@/components/AlbumCard';
 import { DragDropIndicator } from '@/components/DragDropIndicator';
+import { 
+  useWritings, 
+  useAlbums, 
+  useTags,
+  useCreateWriting, 
+  useUpdateWriting, 
+  useDeleteWriting,
+  useCreateAlbum,
+  useUpdateAlbum,
+  useDeleteAlbum,
+  useCreateTag,
+  useUpdateTag,
+  useDeleteTag
+} from '@/hooks/useCreativeWriting';
 
 interface WritingPiece {
   id: number;
@@ -420,6 +434,17 @@ const CreativeWriting: React.FC = () => {
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
   
+  // API hooks for cloud storage
+  const { data: apiWritings, isLoading: writingsLoading } = useWritings();
+  const { data: apiAlbums, isLoading: albumsLoading } = useAlbums();
+  const { data: apiTags } = useTags();
+  const createWritingMutation = useCreateWriting();
+  const updateWritingMutation = useUpdateWriting();
+  const deleteWritingMutation = useDeleteWriting();
+  const createAlbumMutation = useCreateAlbum();
+  const updateAlbumMutation = useUpdateAlbum();
+  const deleteAlbumMutation = useDeleteAlbum();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterMood, setFilterMood] = useState<string>('all');
@@ -447,22 +472,75 @@ const CreativeWriting: React.FC = () => {
   
   const writingsGridRef = useRef<HTMLDivElement | null>(null);
 
-  // make writings editable in local state (mock persists in-memory only)
-  // Add a manual order field so drag & drop reordering isn't lost by sorting
-  const [writings, setWritings] = useState<OrderedWriting[]>(
-    mockWritings.map((w, idx) => ({ ...w, order: idx }))
-  );
+  // Convert API writings to local format with ordering
+  const [writings, setWritings] = useState<OrderedWriting[]>([]);
   const [useManualOrder, setUseManualOrder] = useState(false);
   
   // Track writings that have been manually moved to top (prioritized)
   // Store both the writing ID and its original position
   const [prioritizedWritings, setPrioritizedWritings] = useState<Map<number, number>>(new Map());
   
-  // albums state (must be declared early to avoid temporal dead zone)
+  // albums state - sync with API
   const [albums, setAlbums] = useState<Album[]>([]);
   
-  // trash state for deleted items (24h retention)
+  // trash state for deleted items (24h retention) - keep in localStorage for now
   const [trashedWritings, setTrashedWritings] = useState<WritingPiece[]>([]);
+  
+  // Sync API data to local state
+  useEffect(() => {
+    if (apiWritings) {
+      const orderedWritings = apiWritings
+        .filter(w => !w.deletedAt) // Exclude trashed items
+        .map((w, idx) => ({
+          id: w.id,
+          title: w.title,
+          type: w.type,
+          content: w.content,
+          excerpt: w.excerpt,
+          wordCount: w.wordCount,
+          dateWritten: w.dateWritten,
+          lastModified: w.lastModified,
+          tags: w.tags,
+          mood: w.mood,
+          isPrivate: w.isPrivate,
+          published: w.published,
+          order: idx
+        } as OrderedWriting));
+      setWritings(orderedWritings);
+      
+      // Load trashed items
+      const trashed = apiWritings
+        .filter(w => w.deletedAt)
+        .map(w => ({
+          id: w.id,
+          title: w.title,
+          type: w.type,
+          content: w.content,
+          excerpt: w.excerpt,
+          wordCount: w.wordCount,
+          dateWritten: w.dateWritten,
+          lastModified: w.lastModified,
+          tags: w.tags,
+          mood: w.mood,
+          isPrivate: w.isPrivate,
+          published: w.published,
+          deletedAt: w.deletedAt
+        } as WritingPiece));
+      setTrashedWritings(trashed);
+    }
+  }, [apiWritings]);
+  
+  useEffect(() => {
+    if (apiAlbums) {
+      setAlbums(apiAlbums.map(a => ({
+        id: String(a.id),
+        name: a.name,
+        color: a.color || undefined,
+        icon: a.icon || undefined,
+        itemIds: a.itemIds
+      })));
+    }
+  }, [apiAlbums]);
 
   // Pagination for main writings grid (2 rows; columns depend on viewport)
   const [currentPage, setCurrentPage] = useState(0);
@@ -839,6 +917,7 @@ const CreativeWriting: React.FC = () => {
   };
 
   // persistence: load from localStorage on mount
+  // Load types and moods from localStorage (UI preferences)
   useEffect(() => {
     const st = localStorage.getItem('cw_types');
     if (st) {
@@ -862,46 +941,13 @@ const CreativeWriting: React.FC = () => {
       setMoods(migratedMoods);
     }
 
-    // Migrate writings to use new name-based system
-    const saved = localStorage.getItem('cw_writings');
-    if (saved) {
-      const loadedWritings = JSON.parse(saved);
-  const migratedWritings = migrateWritingTypes(loadedWritings).map((w: WritingPiece, idx: number) => ({ ...w, order: idx }));
-  setWritings(migratedWritings as OrderedWriting[]);
-    }
+    // Writings and albums now loaded from API via useEffect above
     
-    const sa = localStorage.getItem('cw_albums');
-    if (sa) {
-      setAlbums(JSON.parse(sa));
-    } else {
-      // Set default albums if none exist
-      const defaultAlbums: Album[] = [
-        {
-          id: 'favorite-poems',
-          name: 'Poezii Favorite',
-          color: '#EC4899',
-          icon: 'Heart',
-          itemIds: []
-        },
-        {
-          id: 'short-stories',
-          name: 'Povestiri Scurte',
-          color: '#10B981',
-          icon: 'Book',
-          itemIds: []
-        },
-        {
-          id: 'personal-essays',
-          name: 'Eseuri Personale',
-          color: '#3B82F6',
-          icon: 'FileText',
-          itemIds: []
-        }
-      ];
-      setAlbums(defaultAlbums);
-    }
+    // Load trashed writings from localStorage (temporary)
     const trash = localStorage.getItem('cw_trash');
-    if (trash) setTrashedWritings(JSON.parse(trash));
+    if (trash) {
+      setTrashedWritings(JSON.parse(trash));
+    }
     
     // Clean up old trash (older than 24h)
     const now = Date.now();
@@ -912,51 +958,16 @@ const CreativeWriting: React.FC = () => {
     }));
   }, []);
 
-  // Sync function for cloud storage (placeholder for backend integration)
-  const syncDataToCloud = useCallback(async (dataType: string, data: unknown) => {
-    if (!isAdmin) return;
-    
-    try {
-      // TODO: Replace with actual backend API call
-      // await fetch('/api/creative-writing/sync', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ dataType, data, timestamp: Date.now() })
-      // });
-      
-      // For now, just store in a separate localStorage key for "cloud" simulation
-      const cloudKey = `cw_cloud_${dataType}`;
-      const cloudData = {
-        data,
-        timestamp: Date.now(),
-        deviceId: navigator.userAgent // Simple device identification
-      };
-      localStorage.setItem(cloudKey, JSON.stringify(cloudData));
-      
-      console.log(`Synced ${dataType} to cloud simulation`);
-    } catch (error) {
-      console.error(`Failed to sync ${dataType}:`, error);
-    }
-  }, [isAdmin]);
-
-  // save on changes and sync for admin
-  useEffect(() => { 
-    localStorage.setItem('cw_writings', JSON.stringify(writings)); 
-    if (isAdmin) syncDataToCloud('writings', writings);
-  }, [writings, isAdmin, syncDataToCloud]);
+  // Save types and moods to localStorage (UI preferences)
   useEffect(() => { 
     localStorage.setItem('cw_types', JSON.stringify(types)); 
-    if (isAdmin) syncDataToCloud('types', types);
-  }, [types, isAdmin, syncDataToCloud]);
+  }, [types]);
   useEffect(() => { 
     localStorage.setItem('cw_moods', JSON.stringify(moods)); 
-    if (isAdmin) syncDataToCloud('moods', moods);
-  }, [moods, isAdmin, syncDataToCloud]);
+  }, [moods]);
   useEffect(() => { 
-    localStorage.setItem('cw_albums', JSON.stringify(albums)); 
-    if (isAdmin) syncDataToCloud('albums', albums);
-  }, [albums, isAdmin, syncDataToCloud]);
-  useEffect(() => { localStorage.setItem('cw_trash', JSON.stringify(trashedWritings)); }, [trashedWritings]);
+    localStorage.setItem('cw_trash', JSON.stringify(trashedWritings)); 
+  }, [trashedWritings]);
 
   // Reset mobile page when search/filter changes
   useEffect(() => {
