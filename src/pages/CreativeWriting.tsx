@@ -723,7 +723,7 @@ const CreativeWriting: React.FC = () => {
   };
 
   // save from editor
-  const saveEditing = () => {
+  const saveEditing = async () => {
     if (!editing) return;
     const contentHtml = editorRef.current?.innerHTML || editing.content;
     const plainTextWordCount = countWords(contentHtml);
@@ -736,19 +736,53 @@ const CreativeWriting: React.FC = () => {
       lastModified: now,
       dateWritten: editing.dateWritten || now
     };
-    setWritings(ws => {
-      if (ws.some(w => w.id === updated.id)) {
-        return ws.map(w => w.id === updated.id ? { ...(w as OrderedWriting), ...updated } : w);
+
+    try {
+      if (editing.id && writings.some(w => w.id === editing.id)) {
+        // Update existing writing
+        await updateWritingMutation.mutateAsync({
+          id: editing.id,
+          updates: {
+            title: updated.title,
+            type: updated.type,
+            content: updated.content,
+            excerpt: updated.excerpt,
+            wordCount: updated.wordCount,
+            lastModified: updated.lastModified,
+            tags: updated.tags,
+            mood: updated.mood,
+            isPrivate: updated.isPrivate,
+            published: updated.published
+          }
+        });
+      } else {
+        // Create new writing
+        await createWritingMutation.mutateAsync({
+          title: updated.title,
+          type: updated.type,
+          content: updated.content,
+          excerpt: updated.excerpt,
+          wordCount: updated.wordCount,
+          dateWritten: updated.dateWritten,
+          lastModified: updated.lastModified,
+          tags: updated.tags,
+          mood: updated.mood,
+          isPrivate: updated.isPrivate || false,
+          published: updated.published || false,
+          deletedAt: null
+        });
       }
-      // new item: assign new id & order to top (0) and shift others
-      const nextId = Math.max(0, ...ws.map(w => w.id)) + 1;
-      updated.id = nextId;
-      const newItem: OrderedWriting = { ...(updated as WritingPiece), order: 0 };
-      const shifted = ws.map(w => ({ ...w, order: w.order + 1 }));
-      return [newItem, ...shifted];
-    });
-    setIsEditorOpen(false);
-    toast({ title: 'Salvat', description: 'Textul a fost salvat în bibliotecă.' });
+      
+      setIsEditorOpen(false);
+      toast({ title: 'Salvat', description: 'Textul a fost salvat în bibliotecă.' });
+    } catch (error) {
+      console.error('Failed to save writing:', error);
+      toast({ 
+        title: 'Eroare', 
+        description: 'Nu s-a putut salva textul. Încearcă din nou.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // manage types/moods add/remove
@@ -1275,25 +1309,33 @@ const CreativeWriting: React.FC = () => {
     });
   };
 
-  const createAlbumFromWritings = (name: string, color: string) => {
+  const createAlbumFromWritings = async (name: string, color: string) => {
     const { sourceId, targetId } = albumNameDialog;
     
     // Create album with available IDs (can be empty, single item, or pair)
     const itemIds = [sourceId, targetId].filter(id => id !== null) as number[];
     
-    const newAlbum: Album = {
-      id: String(Date.now()),
-      name,
-      color,
-      itemIds
-    };
+    try {
+      await createAlbumMutation.mutateAsync({
+        name,
+        color,
+        icon: 'Book',
+        itemIds
+      });
 
-    setAlbums(albs => [newAlbum, ...albs]);
-    setAlbumNameDialog({ open: false, sourceId: null, targetId: null });
-    toast({ 
-      title: 'Album creat', 
-      description: `Albumul "${name}" a fost creat cu succes.` 
-    });
+      setAlbumNameDialog({ open: false, sourceId: null, targetId: null });
+      toast({ 
+        title: 'Album creat', 
+        description: `Albumul "${name}" a fost creat cu succes.` 
+      });
+    } catch (error) {
+      console.error('Failed to create album:', error);
+      toast({ 
+        title: 'Eroare', 
+        description: 'Nu s-a putut crea albumul.',
+        variant: 'destructive'
+      });
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -1335,22 +1377,41 @@ const CreativeWriting: React.FC = () => {
       type: 'warning',
       confirmText: 'Mută în coș',
       cancelText: 'Anulează',
-      onConfirm: () => {
+      onConfirm: async () => {
         const writing = writings.find(w => w.id === writingId);
         if (writing) {
-          // Move to trash
-          setTrashedWritings(trash => [...trash, { ...writing, deletedAt: new Date().toISOString() }]);
-          // Remove from writings
-          setWritings(ws => ws.filter(w => w.id !== writingId));
-          // Remove from albums as well
-          setAlbums(albums => albums.map(album => ({
-            ...album,
-            itemIds: album.itemIds.filter(id => id !== writingId)
-          })));
-          toast({ 
-            title: 'Mutat în coș', 
-            description: 'Scrierea a fost mutată în coșul de gunoi.' 
-          });
+          try {
+            // Soft delete - mark as deleted
+            await updateWritingMutation.mutateAsync({
+              id: writingId,
+              updates: {
+                deletedAt: new Date().toISOString()
+              }
+            });
+            
+            // Also update albums to remove the writing
+            const albumsWithWriting = albums.filter(a => a.itemIds.includes(writingId));
+            for (const album of albumsWithWriting) {
+              await updateAlbumMutation.mutateAsync({
+                id: Number(album.id),
+                updates: {
+                  itemIds: album.itemIds.filter(id => id !== writingId)
+                }
+              });
+            }
+            
+            toast({ 
+              title: 'Mutat în coș', 
+              description: 'Scrierea a fost mutată în coșul de gunoi.' 
+            });
+          } catch (error) {
+            console.error('Failed to delete writing:', error);
+            toast({ 
+              title: 'Eroare', 
+              description: 'Nu s-a putut șterge scrierea.',
+              variant: 'destructive'
+            });
+          }
         }
       }
     });
