@@ -19,7 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const newTag = await db.insert(tags).values(req.body).returning();
+      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const newTag = await db.insert(tags).values(payload).returning();
       return res.status(201).json(newTag[0]);
     }
 

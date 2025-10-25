@@ -25,7 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const newWriting = await db.insert(writings).values(req.body).returning();
+      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const newWriting = await db.insert(writings).values(payload).returning();
       return res.status(201).json(newWriting[0]);
     }
 

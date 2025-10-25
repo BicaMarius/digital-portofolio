@@ -19,7 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const newAlbum = await db.insert(albums).values(req.body).returning();
+      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const newAlbum = await db.insert(albums).values(payload).returning();
       return res.status(201).json(newAlbum[0]);
     }
 
