@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { db } from '../server/db.js';
+import db from '../server/db.js';
 import { writings } from '../shared/schema.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
