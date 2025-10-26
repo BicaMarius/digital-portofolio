@@ -14,7 +14,11 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API call failed: ${response.statusText}`);
+    const text = await response.text().catch(() => '');
+    const err = new Error(`API call failed: ${response.status} ${response.statusText} ${text}`) as Error & { status?: number };
+    // annotate status for fallback checks
+    err.status = response.status;
+    throw err;
   }
 
   // For DELETE requests with 204 No Content
@@ -43,16 +47,37 @@ export async function createWriting(writing: Omit<Writing, 'id'>): Promise<Writi
 }
 
 export async function updateWriting(id: number, updates: Partial<Writing>): Promise<Writing> {
-  return apiCall<Writing>(`/writings/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  });
+  try {
+    return await apiCall<Writing>(`/writings/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err?.status === 405) {
+      // Fallback to POST command endpoint
+      return apiCall<Writing>(`/writings-update`, {
+        method: 'POST',
+        body: JSON.stringify({ id, updates }),
+      });
+    }
+    throw err;
+  }
 }
 
 export async function deleteWriting(id: number): Promise<void> {
-  return apiCall<void>(`/writings/${id}`, {
-    method: 'DELETE',
-  });
+  try {
+    return await apiCall<void>(`/writings/${id}`, { method: 'DELETE' });
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err?.status === 405) {
+      return apiCall<void>(`/writings-delete`, {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      });
+    }
+    throw err;
+  }
 }
 
 // ============ ALBUMS API ============
@@ -73,16 +98,36 @@ export async function createAlbum(album: Omit<Album, 'id'>): Promise<Album> {
 }
 
 export async function updateAlbum(id: number, updates: Partial<Album>): Promise<Album> {
-  return apiCall<Album>(`/albums/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  });
+  try {
+    return await apiCall<Album>(`/albums/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err?.status === 405) {
+      return apiCall<Album>(`/albums-update`, {
+        method: 'POST',
+        body: JSON.stringify({ id, updates }),
+      });
+    }
+    throw err;
+  }
 }
 
 export async function deleteAlbum(id: number): Promise<void> {
-  return apiCall<void>(`/albums/${id}`, {
-    method: 'DELETE',
-  });
+  try {
+    return await apiCall<void>(`/albums/${id}`, { method: 'DELETE' });
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err?.status === 405) {
+      return apiCall<void>(`/albums-delete`, {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      });
+    }
+    throw err;
+  }
 }
 
 // ============ TAGS API ============
