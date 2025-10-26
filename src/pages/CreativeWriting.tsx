@@ -476,9 +476,8 @@ const CreativeWriting: React.FC = () => {
   const [writings, setWritings] = useState<OrderedWriting[]>([]);
   const [useManualOrder, setUseManualOrder] = useState(false);
   
-  // Track writings that have been manually moved to top (prioritized)
-  // Store both the writing ID and its original position
-  const [prioritizedWritings, setPrioritizedWritings] = useState<Map<number, number>>(new Map());
+  // Reserved tag marker to persist "move first" without schema changes
+  const PIN_TAG = '__PINNED_FIRST__';
   
   // albums state - sync with API
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -534,7 +533,7 @@ const CreativeWriting: React.FC = () => {
   
   useEffect(() => {
     if (apiAlbums) {
-      // Persist local albums list
+      // Sync albums from API; do not use albums to implement pinned behavior
       const localAlbums = apiAlbums.map(a => ({
         id: String(a.id),
         name: a.name,
@@ -543,25 +542,8 @@ const CreativeWriting: React.FC = () => {
         itemIds: a.itemIds
       }));
       setAlbums(localAlbums);
-
-      // Re-derive writings order: Pinned first (if Pinned album exists)
-      const pinned = localAlbums.find(a => a.name === 'Pinned');
-      if (pinned && writings.length > 0) {
-        const pinnedSet = new Set(pinned.itemIds);
-        setWritings(prev => {
-          const pinnedItems = prev.filter(w => pinnedSet.has(w.id));
-          // Keep pinned order according to album.itemIds
-          const pinnedOrdered = pinned.itemIds
-            .map(id => pinnedItems.find(w => w.id === id))
-            .filter(Boolean) as OrderedWriting[];
-          const rest = prev.filter(w => !pinnedSet.has(w.id));
-          const merged = [...pinnedOrdered, ...rest] as OrderedWriting[];
-          merged.forEach((w, i) => { w.order = i; });
-          return merged;
-        });
-      }
     }
-  }, [apiAlbums, writings.length]);
+  }, [apiAlbums]);
 
   // Pagination for main writings grid (2 rows; columns depend on viewport)
   const [currentPage, setCurrentPage] = useState(0);
@@ -649,6 +631,12 @@ const CreativeWriting: React.FC = () => {
   // Apply sorting
   // Apply sorting unless a manual drag order is in effect
   const allVisibleWritings = [...filteredWritings].sort((a, b) => {
+    const ap = Array.isArray(a.tags) && a.tags.includes(PIN_TAG) ? 1 : 0;
+    const bp = Array.isArray(b.tags) && b.tags.includes(PIN_TAG) ? 1 : 0;
+
+    // Always bubble pinned-first to the very top
+    if (ap !== bp) return bp - ap;
+
     if (useManualOrder) {
       const ao = (a as OrderedWriting).order ?? 0;
       const bo = (b as OrderedWriting).order ?? 0;
@@ -1432,16 +1420,20 @@ const CreativeWriting: React.FC = () => {
   };
 
   const moveWritingToTop = async (writingId: number) => {
-    // Use special album "Pinned" to persist priority across devices
-    const pinned = albums.find(a => a.name === 'Pinned');
     try {
-      if (!pinned) {
-        const created = await createAlbumMutation.mutateAsync({ name: 'Pinned', color: '#FFD700', icon: 'Pin', itemIds: [writingId] });
-        setAlbums(albs => [...albs, { id: String(created.id), name: created.name, color: created.color || undefined, icon: created.icon || undefined, itemIds: created.itemIds }]);
-      } else if (!pinned.itemIds.includes(writingId)) {
-        const next = { ...pinned, itemIds: [writingId, ...pinned.itemIds.filter(id => id !== writingId)] };
-        setAlbums(albs => albs.map(a => a.id === String(pinned!.id) ? next : a));
-        await updateAlbumMutation.mutateAsync({ id: Number(pinned.id), updates: { itemIds: next.itemIds } });
+      // Unpin any currently pinned items (allow only one at a time)
+      const toUnpin = writings.filter(w => Array.isArray(w.tags) && w.tags.includes(PIN_TAG) && w.id !== writingId);
+      for (const w of toUnpin) {
+        const newTags = (w.tags || []).filter(t => t !== PIN_TAG);
+        await updateWritingMutation.mutateAsync({ id: w.id, updates: { tags: newTags } });
+      }
+
+      const target = writings.find(w => w.id === writingId);
+      if (!target) return;
+      const currentTags = Array.isArray(target.tags) ? target.tags : [];
+      if (!currentTags.includes(PIN_TAG)) {
+        const newTags = [...currentTags, PIN_TAG];
+        await updateWritingMutation.mutateAsync({ id: writingId, updates: { tags: newTags } });
       }
       toast({ title: 'Mutat sus', description: 'Scrierea a fost prioritizată pe prima poziție.' });
     } catch (e) {
@@ -1450,12 +1442,11 @@ const CreativeWriting: React.FC = () => {
   };
 
   const removePriority = async (writingId: number) => {
-    const pinned = albums.find(a => a.name === 'Pinned');
-    if (!pinned) return;
-    const nextIds = pinned.itemIds.filter(id => id !== writingId);
-    setAlbums(albs => albs.map(a => a.id === String(pinned!.id) ? { ...a, itemIds: nextIds } : a));
     try {
-      await updateAlbumMutation.mutateAsync({ id: Number(pinned.id), updates: { itemIds: nextIds } });
+      const target = writings.find(w => w.id === writingId);
+      if (!target) return;
+  const newTags = (target.tags || []).filter(t => t !== PIN_TAG);
+  await updateWritingMutation.mutateAsync({ id: writingId, updates: { tags: newTags } });
       toast({ title: 'Prioritate anulată', description: 'Scrierea a fost restabilită la poziția inițială.' });
     } catch (e) {
       toast({ title: 'Eroare', description: 'Nu s-a putut anula prioritatea în cloud.', variant: 'destructive' });
@@ -1945,7 +1936,7 @@ const CreativeWriting: React.FC = () => {
                           {/* Mobile action bar */}
                           {mobileSelectedWritingId === writing.id && isMobile && (
                             <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border">
-                              {prioritizedWritings.has(writing.id) ? (
+                              {Array.isArray(writing.tags) && writing.tags.includes(PIN_TAG) ? (
                                 <Button size="icon" variant="ghost" className="h-7 w-7" title="Anulează prioritate" onClick={(e) => { e.stopPropagation(); removePriority(writing.id); setMobileSelectedWritingId(null); }}>
                                   <ArrowUpFromLine className="h-4 w-4" />
                                 </Button>
@@ -1997,7 +1988,7 @@ const CreativeWriting: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-1">
                               {/* Priority indicator */}
-                              {prioritizedWritings.has(writing.id) && (
+                              {Array.isArray(writing.tags) && writing.tags.includes(PIN_TAG) && (
                                 <div className="bg-primary/20 text-primary rounded-full p-1" title="Prioritizată">
                                   <Pin className="h-3 w-3" />
                                 </div>
@@ -2170,7 +2161,7 @@ const CreativeWriting: React.FC = () => {
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             {getTypeIcon(writing.type)}
                             <CardTitle className="text-base font-semibold line-clamp-2 leading-tight">{writing.title}</CardTitle>
-                            {prioritizedWritings.has(writing.id) && (
+                            {Array.isArray(writing.tags) && writing.tags.includes(PIN_TAG) && (
                               <div className="bg-primary/20 text-primary rounded-full p-1 shrink-0" title="Prioritizată">
                                 <Pin className="h-3 w-3" />
                               </div>
@@ -3259,19 +3250,18 @@ const CreativeWriting: React.FC = () => {
               onClick={() => {
                 const id = contextMenu.writingId;
                 if (id == null) return;
-                
-                if (prioritizedWritings.has(id)) {
-                  // Remove priority
+                const w = writings.find(x => x.id === id);
+                const isPinned = !!(w && Array.isArray(w.tags) && w.tags.includes(PIN_TAG));
+                if (isPinned) {
                   removePriority(id);
                 } else {
-                  // Move to first
                   moveWritingToTop(id);
                 }
                 
                 setContextMenu({ open: false, x:0, y:0, writingId: null });
               }}
             >
-              {prioritizedWritings.has(contextMenu.writingId || 0) ? (
+              {(() => { const id = contextMenu.writingId || 0; const w = writings.find(x => x.id === id); return Array.isArray(w?.tags) && w!.tags.includes(PIN_TAG); })() ? (
                 <>
                   <ArrowUpFromLine className="h-4 w-4" />
                   Anulează prioritate
