@@ -532,15 +532,34 @@ const CreativeWriting: React.FC = () => {
   
   useEffect(() => {
     if (apiAlbums) {
-      setAlbums(apiAlbums.map(a => ({
+      // Persist local albums list
+      const localAlbums = apiAlbums.map(a => ({
         id: String(a.id),
         name: a.name,
         color: a.color || undefined,
         icon: a.icon || undefined,
         itemIds: a.itemIds
-      })));
+      }));
+      setAlbums(localAlbums);
+
+      // Re-derive writings order: Pinned first (if Pinned album exists)
+      const pinned = localAlbums.find(a => a.name === 'Pinned');
+      if (pinned && writings.length > 0) {
+        const pinnedSet = new Set(pinned.itemIds);
+        setWritings(prev => {
+          const pinnedItems = prev.filter(w => pinnedSet.has(w.id));
+          // Keep pinned order according to album.itemIds
+          const pinnedOrdered = pinned.itemIds
+            .map(id => pinnedItems.find(w => w.id === id))
+            .filter(Boolean) as OrderedWriting[];
+          const rest = prev.filter(w => !pinnedSet.has(w.id));
+          const merged = [...pinnedOrdered, ...rest] as OrderedWriting[];
+          merged.forEach((w, i) => { w.order = i; });
+          return merged;
+        });
+      }
     }
-  }, [apiAlbums]);
+  }, [apiAlbums, writings.length]);
 
   // Pagination for main writings grid (2 rows; columns depend on viewport)
   const [currentPage, setCurrentPage] = useState(0);
@@ -976,20 +995,6 @@ const CreativeWriting: React.FC = () => {
     }
 
     // Writings and albums now loaded from API via useEffect above
-    
-    // Load trashed writings from localStorage (temporary)
-    const trash = localStorage.getItem('cw_trash');
-    if (trash) {
-      setTrashedWritings(JSON.parse(trash));
-    }
-    
-    // Clean up old trash (older than 24h)
-    const now = Date.now();
-    const oneDayAgo = now - (24 * 60 * 60 * 1000);
-    setTrashedWritings(items => items.filter(item => {
-      if (!item.deletedAt) return false;
-      return new Date(item.deletedAt).getTime() > oneDayAgo;
-    }));
   }, []);
 
   // Save types and moods to localStorage (UI preferences)
@@ -999,9 +1004,7 @@ const CreativeWriting: React.FC = () => {
   useEffect(() => { 
     localStorage.setItem('cw_moods', JSON.stringify(moods)); 
   }, [moods]);
-  useEffect(() => { 
-    localStorage.setItem('cw_trash', JSON.stringify(trashedWritings)); 
-  }, [trashedWritings]);
+  // Removed legacy localStorage persistence for trash; now driven by API
 
   // Reset mobile page when search/filter changes
   useEffect(() => {
@@ -1426,57 +1429,35 @@ const CreativeWriting: React.FC = () => {
     });
   };
 
-  const moveWritingToTop = (writingId: number) => {
-    setWritings(prev => {
-      const targetIndex = prev.findIndex(w => w.id === writingId);
-      const target = prev.find(w => w.id === writingId);
-      if (!target || targetIndex === -1) return prev;
-      
-      // Store original position before moving
-      setPrioritizedWritings(prevMap => new Map(prevMap.set(writingId, targetIndex)));
-      
-      const others = prev.filter(w => w.id !== writingId);
-      const reordered = [target, ...others] as OrderedWriting[];
-      // Reassign order values
-      reordered.forEach((w, i) => { w.order = i; });
-      return reordered;
-    });
-    setUseManualOrder(true);
-    
-    toast({ title: 'Mutat sus', description: 'Scrierea a fost prioritizată pe prima poziție.' });
+  const moveWritingToTop = async (writingId: number) => {
+    // Use special album "Pinned" to persist priority across devices
+    const pinned = albums.find(a => a.name === 'Pinned');
+    try {
+      if (!pinned) {
+        const created = await createAlbumMutation.mutateAsync({ name: 'Pinned', color: '#FFD700', icon: 'Pin', itemIds: [writingId] });
+        setAlbums(albs => [...albs, { id: String(created.id), name: created.name, color: created.color || undefined, icon: created.icon || undefined, itemIds: created.itemIds }]);
+      } else if (!pinned.itemIds.includes(writingId)) {
+        const next = { ...pinned, itemIds: [writingId, ...pinned.itemIds.filter(id => id !== writingId)] };
+        setAlbums(albs => albs.map(a => a.id === String(pinned!.id) ? next : a));
+        await updateAlbumMutation.mutateAsync({ id: Number(pinned.id), updates: { itemIds: next.itemIds } });
+      }
+      toast({ title: 'Mutat sus', description: 'Scrierea a fost prioritizată pe prima poziție.' });
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut salva prioritatea în cloud.', variant: 'destructive' });
+    }
   };
 
-  const removePriority = (writingId: number) => {
-    const originalPosition = prioritizedWritings.get(writingId);
-    
-    // Remove from prioritized tracking
-    setPrioritizedWritings(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(writingId);
-      return newMap;
-    });
-
-    // Restore to exact original position
-    setWritings(prev => {
-      const currentIndex = prev.findIndex(w => w.id === writingId);
-      const target = prev.find(w => w.id === writingId);
-      
-      if (!target || currentIndex === -1 || originalPosition === undefined) return prev;
-      
-      // Remove from current position
-      const withoutTarget = prev.filter(w => w.id !== writingId);
-      
-      // Insert at original position (adjust for removed item)
-      const adjustedPosition = Math.min(originalPosition, withoutTarget.length);
-      const result = [...withoutTarget];
-      result.splice(adjustedPosition, 0, target);
-      
-      // Reassign order values
-      result.forEach((w, i) => { w.order = i; });
-      return result as OrderedWriting[];
-    });
-
-    toast({ title: 'Prioritate anulată', description: 'Scrierea a fost restabilită la poziția originală.' });
+  const removePriority = async (writingId: number) => {
+    const pinned = albums.find(a => a.name === 'Pinned');
+    if (!pinned) return;
+    const nextIds = pinned.itemIds.filter(id => id !== writingId);
+    setAlbums(albs => albs.map(a => a.id === String(pinned!.id) ? { ...a, itemIds: nextIds } : a));
+    try {
+      await updateAlbumMutation.mutateAsync({ id: Number(pinned.id), updates: { itemIds: nextIds } });
+      toast({ title: 'Prioritate anulată', description: 'Scrierea a fost restabilită la poziția inițială.' });
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut anula prioritatea în cloud.', variant: 'destructive' });
+    }
   };
 
   const deleteAlbumAndWritings = (albumId: string) => {
@@ -3088,17 +3069,14 @@ const CreativeWriting: React.FC = () => {
                         </span>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               // Restore writing
-                              const restored: OrderedWriting = { ...(writing as WritingPiece), order: 0 };
-                              delete restored.deletedAt;
-                              setWritings(ws => {
-                                // shift existing orders
-                                const shifted = ws.map(w => ({ ...w, order: w.order + 1 }));
-                                return [restored, ...shifted];
-                              });
-                              setTrashedWritings(trash => trash.filter(t => t.id !== writing.id));
-                              toast({ title: 'Restaurat', description: 'Scrierea a fost restaurată.' });
+                              try {
+                                await updateWritingMutation.mutateAsync({ id: writing.id, updates: { deletedAt: null, lastModified: new Date().toISOString() } });
+                                toast({ title: 'Restaurat', description: 'Scrierea a fost restaurată.' });
+                              } catch (e) {
+                                toast({ title: 'Eroare', description: 'Nu s-a putut restaura scrierea.', variant: 'destructive' });
+                              }
                             }}
                             className="p-1 hover:bg-background rounded"
                             title="Restaurează"
@@ -3114,9 +3092,15 @@ const CreativeWriting: React.FC = () => {
                                 type: 'warning',
                                 confirmText: 'Șterge definitiv',
                                 cancelText: 'Anulează',
-                                onConfirm: () => {
-                                  setTrashedWritings(trash => trash.filter(t => t.id !== writing.id));
-                                  toast({ title: 'Șters definitiv', description: 'Scrierea a fost ștearsă definitiv.' });
+                                onConfirm: async () => {
+                                  try {
+                                    await deleteWritingMutation.mutateAsync(writing.id);
+                                    // remove from any albums locally
+                                    setAlbums(albs => albs.map(al => ({ ...al, itemIds: al.itemIds.filter(id => id !== writing.id) })));
+                                    toast({ title: 'Șters definitiv', description: 'Scrierea a fost ștearsă definitiv.' });
+                                  } catch (e) {
+                                    toast({ title: 'Eroare', description: 'Nu s-a putut șterge definitiv.', variant: 'destructive' });
+                                  }
                                 }
                               });
                             }}
@@ -3147,10 +3131,18 @@ const CreativeWriting: React.FC = () => {
                     type: 'warning',
                     confirmText: 'Golește',
                     cancelText: 'Anulează',
-                    onConfirm: () => {
-                      setTrashedWritings([]);
-                      toast({ title: 'Coș golit' });
-                      setIsTrashOpen(false);
+                    onConfirm: async () => {
+                      try {
+                        const ids = trashedWritings.map(t => t.id);
+                        // Fire deletes sequentially to keep it simple
+                        for (const id of ids) {
+                          await deleteWritingMutation.mutateAsync(id);
+                        }
+                        toast({ title: 'Coș golit' });
+                        setIsTrashOpen(false);
+                      } catch (e) {
+                        toast({ title: 'Eroare', description: 'Nu s-a putut goli coșul.', variant: 'destructive' });
+                      }
                     }
                   });
                 }}
