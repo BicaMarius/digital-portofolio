@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -482,6 +482,8 @@ const CreativeWriting: React.FC = () => {
   
   // albums state - sync with API
   const [albums, setAlbums] = useState<Album[]>([]);
+  // Derived: albums visible in UI (hide special 'Pinned')
+  const visibleAlbums = useMemo(() => albums.filter(a => a.name !== 'Pinned'), [albums]);
   
   // trash state for deleted items (24h retention) - keep in localStorage for now
   const [trashedWritings, setTrashedWritings] = useState<WritingPiece[]>([]);
@@ -2952,7 +2954,7 @@ const CreativeWriting: React.FC = () => {
               <div 
                 className="albums-grid grid grid-cols-1 gap-5 mb-6 px-4"
               >
-                {albums
+                {visibleAlbums
                   .slice(mobileAlbumCurrentPage * mobileAlbumsPerPage, (mobileAlbumCurrentPage + 1) * mobileAlbumsPerPage)
                   .map(album => (
                     <AlbumCard
@@ -2976,9 +2978,9 @@ const CreativeWriting: React.FC = () => {
               </div>
               
               {/* Album pagination dots only for mobile */}
-              {albums.length > mobileAlbumsPerPage && (
+              {visibleAlbums.length > mobileAlbumsPerPage && (
                 <div className="flex justify-center items-center gap-2 mt-4">
-                  {Array.from({ length: Math.ceil(albums.length / mobileAlbumsPerPage) }).map((_, index) => (
+                  {Array.from({ length: Math.ceil(visibleAlbums.length / mobileAlbumsPerPage) }).map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setMobileAlbumCurrentPage(index)}
@@ -2995,7 +2997,7 @@ const CreativeWriting: React.FC = () => {
             </div>
           ) : (
             <div className="albums-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-5 md:gap-6 mb-6">
-              {albums.map(album => (
+              {visibleAlbums.map(album => (
                 <AlbumCard
                   key={album.id}
                   album={album}
@@ -3332,7 +3334,7 @@ const CreativeWriting: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {albums.map(album => (
+                {albums.filter(a => a.name !== 'Pinned').map(album => (
                   <Button
                     key={album.id}
                     variant="outline"
