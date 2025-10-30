@@ -12,9 +12,9 @@ interface PDFViewerProps {
   fileName: string;
 }
 
-const MIN_SCALE = 0.6;
-const MAX_SCALE = 2.5;
-const SCALE_STEP = 0.2;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 4.0;
+const SCALE_STEP = 0.25;
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -37,6 +37,43 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Pinch-to-zoom support for mobile
+  const touchDistance = useRef<number | null>(null);
+  const lastScale = useRef<number>(1);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      );
+      touchDistance.current = distance;
+      lastScale.current = scale;
+    }
+  }, [scale]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchDistance.current !== null) {
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      );
+      
+      const scaleChange = distance / touchDistance.current;
+      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, lastScale.current * scaleChange));
+      setScale(newScale);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    touchDistance.current = null;
   }, []);
 
   const handleZoomIn = useCallback(() => {
@@ -84,11 +121,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   );
 
   useEffect(() => {
-    setScale(1);
+    // Set initial scale based on device
+    setScale(isMobile ? 0.8 : 1);
     setRotation(0);
     setCurrentPage(1);
     setRenderError(null);
-  }, [fileUrl]);
+  }, [fileUrl, isMobile]);
 
   useEffect(() => {
     const onFullChange = () => {
@@ -149,18 +187,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         const page = await pdfDocument.getPage(currentPage);
         if (cancelled) return;
 
-        // Get container width for responsive scaling
-        const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
-        const baseViewport = page.getViewport({ scale: 1, rotation });
-        
-        // Calculate scale to fit container width on mobile
-        let finalScale = scale;
-        if (isMobile && containerWidth > 0) {
-          const fitScale = (containerWidth - 32) / baseViewport.width; // 32px for padding
-          finalScale = Math.min(scale, fitScale * 1.2); // Allow some zoom but not too much
-        }
-
-        const viewport = page.getViewport({ scale: finalScale, rotation });
+        // Use scale directly - user controls zoom
+        const viewport = page.getViewport({ scale, rotation });
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -171,7 +199,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
         // Use high-DPI rendering for crisp display at all zoom levels
         const outputScale = Math.max(window.devicePixelRatio || 1, 2);
-        const scaledViewport = page.getViewport({ scale: finalScale * outputScale, rotation });
+        const scaledViewport = page.getViewport({ scale: scale * outputScale, rotation });
 
         // Set canvas dimensions for sharp rendering
         canvas.width = Math.floor(scaledViewport.width);
@@ -277,16 +305,21 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         )}
       </div>
 
-      <div className={`relative flex-1 overflow-auto bg-muted/20 ${isMobile ? 'p-2' : 'p-4'}`}>
+      <div 
+        className={`relative flex-1 overflow-auto bg-muted/20 ${isMobile ? 'p-2' : 'p-4'}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div className="flex justify-center items-start min-h-full">
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-full">
+          <div className={`bg-white shadow-lg rounded-lg overflow-hidden ${isMobile ? 'w-full' : 'max-w-4xl'}`}>
             <canvas 
               ref={canvasRef} 
               className="block w-full h-auto"
               style={{ 
                 imageRendering: 'crisp-edges',
                 WebkitFontSmoothing: 'antialiased',
-                maxWidth: '100%',
+                width: '100%',
                 height: 'auto',
               }}
             />

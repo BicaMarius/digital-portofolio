@@ -1081,13 +1081,22 @@ const CreativeWriting: React.FC = () => {
     onClick: () => void,
     threshold: number = 500
   ) => {
+    const startPos = useRef<{ x: number; y: number } | null>(null);
+    const MOVE_THRESHOLD = 10; // pixels - if moved more than this, it's a scroll
+
     return {
       onTouchStart: (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        startPos.current = { x: touch.clientX, y: touch.clientY };
         longPressTarget.current = e.target;
         setIsLongPressing(false);
         longPressTimeout.current = setTimeout(() => {
           setIsLongPressing(true);
           onLongPress();
+          // Prevent text selection
+          if (window.getSelection) {
+            window.getSelection()?.removeAllRanges();
+          }
         }, threshold);
       },
       onTouchEnd: (e: React.TouchEvent) => {
@@ -1096,17 +1105,35 @@ const CreativeWriting: React.FC = () => {
           longPressTimeout.current = null;
         }
         
+        // Only trigger click if it wasn't a long press AND the touch didn't move much
         if (!isLongPressing && e.target === longPressTarget.current) {
-          onClick();
+          const touch = e.changedTouches[0];
+          if (startPos.current) {
+            const deltaX = Math.abs(touch.clientX - startPos.current.x);
+            const deltaY = Math.abs(touch.clientY - startPos.current.y);
+            
+            // Only trigger onClick if movement was minimal (not a scroll)
+            if (deltaX < MOVE_THRESHOLD && deltaY < MOVE_THRESHOLD) {
+              onClick();
+            }
+          }
         }
         
         setIsLongPressing(false);
         longPressTarget.current = null;
+        startPos.current = null;
       },
-      onTouchMove: () => {
-        if (longPressTimeout.current) {
-          clearTimeout(longPressTimeout.current);
-          longPressTimeout.current = null;
+      onTouchMove: (e: React.TouchEvent) => {
+        // Cancel long press if user moves finger (scrolling)
+        if (startPos.current && longPressTimeout.current) {
+          const touch = e.touches[0];
+          const deltaX = Math.abs(touch.clientX - startPos.current.x);
+          const deltaY = Math.abs(touch.clientY - startPos.current.y);
+          
+          if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
+            clearTimeout(longPressTimeout.current);
+            longPressTimeout.current = null;
+          }
         }
       }
     };

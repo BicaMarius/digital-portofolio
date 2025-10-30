@@ -439,4 +439,14 @@
   @screen md {
     .controls-two-rows { @apply flex-row items-center gap-4; }
   }
+
+  /* Prevent text selection on touch devices for writing cards */
+  [data-writing-card] {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
