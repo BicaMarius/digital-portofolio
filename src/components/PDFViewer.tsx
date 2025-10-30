@@ -19,11 +19,11 @@ const SCALE_STEP = 0.2;
 export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [scale, setScale] = useState(() => {
-    // Set initial scale based on device - mobile needs larger scale for readability
-    return window.innerWidth < 768 ? 1.5 : 1;
-  });
+  const [scale, setScale] = useState(1);
+  const [baseScale, setBaseScale] = useState(1); // Base scale to fit container
+  const [zoomLevel, setZoomLevel] = useState(1); // User zoom multiplier
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -32,22 +32,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
 
-  // Detect mobile on mount and adjust scale
+  // Detect mobile on mount
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      // Adjust scale when switching between mobile/desktop if at default values
-      if (mobile && scale === 1) {
-        setScale(1.5);
-      } else if (!mobile && scale === 1.5) {
-        setScale(1);
-      }
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [scale]);
+  }, []);
 
   // Pinch-to-zoom support for mobile
   const touchDistance = useRef<number | null>(null);
@@ -87,11 +81,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   }, []);
 
   const handleZoomIn = useCallback(() => {
-    setScale((prev) => Math.min(prev + SCALE_STEP, MAX_SCALE));
+    setZoomLevel((prev) => Math.min(prev + SCALE_STEP, MAX_SCALE));
   }, []);
 
   const handleZoomOut = useCallback(() => {
-    setScale((prev) => Math.max(prev - SCALE_STEP, MIN_SCALE));
+    setZoomLevel((prev) => Math.max(prev - SCALE_STEP, MIN_SCALE));
   }, []);
 
   const handleRotate = useCallback(() => {
@@ -131,8 +125,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   );
 
   useEffect(() => {
-    // Reset to appropriate zoom based on device
-    setScale(window.innerWidth < 768 ? 1.5 : 1);
+    // Reset zoom and rotation on file change
+    setZoomLevel(1);
     setRotation(0);
     setCurrentPage(1);
     setRenderError(null);
@@ -182,6 +176,48 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
     };
   }, [fileUrl]);
 
+  // Calculate base scale to fit container width
+  useEffect(() => {
+    if (!pdfDocument || !contentRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const calculateBaseScale = async () => {
+      try {
+        const page = await pdfDocument.getPage(1);
+        if (cancelled) return;
+
+        const containerWidth = contentRef.current?.clientWidth || window.innerWidth;
+        const pageViewport = page.getViewport({ scale: 1, rotation });
+        
+        // Calculate scale to fit container width with padding
+        const padding = isMobile ? 16 : 32;
+        const availableWidth = containerWidth - padding;
+        const calculatedScale = availableWidth / pageViewport.width;
+        
+        setBaseScale(calculatedScale);
+        setScale(calculatedScale * zoomLevel);
+        
+        page.cleanup();
+      } catch (error) {
+        console.error('Failed to calculate base scale', error);
+      }
+    };
+
+    void calculateBaseScale();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDocument, rotation, isMobile, zoomLevel]);
+
+  // Update scale when zoom level changes
+  useEffect(() => {
+    setScale(baseScale * zoomLevel);
+  }, [baseScale, zoomLevel]);
+
   useEffect(() => {
     if (!pdfDocument || !canvasRef.current) {
       return;
@@ -197,7 +233,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         const page = await pdfDocument.getPage(currentPage);
         if (cancelled) return;
 
-        // Use scale directly - user controls zoom
+        // Use calculated scale that maintains aspect ratio
         const viewport = page.getViewport({ scale, rotation });
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -270,11 +306,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-wrap items-center justify-between gap-3'} ${isMobile ? 'p-2' : 'p-4'} border-b border-border bg-card`}>
         <div className={`flex items-center ${isMobile ? 'justify-between w-full' : 'gap-2'}`}>
           <div className="flex items-center gap-1">
-            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleZoomOut} disabled={scale <= MIN_SCALE} className={isMobile ? 'h-8 w-8' : ''}>
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleZoomOut} disabled={zoomLevel <= MIN_SCALE} className={isMobile ? 'h-8 w-8' : ''}>
               <ZoomOut className="h-3 w-3" />
             </Button>
-            <span className="text-xs font-medium min-w-[50px] text-center">{Math.round(scale * 100)}%</span>
-            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleZoomIn} disabled={scale >= MAX_SCALE} className={isMobile ? 'h-8 w-8' : ''}>
+            <span className="text-xs font-medium min-w-[50px] text-center">{Math.round(zoomLevel * 100)}%</span>
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleZoomIn} disabled={zoomLevel >= MAX_SCALE} className={isMobile ? 'h-8 w-8' : ''}>
               <ZoomIn className="h-3 w-3" />
             </Button>
             <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleRotate} className={isMobile ? 'h-8 w-8' : ''}>
@@ -318,6 +354,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       </div>
 
       <div 
+        ref={contentRef}
         className={`relative flex-1 overflow-auto bg-muted/20 ${isMobile ? 'p-2' : 'p-4'}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
