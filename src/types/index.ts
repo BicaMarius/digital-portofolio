@@ -28,6 +28,7 @@ export interface CVData {
   id: string;
   fileName: string;
   fileUrl: string;
+  storagePath?: string;
   uploadedAt: Date;
 }
 
@@ -79,8 +80,8 @@ export interface DataContextType {
   
   // CV
   cvData: CVData | null;
-  uploadNewCV: (fileName: string, fileUrl: string) => CVData;
-  deleteExistingCV: () => boolean;
+  uploadNewCV: (file: File) => Promise<CVData>;
+  deleteExistingCV: () => Promise<boolean>;
   
   // Statistics
   getProjectCountByCategory: (category: string) => number;

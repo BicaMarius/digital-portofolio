@@ -1,6 +1,5 @@
 import { pgTable, text, serial, boolean, timestamp, integer, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
 
 // Projects table
 export const projects = pgTable("projects", {
@@ -22,9 +21,9 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   updatedAt: true,
 });
 export const updateProjectSchema = insertProjectSchema.partial();
-export type InsertProject = z.infer<typeof insertProjectSchema>;
-export type UpdateProject = z.infer<typeof updateProjectSchema>;
 export type Project = typeof projects.$inferSelect;
+export type InsertProject = typeof projects.$inferInsert;
+export type UpdateProject = Partial<InsertProject>;
 
 // Gallery items table
 export const galleryItems = pgTable("gallery_items", {
@@ -44,15 +43,16 @@ export const insertGalleryItemSchema = createInsertSchema(galleryItems).omit({
   updatedAt: true,
 });
 export const updateGalleryItemSchema = insertGalleryItemSchema.partial();
-export type InsertGalleryItem = z.infer<typeof insertGalleryItemSchema>;
-export type UpdateGalleryItem = z.infer<typeof updateGalleryItemSchema>;
 export type GalleryItem = typeof galleryItems.$inferSelect;
+export type InsertGalleryItem = typeof galleryItems.$inferInsert;
+export type UpdateGalleryItem = Partial<InsertGalleryItem>;
 
 // CV data table
 export const cvData = pgTable("cv_data", {
   id: serial("id").primaryKey(),
   fileName: text("file_name").notNull(),
   fileUrl: text("file_url").notNull(),
+  storagePath: text("storage_path").notNull(),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
 });
 
@@ -60,8 +60,8 @@ export const insertCVDataSchema = createInsertSchema(cvData).omit({
   id: true,
   uploadedAt: true,
 });
-export type InsertCVData = z.infer<typeof insertCVDataSchema>;
 export type CVData = typeof cvData.$inferSelect;
+export type InsertCVData = typeof cvData.$inferInsert;
 
 // Writing pieces table
 export const writings = pgTable("writings", {
@@ -84,9 +84,9 @@ export const insertWritingSchema = createInsertSchema(writings).omit({
   id: true,
 });
 export const updateWritingSchema = insertWritingSchema.partial();
-export type InsertWriting = z.infer<typeof insertWritingSchema>;
-export type UpdateWriting = z.infer<typeof updateWritingSchema>;
 export type Writing = typeof writings.$inferSelect;
+export type InsertWriting = typeof writings.$inferInsert;
+export type UpdateWriting = Partial<InsertWriting>;
 
 // Albums table
 export const albums = pgTable("albums", {
@@ -101,9 +101,9 @@ export const insertAlbumSchema = createInsertSchema(albums).omit({
   id: true,
 });
 export const updateAlbumSchema = insertAlbumSchema.partial();
-export type InsertAlbum = z.infer<typeof insertAlbumSchema>;
-export type UpdateAlbum = z.infer<typeof updateAlbumSchema>;
 export type Album = typeof albums.$inferSelect;
+export type InsertAlbum = typeof albums.$inferInsert;
+export type UpdateAlbum = Partial<InsertAlbum>;
 
 // Tags table
 export const tags = pgTable("tags", {
@@ -117,6 +117,6 @@ export const insertTagSchema = createInsertSchema(tags).omit({
   id: true,
 });
 export const updateTagSchema = insertTagSchema.partial();
-export type InsertTag = z.infer<typeof insertTagSchema>;
-export type UpdateTag = z.infer<typeof updateTagSchema>;
 export type Tag = typeof tags.$inferSelect;
+export type InsertTag = typeof tags.$inferInsert;
+export type UpdateTag = Partial<InsertTag>;

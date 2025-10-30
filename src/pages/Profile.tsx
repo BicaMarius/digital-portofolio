@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   User, 
   Trophy, 
@@ -13,7 +13,8 @@ import {
   Phone,
   MapPin,
   Upload,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { PDFViewer } from '@/components/PDFViewer';
@@ -25,14 +26,71 @@ import { useAdmin } from '@/contexts/AdminContext';
 import { useData } from '@/contexts/DataContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ACHIEVEMENTS, SKILLS, CONTACT_INFO } from '@/constants';
+import { toast } from '@/hooks/use-toast';
 
 const Profile: React.FC = () => {
   const [showPrivateAchievements, setShowPrivateAchievements] = useState(false);
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
   const { cvData, uploadNewCV, deleteExistingCV, getProjectCountByCategory, getTotalProjectCountByCategory } = useData();
-  const [pendingCV, setPendingCV] = useState<{ fileName: string; fileUrl: string } | null>(null);
+  const [pendingCV, setPendingCV] = useState<File | null>(null);
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
+  const clearPendingCv = useCallback(() => {
+    setPendingPreviewUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+    setPendingCV(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewUrl) {
+        URL.revokeObjectURL(pendingPreviewUrl);
+      }
+    };
+  }, [pendingPreviewUrl]);
+
+  const handleConfirmUpload = useCallback(async () => {
+    if (!pendingCV) {
+      return;
+    }
+    setIsUploading(true);
+    try {
+      await uploadNewCV(pendingCV);
+      toast({ title: 'CV actualizat', description: 'Documentul a fost încărcat în cloud.' });
+      clearPendingCv();
+    } catch (error) {
+      const description = error instanceof Error ? error.message : 'Operația a eșuat. Încearcă din nou.';
+      toast({ title: 'Eroare la încărcare', description, variant: 'destructive' });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [pendingCV, uploadNewCV, clearPendingCv]);
+
+  const handleDeleteCV = useCallback(async () => {
+    if (!cvData) {
+      return;
+    }
+    if (!confirm('Sigur vrei să ștergi CV-ul?')) {
+      return;
+    }
+    setIsDeleting(true);
+    const success = await deleteExistingCV();
+    setIsDeleting(false);
+    if (success) {
+      toast({ title: 'CV șters', description: 'Documentul a fost eliminat din cloud.' });
+      clearPendingCv();
+    } else {
+      toast({ title: 'Eroare la ștergere', description: 'Nu am putut șterge CV-ul. Încearcă din nou.', variant: 'destructive' });
+    }
+  }, [cvData, deleteExistingCV, clearPendingCv]);
+
   const unlockedAchievements = ACHIEVEMENTS.filter(a => a.unlocked);
   const lockedAchievements = ACHIEVEMENTS.filter(a => !a.unlocked);
 
@@ -86,9 +144,16 @@ const Profile: React.FC = () => {
                   </div>
                   <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap justify-center' : ''}`}>
                     {cvData && (
-                      <Button variant="outline" className="hover:bg-primary/10" size={isMobile ? 'sm' : 'default'}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Download PDF
+                      <Button
+                        variant="outline"
+                        className="hover:bg-primary/10"
+                        size={isMobile ? 'sm' : 'default'}
+                        asChild
+                      >
+                        <a href={cvData.fileUrl} target="_blank" rel="noopener noreferrer" download={cvData.fileName}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download PDF
+                        </a>
                       </Button>
                     )}
                     {isAdmin && (
@@ -98,15 +163,33 @@ const Profile: React.FC = () => {
                           accept=".pdf"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              const fileUrl = URL.createObjectURL(file);
-                              setPendingCV({ fileName: file.name, fileUrl });
+                            if (!file) {
+                              return;
                             }
+                            if (file.type !== 'application/pdf') {
+                              toast({
+                                title: 'Format invalid',
+                                description: 'Te rog să încarci un fișier PDF.',
+                                variant: 'destructive'
+                              });
+                              e.target.value = '';
+                              return;
+                            }
+
+                            const objectUrl = URL.createObjectURL(file);
+                            setPendingPreviewUrl((prev) => {
+                              if (prev) {
+                                URL.revokeObjectURL(prev);
+                              }
+                              return objectUrl;
+                            });
+                            setPendingCV(file);
+                            e.target.value = '';
                           }}
                           className="hidden"
                           id="cv-upload"
                         />
-                        <Button variant="outline" asChild>
+                        <Button variant="outline" asChild disabled={isUploading}>
                           <label htmlFor="cv-upload" className="cursor-pointer">
                             <Upload className="h-4 w-4 mr-2" />
                             Upload CV
@@ -114,15 +197,15 @@ const Profile: React.FC = () => {
                         </Button>
 
                         {pendingCV && (
-                          <div className="flex items-center gap-2">
-                            <Button onClick={() => {
-                              // finalize upload
-                              uploadNewCV(pendingCV.fileName, pendingCV.fileUrl);
-                              setPendingCV(null);
-                            }}>
+                          <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap justify-center text-center' : ''}`}>
+                            <span className="text-xs sm:text-sm text-muted-foreground">
+                              Fișier pregătit: <span className="font-medium text-foreground">{pendingCV.name}</span>
+                            </span>
+                            <Button onClick={handleConfirmUpload} disabled={isUploading} size={isMobile ? 'sm' : 'default'}>
+                              {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                               Gata
                             </Button>
-                            <Button variant="outline" onClick={() => setPendingCV(null)}>
+                            <Button variant="outline" onClick={clearPendingCv} disabled={isUploading} size={isMobile ? 'sm' : 'default'}>
                               Anulează
                             </Button>
                           </div>
@@ -132,13 +215,10 @@ const Profile: React.FC = () => {
                           <Button 
                             variant="destructive" 
                             size="sm"
-                            onClick={() => {
-                              if (confirm('Sigur vrei să ștergi CV-ul?')) {
-                                deleteExistingCV();
-                              }
-                            }}
+                            onClick={handleDeleteCV}
+                            disabled={isDeleting}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                           </Button>
                         )}
                       </>
@@ -146,17 +226,30 @@ const Profile: React.FC = () => {
                   </div>
                 </div>
                 
-                {cvData ? (
+                {pendingPreviewUrl || cvData ? (
                   <div className="bg-muted/30 rounded-lg overflow-hidden">
-                    <div className="text-center p-4 border-b border-border/50">
+                    <div className={`text-center p-4 border-b border-border/50 ${pendingPreviewUrl ? 'bg-primary/5' : ''}`}>
                       <FileText className="h-8 w-8 text-primary mx-auto mb-2" />
-                      <h3 className="text-lg font-semibold mb-1">{cvData.fileName}</h3>
+                      <h3 className="text-lg font-semibold mb-1">{pendingCV?.name ?? cvData?.fileName}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Uploadat pe: {cvData.uploadedAt.toLocaleDateString('ro-RO')}
+                        {pendingPreviewUrl
+                          ? 'Documentul este pregătit pentru încărcare. Apasă „Gata” pentru a-l salva în cloud.'
+                          : cvData
+                            ? `Uploadat pe: ${cvData.uploadedAt.toLocaleDateString('ro-RO')}`
+                            : ''}
                       </p>
                     </div>
-                    <div className="min-h-[600px]">
-                      <PDFViewer fileUrl={cvData.fileUrl} fileName={cvData.fileName} />
+                    <div className="min-h-[70vh]">
+                      {pendingPreviewUrl || cvData?.fileUrl ? (
+                        <PDFViewer
+                          fileUrl={pendingPreviewUrl ?? cvData!.fileUrl}
+                          fileName={pendingCV?.name ?? cvData?.fileName ?? 'CV.pdf'}
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                          Previzualizare indisponibilă.
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (

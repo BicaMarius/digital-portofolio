@@ -1,21 +1,19 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useAdmin } from './AdminContext';
 import { DataContextType, Project, GalleryItem, CVData } from '@/types';
 import { 
   getProjects, 
   getGalleryItems, 
-  getCV,
   createProject,
   updateProject,
   deleteProject,
   createGalleryItem,
   updateGalleryItem,
   deleteGalleryItem,
-  uploadCV,
-  deleteCV,
   getProjectCount,
   getTotalProjectCount
 } from '@/lib/backend';
+import { fetchCVData, uploadCVFile, deleteCVFile } from '@/lib/cv';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
@@ -37,15 +35,38 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [cvData, setCvData] = useState<CVData | null>(null);
 
-  const refreshData = () => {
+  const normalizeCvData = useCallback((data: Awaited<ReturnType<typeof fetchCVData>>): CVData | null => {
+    if (!data) {
+      return null;
+    }
+
+    return {
+      id: data.id.toString(),
+      fileName: data.fileName,
+      fileUrl: data.fileUrl,
+      uploadedAt: new Date(data.uploadedAt),
+    };
+  }, []);
+
+  const loadCvData = useCallback(async () => {
+    try {
+      const data = await fetchCVData();
+      setCvData(normalizeCvData(data));
+    } catch (error) {
+      console.error('Failed to fetch CV data', error);
+      setCvData(null);
+    }
+  }, [normalizeCvData]);
+
+  const refreshData = useCallback(() => {
     setProjects(getProjects(undefined, isAdmin));
     setGalleryItems(getGalleryItems(undefined, isAdmin));
-    setCvData(getCV());
-  };
+    void loadCvData();
+  }, [isAdmin, loadCvData]);
 
   useEffect(() => {
     refreshData();
-  }, [isAdmin]);
+  }, [refreshData]);
 
   // Project operations
   const getProjectsByCategory = (category: string): Project[] => {
@@ -94,16 +115,30 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   // CV operations
-  const uploadNewCV = (fileName: string, fileUrl: string): CVData => {
-    const newCV = uploadCV(fileName, fileUrl);
-    setCvData(newCV);
-    return newCV;
+  const uploadNewCV = async (file: File): Promise<CVData> => {
+    try {
+      const data = await uploadCVFile(file);
+      const normalized = normalizeCvData(data);
+      if (!normalized) {
+        throw new Error('CV upload response invalid');
+      }
+      setCvData(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Failed to upload CV', error);
+      throw error;
+    }
   };
 
-  const deleteExistingCV = (): boolean => {
-    const success = deleteCV();
-    setCvData(null);
-    return success;
+  const deleteExistingCV = async (): Promise<boolean> => {
+    try {
+      await deleteCVFile();
+      setCvData(null);
+      return true;
+    } catch (error) {
+      console.error('Failed to delete CV', error);
+      return false;
+    }
   };
 
   // Statistics

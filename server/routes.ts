@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { z } from "zod";
 import type { IStorage } from "./storage";
 import {
@@ -6,7 +6,6 @@ import {
   updateProjectSchema,
   insertGalleryItemSchema,
   updateGalleryItemSchema,
-  insertCVDataSchema,
   insertWritingSchema,
   updateWritingSchema,
   insertAlbumSchema,
@@ -14,8 +13,24 @@ import {
   insertTagSchema,
   updateTagSchema,
 } from "@shared/schema";
+import multer from "multer";
+import { randomUUID } from "node:crypto";
+import { extname } from "node:path";
+import { CV_BUCKET, getSupabaseClient } from "./supabase";
+
+type UploadedFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
 
 export function registerRoutes(app: Express, storage: IStorage) {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+  });
+
   // Projects
   app.get("/api/projects", async (req, res) => {
     try {
@@ -178,20 +193,78 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.get("/api/cv", async (req, res) => {
     try {
       const cv = await storage.getCVData();
-      res.json(cv);
+      if (!cv) {
+        return res.json(null);
+      }
+
+      const { storagePath, ...payload } = cv;
+      res.json(payload);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch CV data" });
     }
   });
 
-  app.post("/api/cv", async (req, res) => {
+  app.post("/api/cv", upload.single("file"), async (req, res) => {
     try {
-      const cv = insertCVDataSchema.parse(req.body);
-      const newCV = await storage.createCVData(cv);
-      res.status(201).json(newCV);
+  const file = (req as Request & { file?: UploadedFile }).file;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      if (file.mimetype !== "application/pdf") {
+        return res.status(400).json({ error: "Accept doar fișiere PDF" });
+      }
+
+      const supabase = getSupabaseClient();
+      const existing = await storage.getCVData();
+
+      if (existing?.storagePath) {
+        const { error: removeError } = await supabase.storage
+          .from(CV_BUCKET)
+          .remove([existing.storagePath]);
+
+        if (removeError) {
+          return res.status(500).json({ error: "Nu am putut șterge CV-ul existent din storage", details: removeError.message });
+        }
+
+        await storage.deleteCVData();
+      }
+
+      const extension = extname(file.originalname).toLowerCase() || ".pdf";
+      const storagePath = `cv/${randomUUID()}${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(CV_BUCKET)
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        return res.status(500).json({ error: "Nu am putut încărca fișierul în Supabase", details: uploadError.message });
+      }
+
+      const { data: publicData, error: publicUrlError } = supabase.storage
+        .from(CV_BUCKET)
+        .getPublicUrl(storagePath);
+
+      if (publicUrlError || !publicData?.publicUrl) {
+        return res.status(500).json({ error: "Nu am putut genera URL-ul public" });
+      }
+
+      const newCV = await storage.createCVData({
+        fileName: file.originalname,
+        fileUrl: publicData.publicUrl,
+        storagePath,
+      });
+
+      const { storagePath: _, ...payload } = newCV;
+      res.status(201).json(payload);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+      if (error instanceof Error && error.message.includes("Supabase")) {
+        return res.status(500).json({ error: error.message });
       }
       res.status(500).json({ error: "Failed to create CV data" });
     }
@@ -199,12 +272,29 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.delete("/api/cv", async (req, res) => {
     try {
-      const deleted = await storage.deleteCVData();
-      if (!deleted) {
+      const existing = await storage.getCVData();
+      if (!existing) {
         return res.status(404).json({ error: "CV data not found" });
       }
+
+      const supabase = getSupabaseClient();
+
+      if (existing.storagePath) {
+        const { error: removeError } = await supabase.storage
+          .from(CV_BUCKET)
+          .remove([existing.storagePath]);
+
+        if (removeError) {
+          return res.status(500).json({ error: "Nu am putut șterge fișierul din Supabase", details: removeError.message });
+        }
+      }
+
+      await storage.deleteCVData();
       res.status(204).send();
     } catch (error) {
+      if (error instanceof Error && error.message.includes("Supabase")) {
+        return res.status(500).json({ error: error.message });
+      }
       res.status(500).json({ error: "Failed to delete CV data" });
     }
   });
