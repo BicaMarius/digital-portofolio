@@ -169,9 +169,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[CV API] Handler invoked with method:', req.method);
   console.log('[CV API] Environment check:', {
     hasDatabaseUrl: !!process.env.DATABASE_URL,
-    hasSupabaseUrl: !!process.env.SUPABASE_URL,
-    hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    nodeEnv: process.env.NODE_ENV
+    hasCloudinaryUrl: !!process.env.CLOUDINARY_URL,
+    hasCloudinaryName: !!process.env.CLOUDINARY_CLOUD_NAME,
+    hasCloudinaryKey: !!process.env.CLOUDINARY_API_KEY,
+    hasCloudinarySecret: !!process.env.CLOUDINARY_API_SECRET,
+    nodeEnv: process.env.NODE_ENV,
+    allEnvKeys: Object.keys(process.env).filter(k => k.includes('CLOUDINARY')).join(', ')
   });
 
   try {
