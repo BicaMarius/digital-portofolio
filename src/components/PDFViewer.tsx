@@ -381,7 +381,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="flex justify-center items-start min-h-full">
+        <div className="inline-flex items-start min-w-full min-h-full justify-center">
           <div className="bg-white shadow-lg rounded-lg overflow-hidden inline-block">
             <canvas 
               ref={canvasRef} 
