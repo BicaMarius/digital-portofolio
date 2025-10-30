@@ -136,23 +136,50 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       setRenderError(null);
       try {
         const page = await pdfDocument.getPage(currentPage);
+        if (cancelled) return;
+
         const viewport = page.getViewport({ scale, rotation });
         const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
+        if (!canvas) return;
+
+        const context = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
         if (!context) {
           throw new Error('Context 2D indisponibil.');
         }
 
-        const outputScale = window.devicePixelRatio || 1;
+        // Use high-DPI rendering for crisp display at all zoom levels
+        const outputScale = Math.max(window.devicePixelRatio || 1, 2);
+        const scaledViewport = page.getViewport({ scale: scale * outputScale, rotation });
 
-        canvas.width = viewport.width * outputScale;
-        canvas.height = viewport.height * outputScale;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        // Set canvas dimensions for sharp rendering
+        canvas.width = Math.floor(scaledViewport.width);
+        canvas.height = Math.floor(scaledViewport.height);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
 
-  renderTask = page.render({ canvasContext: context, viewport, canvas });
+        // Clear canvas before rendering
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Reset transform to identity
+        context.setTransform(1, 0, 0, 1, 0, 0);
+
+        // Enable image smoothing for better quality
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+
+        if (cancelled) return;
+
+        const renderParams = { 
+          canvasContext: context, 
+          viewport: scaledViewport,
+          canvas,
+        };
+
+        renderTask = page.render(renderParams);
         await renderTask.promise;
+        
+        // Cleanup page after successful render
+        page.cleanup();
       } catch (error: any) {
         if (cancelled) return;
         if (error?.name === 'RenderingCancelledException') {
@@ -173,9 +200,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdfDocument, currentPage, scale, rotation]);
-
-  const canGoPrev = currentPage > 1;
+  }, [pdfDocument, currentPage, scale, rotation]);  const canGoPrev = currentPage > 1;
   const canGoNext = currentPage < totalPages;
 
   return (
@@ -209,9 +234,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       </div>
 
       <div className="relative flex-1 overflow-auto bg-muted/20 p-4">
-        <div className="flex justify-center">
+        <div className="flex justify-center items-start min-h-full">
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-            <canvas ref={canvasRef} className="block" />
+            <canvas 
+              ref={canvasRef} 
+              className="block max-w-full h-auto"
+              style={{ 
+                imageRendering: 'crisp-edges',
+                WebkitFontSmoothing: 'antialiased',
+              }}
+            />
           </div>
         </div>
 
@@ -223,7 +255,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
         {renderError && !isRendering && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm">
+            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm max-w-md text-center">
               {renderError}
             </div>
           </div>
