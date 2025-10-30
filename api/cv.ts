@@ -223,14 +223,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Accept doar fișiere PDF' });
       }
 
-      // Check file size (max 10MB for database storage)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      // Check file size (max 2MB for database storage - base64 overhead)
+      const maxSize = 2 * 1024 * 1024; // 2MB
       if (file.buffer.length > maxSize) {
         return res.status(400).json({ 
           error: 'Fișierul este prea mare', 
-          details: 'CV-ul trebuie să fie mai mic de 10MB' 
+          details: 'CV-ul trebuie să fie mai mic de 2MB. Te rog comprima PDF-ul.' 
         });
       }
+
+      console.log('[CV API] File size check passed:', {
+        sizeBytes: file.buffer.length,
+        sizeMB: (file.buffer.length / 1024 / 1024).toFixed(2)
+      });
 
       // Delete existing CV
       const existing = await db.select().from(cvData).limit(1);

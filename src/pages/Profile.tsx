@@ -175,6 +175,18 @@ const Profile: React.FC = () => {
                               e.target.value = '';
                               return;
                             }
+                            
+                            // Check file size (max 2MB)
+                            const maxSize = 2 * 1024 * 1024; // 2MB
+                            if (file.size > maxSize) {
+                              toast({
+                                title: 'Fișier prea mare',
+                                description: 'CV-ul trebuie să fie mai mic de 2MB. Te rog să îl compresezi folosind tools.pdf24.org sau similar.',
+                                variant: 'destructive'
+                              });
+                              e.target.value = '';
+                              return;
+                            }
 
                             const objectUrl = URL.createObjectURL(file);
                             setPendingPreviewUrl((prev) => {

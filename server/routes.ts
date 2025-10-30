@@ -222,12 +222,12 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(400).json({ error: "Accept doar fișiere PDF" });
       }
 
-      // Check file size (max 10MB for database storage)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      // Check file size (max 2MB for database storage)
+      const maxSize = 2 * 1024 * 1024; // 2MB
       if (file.size > maxSize) {
         return res.status(400).json({ 
           error: "Fișierul este prea mare", 
-          details: "CV-ul trebuie să fie mai mic de 10MB" 
+          details: "CV-ul trebuie să fie mai mic de 2MB. Te rog comprima PDF-ul." 
         });
       }
 
