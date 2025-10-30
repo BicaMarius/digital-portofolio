@@ -27,6 +27,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleZoomIn = useCallback(() => {
     setScale((prev) => Math.min(prev + SCALE_STEP, MAX_SCALE));
@@ -138,7 +149,18 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         const page = await pdfDocument.getPage(currentPage);
         if (cancelled) return;
 
-        const viewport = page.getViewport({ scale, rotation });
+        // Get container width for responsive scaling
+        const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
+        const baseViewport = page.getViewport({ scale: 1, rotation });
+        
+        // Calculate scale to fit container width on mobile
+        let finalScale = scale;
+        if (isMobile && containerWidth > 0) {
+          const fitScale = (containerWidth - 32) / baseViewport.width; // 32px for padding
+          finalScale = Math.min(scale, fitScale * 1.2); // Allow some zoom but not too much
+        }
+
+        const viewport = page.getViewport({ scale: finalScale, rotation });
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -149,7 +171,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
         // Use high-DPI rendering for crisp display at all zoom levels
         const outputScale = Math.max(window.devicePixelRatio || 1, 2);
-        const scaledViewport = page.getViewport({ scale: scale * outputScale, rotation });
+        const scaledViewport = page.getViewport({ scale: finalScale * outputScale, rotation });
 
         // Set canvas dimensions for sharp rendering
         canvas.width = Math.floor(scaledViewport.width);
@@ -200,48 +222,72 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdfDocument, currentPage, scale, rotation]);  const canGoPrev = currentPage > 1;
+  }, [pdfDocument, currentPage, scale, rotation, isMobile]);
+
+  const canGoPrev = currentPage > 1;
   const canGoNext = currentPage < totalPages;
 
   return (
     <div ref={containerRef} className="w-full flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={scale <= MIN_SCALE}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-medium min-w-[60px] text-center">{Math.round(scale * 100)}%</span>
-          <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={scale >= MAX_SCALE}>
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleRotate}>
-            <RotateCw className="h-4 w-4" />
-          </Button>
+      <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-wrap items-center justify-between gap-3'} ${isMobile ? 'p-2' : 'p-4'} border-b border-border bg-card`}>
+        <div className={`flex items-center ${isMobile ? 'justify-between w-full' : 'gap-2'}`}>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleZoomOut} disabled={scale <= MIN_SCALE} className={isMobile ? 'h-8 w-8' : ''}>
+              <ZoomOut className="h-3 w-3" />
+            </Button>
+            <span className="text-xs font-medium min-w-[50px] text-center">{Math.round(scale * 100)}%</span>
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleZoomIn} disabled={scale >= MAX_SCALE} className={isMobile ? 'h-8 w-8' : ''}>
+              <ZoomIn className="h-3 w-3" />
+            </Button>
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleRotate} className={isMobile ? 'h-8 w-8' : ''}>
+              <RotateCw className="h-3 w-3" />
+            </Button>
+          </div>
+
+          {!isMobile && (
+            <span className="text-xs sm:text-sm text-muted-foreground">
+              Pagina {Math.min(currentPage, totalPages)} din {totalPages || 1}
+            </span>
+          )}
+
+          <div className="flex items-center gap-1">
+            {!isMobile && (
+              <Button variant="outline" size="sm" onClick={handleFullscreen}>
+                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+            )}
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleDownload} className={isMobile ? 'h-8 w-8' : ''}>
+              {isMobile ? <Download className="h-3 w-3" /> : <><Download className="h-4 w-4 mr-2" />Download</>}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs sm:text-sm text-muted-foreground">
-            Pagina {Math.min(currentPage, totalPages)} din {totalPages || 1}
-          </span>
-          <Button variant="outline" size="sm" onClick={handleFullscreen}>
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-        </div>
+        {isMobile && (
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage - 1)} disabled={!canGoPrev} className="h-7 px-2">
+              <ChevronLeft className="h-3 w-3" />
+            </Button>
+            <span>
+              Pagina {Math.min(currentPage, totalPages)} / {totalPages || 1}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage + 1)} disabled={!canGoNext} className="h-7 px-2">
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="relative flex-1 overflow-auto bg-muted/20 p-4">
+      <div className={`relative flex-1 overflow-auto bg-muted/20 ${isMobile ? 'p-2' : 'p-4'}`}>
         <div className="flex justify-center items-start min-h-full">
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-full">
             <canvas 
               ref={canvasRef} 
-              className="block max-w-full h-auto"
+              className="block w-full h-auto"
               style={{ 
                 imageRendering: 'crisp-edges',
                 WebkitFontSmoothing: 'antialiased',
+                maxWidth: '100%',
+                height: 'auto',
               }}
             />
           </div>
@@ -262,14 +308,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-3 p-4 border-t border-border bg-card">
-        <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage - 1)} disabled={!canGoPrev}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage + 1)} disabled={!canGoNext}>
-          Următor <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-      </div>
+      {!isMobile && (
+        <div className="flex items-center justify-center gap-3 p-4 border-t border-border bg-card">
+          <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage - 1)} disabled={!canGoPrev}>
+            <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage + 1)} disabled={!canGoNext}>
+            Următor <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

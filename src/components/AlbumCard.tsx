@@ -86,54 +86,45 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  // Long press hook for mobile
-  const useLongPress = (
+  // Long press state
+  const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
+  const longPressTarget = useRef<EventTarget | null>(null);
+  const [isLongPressing, setIsLongPressing] = useState(false);
+
+  // Long press helper functions
+  const createLongPressHandlers = (
     onLongPress: () => void,
     onClick: () => void,
-    { threshold = 500 }: { threshold?: number } = {}
+    threshold: number = 500
   ) => {
-    const [longPressTriggered, setLongPressTriggered] = useState(false);
-    const timeout = useRef<NodeJS.Timeout>();
-    const target = useRef<EventTarget>();
-
-    const start = React.useCallback(
-      (event: React.TouchEvent | React.MouseEvent) => {
-        if (event.type === 'mousedown') {
-          // Ignore mouse events on mobile
-          if (isMobile) return;
-        }
-        
-        target.current = event.target;
-        setLongPressTriggered(false);
-        timeout.current = setTimeout(() => {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        longPressTarget.current = e.target;
+        setIsLongPressing(false);
+        longPressTimeout.current = setTimeout(() => {
+          setIsLongPressing(true);
           onLongPress();
-          setLongPressTriggered(true);
         }, threshold);
       },
-      [onLongPress, threshold]
-    );
-
-    const clear = React.useCallback(
-      (event: React.TouchEvent | React.MouseEvent, shouldTriggerClick = true) => {
-        if (timeout.current) {
-          clearTimeout(timeout.current);
+      onTouchEnd: (e: React.TouchEvent) => {
+        if (longPressTimeout.current) {
+          clearTimeout(longPressTimeout.current);
+          longPressTimeout.current = null;
         }
         
-        if (shouldTriggerClick && !longPressTriggered && event.target === target.current) {
+        if (!isLongPressing && e.target === longPressTarget.current) {
           onClick();
         }
         
-        setLongPressTriggered(false);
+        setIsLongPressing(false);
+        longPressTarget.current = null;
       },
-      [onClick, longPressTriggered]
-    );
-
-    return {
-      onMouseDown: (e: React.MouseEvent) => start(e),
-      onMouseUp: (e: React.MouseEvent) => clear(e),
-      onMouseLeave: (e: React.MouseEvent) => clear(e, false),
-      onTouchStart: (e: React.TouchEvent) => start(e),
-      onTouchEnd: (e: React.TouchEvent) => clear(e),
+      onTouchMove: () => {
+        if (longPressTimeout.current) {
+          clearTimeout(longPressTimeout.current);
+          longPressTimeout.current = null;
+        }
+      }
     };
   };
   
@@ -465,7 +456,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                       isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
                     } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`}
                     {...(isMobile && isAdmin 
-                      ? useLongPress(
+                      ? createLongPressHandlers(
                           () => {
                             // Long press = afișează opțiuni
                             setMobileSelectedWritingId(writing.id);
@@ -775,7 +766,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             onDrop={isInAlbum ? (e) => handleDropOnCardEditDialog(e, writing.id) : undefined}
                             onDragLeave={isInAlbum ? handleDragLeave : undefined}
                             {...(isMobile && isAdmin 
-                              ? useLongPress(
+                              ? createLongPressHandlers(
                                   () => {
                                     // Long press = nu facem nimic aici, avem butoanele deja visible
                                   },

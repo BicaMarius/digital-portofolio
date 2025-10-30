@@ -1069,55 +1069,46 @@ const CreativeWriting: React.FC = () => {
   const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; writingId: number | null }>({ open: false, writingId: null });
   // Mobile action bar selection
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
+  
+  // Long press state
+  const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
+  const longPressTarget = useRef<EventTarget | null>(null);
+  const [isLongPressing, setIsLongPressing] = useState(false);
 
-  // Long press hook for mobile
-  const useLongPress = (
+  // Long press helper functions
+  const createLongPressHandlers = (
     onLongPress: () => void,
     onClick: () => void,
-    { threshold = 500 }: { threshold?: number } = {}
+    threshold: number = 500
   ) => {
-    const [longPressTriggered, setLongPressTriggered] = useState(false);
-    const timeout = useRef<NodeJS.Timeout>();
-    const target = useRef<EventTarget>();
-
-    const start = useCallback(
-      (event: React.TouchEvent | React.MouseEvent) => {
-        if (event.type === 'mousedown') {
-          // Ignore mouse events on mobile
-          if (isMobile) return;
-        }
-        
-        target.current = event.target;
-        setLongPressTriggered(false);
-        timeout.current = setTimeout(() => {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        longPressTarget.current = e.target;
+        setIsLongPressing(false);
+        longPressTimeout.current = setTimeout(() => {
+          setIsLongPressing(true);
           onLongPress();
-          setLongPressTriggered(true);
         }, threshold);
       },
-      [onLongPress, threshold, isMobile]
-    );
-
-    const clear = useCallback(
-      (event: React.TouchEvent | React.MouseEvent, shouldTriggerClick = true) => {
-        if (timeout.current) {
-          clearTimeout(timeout.current);
+      onTouchEnd: (e: React.TouchEvent) => {
+        if (longPressTimeout.current) {
+          clearTimeout(longPressTimeout.current);
+          longPressTimeout.current = null;
         }
         
-        if (shouldTriggerClick && !longPressTriggered && event.target === target.current) {
+        if (!isLongPressing && e.target === longPressTarget.current) {
           onClick();
         }
         
-        setLongPressTriggered(false);
+        setIsLongPressing(false);
+        longPressTarget.current = null;
       },
-      [onClick, longPressTriggered]
-    );
-
-    return {
-      onMouseDown: (e: React.MouseEvent) => start(e),
-      onMouseUp: (e: React.MouseEvent) => clear(e),
-      onMouseLeave: (e: React.MouseEvent) => clear(e, false),
-      onTouchStart: (e: React.TouchEvent) => start(e),
-      onTouchEnd: (e: React.TouchEvent) => clear(e),
+      onTouchMove: () => {
+        if (longPressTimeout.current) {
+          clearTimeout(longPressTimeout.current);
+          longPressTimeout.current = null;
+        }
+      }
     };
   };
 
@@ -1970,7 +1961,7 @@ const CreativeWriting: React.FC = () => {
                           })
                         }}
                         {...(isMobile && isAdmin 
-                          ? useLongPress(
+                          ? createLongPressHandlers(
                               () => {
                                 // Long press = afișează opțiuni
                                 setMobileSelectedWritingId(writing.id);
@@ -2212,7 +2203,7 @@ const CreativeWriting: React.FC = () => {
                       }
                       style={{ animationDelay: `${index * 100}ms` }}
                       {...(isMobile && isAdmin 
-                        ? useLongPress(
+                        ? createLongPressHandlers(
                             () => {
                               // Long press = afișează opțiuni (poate adăugăm mai târziu)
                               setMobileSelectedWritingId(writing.id);
@@ -2308,7 +2299,7 @@ const CreativeWriting: React.FC = () => {
                         borderColor: writing._albumInfo?.color || '#7c3aed'
                       }}
                       {...(isMobile && isAdmin 
-                        ? useLongPress(
+                        ? createLongPressHandlers(
                             () => {
                               // Long press = afișează opțiuni (poate adăugăm mai târziu)
                               setMobileSelectedWritingId(writing.id);

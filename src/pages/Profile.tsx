@@ -111,11 +111,8 @@ const Profile: React.FC = () => {
       <div className={`${isMobile ? 'pt-20 pb-12 px-4' : 'responsive-hero responsive-padding'}`}>
         <div className={`${isMobile ? 'w-full' : 'responsive-container max-w-6xl'}`}>
           {/* Profile Header */}
-          <div className={`text-center ${isMobile ? 'mb-8' : 'mb-12'} animate-fade-in`}>
-            <div className={`${isMobile ? 'w-24 h-24' : 'w-32 h-32'} mx-auto mb-6 rounded-full bg-gradient-hero flex items-center justify-center ${isMobile ? 'text-4xl' : 'text-6xl'}`}>
-              👨‍💻
-            </div>
-            <h1 className={`${isMobile ? 'text-2xl' : 'text-4xl'} font-bold gradient-text mb-4`}>
+          <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'} animate-fade-in`}>
+            <h1 className={`${isMobile ? 'text-2xl' : 'text-4xl'} font-bold gradient-text mb-2`}>
               Creative Developer & Artist
             </h1>
           </div>
