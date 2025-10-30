@@ -70,10 +70,11 @@ export async function uploadToCloudinary(
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: folder,
-        resource_type: 'auto',
+        resource_type: 'raw', // Important: 'raw' for PDFs, not 'auto'
         public_id: `cv_${Date.now()}`,
-        format: 'pdf',
-        overwrite: false
+        overwrite: false,
+        type: 'upload', // Makes file publicly accessible
+        access_mode: 'public' // Ensures public access
       },
       (error, result) => {
         if (error) {
@@ -81,6 +82,7 @@ export async function uploadToCloudinary(
           reject(error);
         } else if (result) {
           console.log('[Cloudinary] Upload successful:', result.public_id);
+          console.log('[Cloudinary] Public URL:', result.secure_url);
           resolve({
             url: result.secure_url,
             publicId: result.public_id
