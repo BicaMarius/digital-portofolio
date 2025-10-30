@@ -3,10 +3,13 @@ import * as React from "react";
 const MOBILE_BREAKPOINT = 768;
 
 export function useIsMobile() {
-  // Initialize with false (desktop-first) to avoid hydration issues
-  const [isMobile, setIsMobile] = React.useState<boolean>(false);
+  // Use undefined initially, then set actual value after mount
+  // This prevents rendering issues on mobile
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+  const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
+    setMounted(true);
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
     const onChange = () => {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
@@ -16,5 +19,7 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  return isMobile;
+  // Return false during SSR/initial render to avoid issues
+  if (!mounted) return false;
+  return isMobile ?? false;
 }
