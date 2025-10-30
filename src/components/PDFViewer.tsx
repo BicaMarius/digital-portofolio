@@ -19,7 +19,11 @@ const SCALE_STEP = 0.2;
 export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
+  const [scale, setScale] = useState(() => {
+    // Set initial scale based on device - mobile needs larger scale for readability
+    return window.innerWidth < 768 ? 1.5 : 1;
+  });
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -27,17 +31,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
 
-  // Detect mobile on mount
+  // Detect mobile on mount and adjust scale
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Adjust scale when switching between mobile/desktop if at default values
+      if (mobile && scale === 1) {
+        setScale(1.5);
+      } else if (!mobile && scale === 1.5) {
+        setScale(1);
+      }
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [scale]);
 
   // Pinch-to-zoom support for mobile
   const touchDistance = useRef<number | null>(null);
@@ -121,8 +131,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   );
 
   useEffect(() => {
-    // Always start at 100% zoom for better readability
-    setScale(1);
+    // Reset to appropriate zoom based on device
+    setScale(window.innerWidth < 768 ? 1.5 : 1);
     setRotation(0);
     setCurrentPage(1);
     setRenderError(null);
