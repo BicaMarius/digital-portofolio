@@ -5,10 +5,28 @@ let initialized = false;
 export function initCloudinary() {
   if (initialized) return;
 
+  // Cloudinary can auto-configure from CLOUDINARY_URL
+  if (process.env.CLOUDINARY_URL) {
+    cloudinary.config({
+      cloudinary_url: process.env.CLOUDINARY_URL,
+      secure: true
+    });
+    initialized = true;
+    console.log('[Cloudinary] Initialized from CLOUDINARY_URL');
+    return;
+  }
+
+  // Fallback to individual variables
   if (!process.env.CLOUDINARY_CLOUD_NAME || 
       !process.env.CLOUDINARY_API_KEY || 
       !process.env.CLOUDINARY_API_SECRET) {
-    throw new Error('Cloudinary credentials are not configured. Check your .env file.');
+    console.error('[Cloudinary] Missing credentials:', {
+      hasUrl: !!process.env.CLOUDINARY_URL,
+      hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+      hasApiKey: !!process.env.CLOUDINARY_API_KEY,
+      hasApiSecret: !!process.env.CLOUDINARY_API_SECRET
+    });
+    throw new Error('Cloudinary credentials are not configured. Check your environment variables.');
   }
 
   cloudinary.config({
