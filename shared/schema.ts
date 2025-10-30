@@ -47,12 +47,12 @@ export type GalleryItem = typeof galleryItems.$inferSelect;
 export type InsertGalleryItem = typeof galleryItems.$inferInsert;
 export type UpdateGalleryItem = Partial<InsertGalleryItem>;
 
-// CV data table
+// CV data table - stored directly in Neon database
 export const cvData = pgTable("cv_data", {
   id: serial("id").primaryKey(),
   fileName: text("file_name").notNull(),
-  fileUrl: text("file_url").notNull(),
-  storagePath: text("storage_path").notNull(),
+  fileData: text("file_data").notNull(), // Base64 encoded PDF
+  mimeType: text("mime_type").notNull().default('application/pdf'),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
 });
 

@@ -16,7 +16,6 @@ import {
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import { extname } from "node:path";
-import { CV_BUCKET, getSupabaseClient } from "./supabase";
 
 type UploadedFile = {
   buffer: Buffer;
@@ -189,7 +188,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
-  // CV Data
+  // CV Data - stored directly in Neon database
   app.get("/api/cv", async (req, res) => {
     try {
       const cv = await storage.getCVData();
@@ -197,8 +196,15 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.json(null);
       }
 
-      const { storagePath, ...payload } = cv;
-      res.json(payload);
+      // Return CV with data URL
+      const response = {
+        id: cv.id,
+        fileName: cv.fileName,
+        fileUrl: `data:${cv.mimeType};base64,${cv.fileData}`,
+        uploadedAt: cv.uploadedAt,
+      };
+      
+      res.json(response);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch CV data" });
     }
@@ -206,7 +212,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/cv", upload.single("file"), async (req, res) => {
     try {
-  const file = (req as Request & { file?: UploadedFile }).file;
+      const file = (req as Request & { file?: UploadedFile }).file;
 
       if (!file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -216,56 +222,41 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(400).json({ error: "Accept doar fișiere PDF" });
       }
 
-      const supabase = getSupabaseClient();
+      // Check file size (max 10MB for database storage)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        return res.status(400).json({ 
+          error: "Fișierul este prea mare", 
+          details: "CV-ul trebuie să fie mai mic de 10MB" 
+        });
+      }
+
+      // Delete existing CV if any
       const existing = await storage.getCVData();
-
-      if (existing?.storagePath) {
-        const { error: removeError } = await supabase.storage
-          .from(CV_BUCKET)
-          .remove([existing.storagePath]);
-
-        if (removeError) {
-          return res.status(500).json({ error: "Nu am putut șterge CV-ul existent din storage", details: removeError.message });
-        }
-
+      if (existing) {
         await storage.deleteCVData();
       }
 
-      const extension = extname(file.originalname).toLowerCase() || ".pdf";
-      const storagePath = `cv/${randomUUID()}${extension}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(CV_BUCKET)
-        .upload(storagePath, file.buffer, {
-          contentType: file.mimetype,
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        return res.status(500).json({ error: "Nu am putut încărca fișierul în Supabase", details: uploadError.message });
-      }
-
-      const { data: publicData, error: publicUrlError } = supabase.storage
-        .from(CV_BUCKET)
-        .getPublicUrl(storagePath);
-
-      if (publicUrlError || !publicData?.publicUrl) {
-        return res.status(500).json({ error: "Nu am putut genera URL-ul public" });
-      }
+      // Convert file to base64 and store in database
+      const base64Data = file.buffer.toString('base64');
 
       const newCV = await storage.createCVData({
         fileName: file.originalname,
-        fileUrl: publicData.publicUrl,
-        storagePath,
+        fileData: base64Data,
+        mimeType: file.mimetype,
       });
 
-      const { storagePath: _, ...payload } = newCV;
-      res.status(201).json(payload);
+      // Return CV with data URL
+      const response = {
+        id: newCV.id,
+        fileName: newCV.fileName,
+        fileUrl: `data:${newCV.mimeType};base64,${newCV.fileData}`,
+        uploadedAt: newCV.uploadedAt,
+      };
+
+      res.status(201).json(response);
     } catch (error) {
-      if (error instanceof Error && error.message.includes("Supabase")) {
-        return res.status(500).json({ error: error.message });
-      }
+      console.error('[Routes] Failed to create CV:', error);
       res.status(500).json({ error: "Failed to create CV data" });
     }
   });
@@ -277,24 +268,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(404).json({ error: "CV data not found" });
       }
 
-      const supabase = getSupabaseClient();
-
-      if (existing.storagePath) {
-        const { error: removeError } = await supabase.storage
-          .from(CV_BUCKET)
-          .remove([existing.storagePath]);
-
-        if (removeError) {
-          return res.status(500).json({ error: "Nu am putut șterge fișierul din Supabase", details: removeError.message });
-        }
-      }
-
       await storage.deleteCVData();
       res.status(204).send();
     } catch (error) {
-      if (error instanceof Error && error.message.includes("Supabase")) {
-        return res.status(500).json({ error: error.message });
-      }
+      console.error('[Routes] Failed to delete CV:', error);
       res.status(500).json({ error: "Failed to delete CV data" });
     }
   });

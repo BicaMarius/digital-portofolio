@@ -4,8 +4,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 let db: any;
 let pool: any;
 let cvData: any;
-let getSupabaseClient: any;
-let CV_BUCKET: string;
 let initialized = false;
 let schemaReady: Promise<void> | null = null;
 
@@ -13,32 +11,25 @@ async function initializeModules() {
   if (initialized) return;
   
   try {
-    console.log('Initializing modules...');
+    console.log('[CV API] Initializing modules...');
     
-  const dbModule = await import('../server/db.js');
-  db = dbModule.default || dbModule.db;
-  pool = dbModule.pool;
-  console.log('DB module loaded:', !!db, 'has execute:', typeof db?.execute === 'function');
-  console.log('Pool loaded:', !!pool, 'has query:', typeof pool?.query === 'function');
+    const dbModule = await import('../server/db.js');
+    db = dbModule.default || dbModule.db;
+    pool = dbModule.pool;
+    console.log('[CV API] DB module loaded:', !!db);
+    console.log('[CV API] Pool loaded:', !!pool);
     
     const schemaModule = await import('../shared/schema.js');
     cvData = schemaModule.cvData;
-    console.log('Schema module loaded:', !!cvData);
-    
-    const supabaseModule = await import('../server/supabase.js');
-    getSupabaseClient = supabaseModule.getSupabaseClient;
-    CV_BUCKET = supabaseModule.CV_BUCKET || 'portfolio-cv';
-    console.log('Supabase module loaded:', !!getSupabaseClient, 'Bucket:', CV_BUCKET);
+    console.log('[CV API] Schema module loaded:', !!cvData);
     
     initialized = true;
-    console.log('All modules initialized successfully');
+    console.log('[CV API] All modules initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize modules:', error);
+    console.error('[CV API] Failed to initialize modules:', error);
     throw error;
   }
-}
-
-async function ensureCvSchema() {
+}async function ensureCvSchema() {
   if (!schemaReady) {
     schemaReady = (async () => {
       try {
@@ -46,52 +37,35 @@ async function ensureCvSchema() {
           await initializeModules();
         }
         console.log('[CV API] Ensuring cv_data schema...');
-        const { sql } = await import('drizzle-orm');
+        
+        if (!pool) {
+          throw new Error('Database pool not initialized');
+        }
 
-        const runStatement = async (statement: any, label: string) => {
-          try {
-            if (typeof db?.execute === 'function') {
-              await db.execute(statement);
-            } else if (typeof pool?.query === 'function') {
-              const { sql: text, params } = statement;
-              await pool.query(text, params);
-            } else {
-              throw new Error('No available executor to run SQL statements');
-            }
-            console.log(`[CV API] ${label} ✓`);
-          } catch (err) {
-            console.error(`[CV API] ${label} failed:`, err);
-            throw err;
-          }
-        };
+        // Create table with new schema (file_data instead of file_url)
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cv_data (
+            id serial PRIMARY KEY,
+            file_name text NOT NULL,
+            file_data text NOT NULL,
+            mime_type text NOT NULL DEFAULT 'application/pdf',
+            uploaded_at timestamp NOT NULL DEFAULT now()
+          )
+        `);
+        console.log('[CV API] cv_data table ready ✓');
 
-        await runStatement(
-          sql`
-            CREATE TABLE IF NOT EXISTS "cv_data" (
-              "id" serial PRIMARY KEY,
-              "file_name" text NOT NULL,
-              "file_url" text NOT NULL,
-              "storage_path" text,
-              "uploaded_at" timestamp NOT NULL DEFAULT now()
-            )
-          `,
-          'Ensure cv_data table'
-        );
+        // Migration: add file_data column if upgrading from old schema
+        try {
+          await pool.query(`ALTER TABLE cv_data ADD COLUMN IF NOT EXISTS file_data text`);
+          await pool.query(`ALTER TABLE cv_data ADD COLUMN IF NOT EXISTS mime_type text DEFAULT 'application/pdf'`);
+          console.log('[CV API] Schema migration complete ✓');
+        } catch (migrationError) {
+          console.log('[CV API] Schema already up to date');
+        }
 
-        await runStatement(
-          sql`ALTER TABLE "cv_data" ADD COLUMN IF NOT EXISTS "storage_path" text`,
-          'Ensure storage_path column'
-        );
-
-        await runStatement(
-          sql`UPDATE "cv_data" SET "storage_path" = '' WHERE "storage_path" IS NULL`,
-          'Backfill empty storage_path'
-        );
-
-        console.log('[CV API] cv_data schema ready');
+        console.log('[CV API] Schema ready');
       } catch (error) {
-        console.error('Failed to ensure cv_data schema:', error);
-        // Reset so future calls can retry
+        console.error('[CV API] Schema check failed:', error);
         schemaReady = null;
         throw error;
       }
@@ -184,32 +158,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Initialize modules dynamically
+  console.log('[CV API] ==========================================');
   console.log('[CV API] Handler invoked with method:', req.method);
-  await initializeModules();
-  
-  const crypto = await import('node:crypto');
-  const path = await import('node:path');
+  console.log('[CV API] Environment check:', {
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    nodeEnv: process.env.NODE_ENV
+  });
 
   try {
+    // Initialize modules dynamically
+    console.log('[CV API] Step 1: Initializing modules...');
+    await initializeModules();
+    console.log('[CV API] Step 1: Modules initialized ✓');
+    
+    console.log('[CV API] Step 2: Loading crypto and path...');
+    const crypto = await import('node:crypto');
+    const path = await import('node:path');
+    console.log('[CV API] Step 2: Dependencies loaded ✓');
+
+    console.log('[CV API] Step 3: Ensuring schema...');
     await ensureCvSchema();
+    console.log('[CV API] Step 3: Schema ready ✓');
 
     if (req.method === 'GET') {
       console.log('[CV API] GET request - fetching latest CV record');
       const result = await db.select().from(cvData).limit(1);
       const cv = result[0] || null;
-      
+
       if (!cv) {
         console.log('[CV API] GET request - no CV found');
         return res.json(null);
       }
 
-      const { storagePath, ...payload } = cv;
-      console.log('[CV API] GET request - returning CV payload');
-      return res.json(payload);
-    }
-
-    if (req.method === 'POST') {
+      // Return CV data with base64 encoded file converted to data URL
+      const response = {
+        id: cv.id,
+        fileName: cv.fileName,
+        fileUrl: `data:${cv.mimeType};base64,${cv.fileData}`,
+        uploadedAt: cv.uploadedAt,
+      };
+      
+      console.log('[CV API] GET request - returning CV data');
+      return res.json(response);
+    }    if (req.method === 'POST') {
       console.log('[CV API] POST request - starting upload');
       console.log('[CV API] Content-Type:', req.headers['content-type']);
       
@@ -230,59 +223,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Accept doar fișiere PDF' });
       }
 
-      const supabase = getSupabaseClient();
+      // Check file size (max 10MB for database storage)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.buffer.length > maxSize) {
+        return res.status(400).json({ 
+          error: 'Fișierul este prea mare', 
+          details: 'CV-ul trebuie să fie mai mic de 10MB' 
+        });
+      }
+
+      // Delete existing CV
       const existing = await db.select().from(cvData).limit(1);
       const existingCV = existing[0];
 
-      console.log('[CV API] Existing CV record:', existingCV ? { id: existingCV.id, storagePath: existingCV.storagePath } : 'none');
+      console.log('[CV API] Existing CV record:', existingCV ? { id: existingCV.id } : 'none');
 
-      if (existingCV?.storagePath) {
-        const { error: removeError } = await supabase.storage
-          .from(CV_BUCKET)
-          .remove([existingCV.storagePath]);
-
-        if (removeError) {
-          console.error('[CV API] Failed to remove existing CV from storage:', removeError);
-        }
-
+      if (existingCV) {
         await db.delete(cvData);
-        console.log('[CV API] Existing CV record removed from database');
+        console.log('[CV API] Existing CV deleted from database');
       }
 
-      const extension = path.extname(file.originalname).toLowerCase() || '.pdf';
-      const storagePath = `cv/${crypto.randomUUID()}${extension}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(CV_BUCKET)
-        .upload(storagePath, file.buffer, {
-          contentType: file.mimetype,
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error('[CV API] Supabase upload error:', uploadError);
-        return res.status(500).json({ error: 'Nu am putut încărca fișierul în Supabase', details: uploadError.message });
-      }
-
-      const { data: publicData } = supabase.storage
-        .from(CV_BUCKET)
-        .getPublicUrl(storagePath);
-
-      if (!publicData?.publicUrl) {
-        return res.status(500).json({ error: 'Nu am putut genera URL-ul public' });
-      }
-
+      // Convert file to base64 and store in database
+      const base64Data = file.buffer.toString('base64');
+      
       const result = await db.insert(cvData).values({
         fileName: file.originalname,
-        fileUrl: publicData.publicUrl,
-        storagePath,
+        fileData: base64Data,
+        mimeType: file.mimetype,
       }).returning();
 
       const newCV = result[0];
-      const { storagePath: _, ...payload } = newCV;
-      console.log('[CV API] Upload successful, returning payload');
-      return res.status(201).json(payload);
+      
+      // Return CV with data URL
+      const response = {
+        id: newCV.id,
+        fileName: newCV.fileName,
+        fileUrl: `data:${newCV.mimeType};base64,${newCV.fileData}`,
+        uploadedAt: newCV.uploadedAt,
+      };
+      
+      console.log('[CV API] Upload successful, CV stored in database');
+      return res.status(201).json(response);
     }
 
     if (req.method === 'DELETE') {
@@ -294,20 +275,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(404).json({ error: 'CV data not found' });
       }
 
-      const supabase = getSupabaseClient();
-
-      if (existingCV.storagePath) {
-        const { error: removeError } = await supabase.storage
-          .from(CV_BUCKET)
-          .remove([existingCV.storagePath]);
-
-        if (removeError) {
-          console.error('[CV API] Failed to remove CV from storage:', removeError);
-        }
-      }
-
+      // Simply delete from database (no external storage to clean up)
       await db.delete(cvData);
-      console.log('[CV API] DELETE request - CV removed');
+      console.log('[CV API] DELETE request - CV removed from database');
       return res.status(204).end();
     }
 
