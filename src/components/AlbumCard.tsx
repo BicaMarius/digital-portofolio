@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2, X, Check, Plus, Minus, Palette, Type, GripVertical, FileText } from 'lucide-react';
@@ -76,7 +76,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedWritingsToAdd, setSelectedWritingsToAdd] = useState<Set<number>>(new Set());
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number; writingId: number } | null>(null);
-  const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
   const [confirmDiscardDialog, setConfirmDiscardDialog] = useState(false);
@@ -85,6 +84,88 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   // Swipe state for mobile navigation
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  
+  // Long press state for mobile
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const [longPressActive, setLongPressActive] = useState(false);
+  const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
+
+  // Long press handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent, writingId: number) => {
+    if (!isMobile || !isAdmin) return;
+    
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    setLongPressActive(false);
+    
+    // Prevent text selection
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+    
+    longPressTimer.current = setTimeout(() => {
+      setLongPressActive(true);
+      setMobileSelectedWritingId(writingId);
+      // Haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos.current || !longPressTimer.current) return;
+    
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+    
+    // Cancel long press if user moves finger more than 10px (scrolling)
+    if (deltaX > 10 || deltaY > 10) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent, writing: WritingPiece) => {
+    // Restore text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
+    
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    
+    // If long press was not triggered and touch didn't move much, it's a tap
+    if (!longPressActive && touchStartPos.current) {
+      const touch = e.changedTouches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+      
+      // Only trigger tap if movement was minimal
+      if (deltaX < 10 && deltaY < 10) {
+        // Tap = open writing
+        onWritingClick(writing);
+      }
+    }
+    
+    setLongPressActive(false);
+    touchStartPos.current = null;
+  };
+
+  // Clean up long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+    };
+  }, []);
 
   
   // Drag & drop state (using same logic as main writings grid)
@@ -414,8 +495,17 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     className={`p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors relative ${
                       isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
                     } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`}
-                    onClick={() => onWritingClick(writing)}
-                    onDoubleClick={() => onWritingClick(writing)}
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none'
+                    }}
+                    {...(isMobile ? {
+                      onTouchStart: (e) => handleTouchStart(e, writing.id),
+                      onTouchMove: handleTouchMove,
+                      onTouchEnd: (e) => handleTouchEnd(e, writing)
+                    } : {
+                      onClick: () => onWritingClick(writing)
+                    })}
                     {...(!isMobile && {
                       onContextMenu: (e) => {
                         if (!isAdmin) { e.preventDefault(); return; }
@@ -707,11 +797,20 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             className={`flex items-center justify-between p-2 border rounded hover:bg-muted/50 ${
                               isInAlbum ? 'bg-primary/5 border-primary/20' : ''
                             } cursor-pointer relative`}
+                            style={{
+                              userSelect: 'none',
+                              WebkitUserSelect: 'none'
+                            }}
                             onDragOver={isInAlbum ? (e) => handleDragOverCardEditDialog(e, writing.id) : undefined}
                             onDrop={isInAlbum ? (e) => handleDropOnCardEditDialog(e, writing.id) : undefined}
                             onDragLeave={isInAlbum ? handleDragLeave : undefined}
-                            onClick={() => onWritingClick(writing)}
-                            onDoubleClick={() => onWritingClick(writing)}
+                            {...(isMobile ? {
+                              onTouchStart: (e) => handleTouchStart(e, writing.id),
+                              onTouchMove: handleTouchMove,
+                              onTouchEnd: (e) => handleTouchEnd(e, writing)
+                            } : {
+                              onClick: () => onWritingClick(writing)
+                            })}
                           >
                             {/* Drag Drop Indicator */}
                             {isInAlbum && dragOverId === writing.id && (

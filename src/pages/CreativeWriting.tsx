@@ -1069,6 +1069,90 @@ const CreativeWriting: React.FC = () => {
   const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; writingId: number | null }>({ open: false, writingId: null });
   // Mobile action bar selection
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
+  
+  // Long press state for mobile
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const [longPressActive, setLongPressActive] = useState(false);
+
+  // Long press handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent, writingId: number) => {
+    if (!isMobile || !isAdmin) return;
+    
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    setLongPressActive(false);
+    
+    // Prevent text selection
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+    
+    longPressTimer.current = setTimeout(() => {
+      setLongPressActive(true);
+      setMobileSelectedWritingId(writingId);
+      // Haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos.current || !longPressTimer.current) return;
+    
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+    
+    // Cancel long press if user moves finger more than 10px (scrolling)
+    if (deltaX > 10 || deltaY > 10) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent, writingId: number) => {
+    // Restore text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
+    
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    
+    // If long press was not triggered and touch didn't move much, it's a tap
+    if (!longPressActive && touchStartPos.current) {
+      const touch = e.changedTouches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+      
+      // Only trigger tap if movement was minimal
+      if (deltaX < 10 && deltaY < 10) {
+        // Tap = open writing
+        const writing = allVisibleWritings.find(w => w.id === writingId);
+        if (writing) {
+          setSelectedWriting(writing);
+        }
+      }
+    }
+    
+    setLongPressActive(false);
+    touchStartPos.current = null;
+  };
+
+  // Clean up long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+    };
+  }, []);
 
   // Close context menu and mobile action bar when clicking outside
   React.useEffect(() => {
@@ -1913,28 +1997,20 @@ const CreativeWriting: React.FC = () => {
                         }`}
                         style={{ 
                           animationDelay: `${index * 100}ms`,
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none',
                           ...('_albumColor' in writing && writing._albumColor && {
                             borderColor: `${writing._albumColor}99`, // 60% opacity
                             '--tw-ring-color': `${writing._albumColor}66` // 40% opacity for ring
                           })
                         }}
-                        onClick={() => {
-                          if (!isMobile || !isAdmin) {
-                            // Desktop sau non-admin = preview direct
-                            setSelectedWriting(writing);
-                            return;
-                          }
-                          // Mobile admin = toggle action bar
-                          if (mobileSelectedWritingId === writing.id) {
-                            setMobileSelectedWritingId(null);
-                          } else {
-                            setMobileSelectedWritingId(writing.id);
-                          }
-                        }}
-                        onDoubleClick={() => {
-                          // Double click = preview direct
-                          setSelectedWriting(writing);
-                        }}
+                        {...(isMobile ? {
+                          onTouchStart: (e) => handleTouchStart(e, writing.id),
+                          onTouchMove: handleTouchMove,
+                          onTouchEnd: (e) => handleTouchEnd(e, writing.id)
+                        } : {
+                          onClick: () => setSelectedWriting(writing)
+                        })}
                       >
                         <CardContent className="p-3 relative">
                           {/* Mobile action bar */}
@@ -2157,9 +2233,12 @@ const CreativeWriting: React.FC = () => {
                         dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
                       } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`
                       }
-                      style={{ animationDelay: `${index * 100}ms` }}
+                      style={{ 
+                        animationDelay: `${index * 100}ms`,
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none'
+                      }}
                       onClick={() => setSelectedWriting(writing)}
-                      onDoubleClick={() => setSelectedWriting(writing)}
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between mb-2">
@@ -2238,10 +2317,17 @@ const CreativeWriting: React.FC = () => {
                       className="hover-scale cursor-pointer group animate-scale-in border-2 h-full flex flex-col"
                       style={{ 
                         animationDelay: `${(visibleWritings.length + index) * 100}ms`,
-                        borderColor: writing._albumInfo?.color || '#7c3aed'
+                        borderColor: writing._albumInfo?.color || '#7c3aed',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none'
                       }}
-                      onClick={() => setSelectedWriting(writing)}
-                      onDoubleClick={() => setSelectedWriting(writing)}
+                      {...(isMobile ? {
+                        onTouchStart: (e) => handleTouchStart(e, writing.id),
+                        onTouchMove: handleTouchMove,
+                        onTouchEnd: (e) => handleTouchEnd(e, writing.id)
+                      } : {
+                        onClick: () => setSelectedWriting(writing)
+                      })}
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">

@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
       <Navigation />
       
       {/* Hero Section - Compact */}
-      <section className="relative pt-16 sm:pt-18 md:pt-20 pb-2 sm:pb-3 md:pb-4 responsive-padding overflow-hidden">
+      <section className="relative pt-20 sm:pt-24 md:pt-28 pb-4 sm:pb-6 md:pb-8 responsive-padding overflow-hidden">
         {/* Background Image */}
         <div 
           className="absolute inset-0 z-0 opacity-20"
@@ -59,18 +59,18 @@ const Dashboard: React.FC = () => {
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/80 via-background/60 to-background"></div>
         
         <div className="relative z-10 responsive-container text-center">
-          <div className="space-y-1 sm:space-y-2 animate-fade-in">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold gradient-text">
+          <div className="space-y-2 sm:space-y-3 animate-fade-in">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold gradient-text">
               Bica Marius Adrian Digital Portfolio
             </h1>
-            <p className="text-xs sm:text-sm md:text-base text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-3xl mx-auto">
               Step into my digital universe, where technology and art forge a seamless synergy.
             </p>
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-0.5">
-              <Star className="h-3 w-3 text-gaming-accent" />
+            <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-muted-foreground pt-1">
+              <Star className="h-3 w-3 sm:h-4 sm:w-4 text-gaming-accent" />
               <span>Digital Portfolio</span>
-              <div className="hidden sm:block h-3 border-l border-border mx-1.5"></div>
-              <Heart className="h-3 w-3 text-achievement-gold" />
+              <div className="hidden sm:block h-4 border-l border-border mx-2"></div>
+              <Heart className="h-3 w-3 sm:h-4 sm:w-4 text-achievement-gold" />
               <span>Passion & Innovation</span>
             </div>
           </div>
@@ -78,9 +78,9 @@ const Dashboard: React.FC = () => {
       </section>
 
       {/* Portfolio Grid - Compact */}
-      <section className="py-2 sm:py-3 md:py-4 responsive-padding flex-1">
+      <section className="py-4 sm:py-6 md:py-8 responsive-padding flex-1">
         <div className="responsive-container">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {portfolioCategories.map((category, index) => {
               const projectCount = isAdmin 
                 ? getTotalProjectCountByCategory(category.id)
@@ -164,23 +164,23 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Footer - Compact */}
-      <footer className="relative bg-gradient-to-br from-background via-background/95 to-card/50 border-t border-border/50 py-3 md:py-4 px-4 md:px-6 overflow-hidden">
+      <footer className="relative bg-gradient-to-br from-background via-background/95 to-card/50 border-t border-border/50 py-6 md:py-8 px-4 md:px-6 overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10"></div>
         </div>
         
         <div className="responsive-container">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
             {/* Brand Section */}
             <div className="text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-                <div className="w-7 h-7 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">MB</span>
+              <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">MB</span>
                 </div>
-                <h3 className="text-sm font-bold gradient-text">{CONTACT_INFO.name}</h3>
+                <h3 className="text-base font-bold gradient-text">{CONTACT_INFO.name}</h3>
               </div>
-              <p className="text-muted-foreground text-xs leading-relaxed mb-1">
+              <p className="text-muted-foreground text-xs leading-relaxed mb-2">
                 {CONTACT_INFO.title}
               </p>
               <p className="text-xs text-muted-foreground/80">
@@ -190,7 +190,7 @@ const Dashboard: React.FC = () => {
 
             {/* Social Media */}
             <div className="text-center md:text-left">
-              <h4 className="font-semibold text-xs mb-1.5 text-foreground">Social Media</h4>
+              <h4 className="font-semibold text-sm mb-2 text-foreground">Social Media</h4>
               <div className="flex justify-center md:justify-start gap-3">
                 <a
                   href={CONTACT_INFO.socialMedia.instagram}
