@@ -1070,6 +1070,57 @@ const CreativeWriting: React.FC = () => {
   // Mobile action bar selection
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
 
+  // Long press hook for mobile
+  const useLongPress = (
+    onLongPress: () => void,
+    onClick: () => void,
+    { threshold = 500 }: { threshold?: number } = {}
+  ) => {
+    const [longPressTriggered, setLongPressTriggered] = useState(false);
+    const timeout = useRef<NodeJS.Timeout>();
+    const target = useRef<EventTarget>();
+
+    const start = useCallback(
+      (event: React.TouchEvent | React.MouseEvent) => {
+        if (event.type === 'mousedown') {
+          // Ignore mouse events on mobile
+          if (isMobile) return;
+        }
+        
+        target.current = event.target;
+        setLongPressTriggered(false);
+        timeout.current = setTimeout(() => {
+          onLongPress();
+          setLongPressTriggered(true);
+        }, threshold);
+      },
+      [onLongPress, threshold, isMobile]
+    );
+
+    const clear = useCallback(
+      (event: React.TouchEvent | React.MouseEvent, shouldTriggerClick = true) => {
+        if (timeout.current) {
+          clearTimeout(timeout.current);
+        }
+        
+        if (shouldTriggerClick && !longPressTriggered && event.target === target.current) {
+          onClick();
+        }
+        
+        setLongPressTriggered(false);
+      },
+      [onClick, longPressTriggered]
+    );
+
+    return {
+      onMouseDown: (e: React.MouseEvent) => start(e),
+      onMouseUp: (e: React.MouseEvent) => clear(e),
+      onMouseLeave: (e: React.MouseEvent) => clear(e, false),
+      onTouchStart: (e: React.TouchEvent) => start(e),
+      onTouchEnd: (e: React.TouchEvent) => clear(e),
+    };
+  };
+
   // Close context menu and mobile action bar when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1918,19 +1969,25 @@ const CreativeWriting: React.FC = () => {
                             '--tw-ring-color': `${writing._albumColor}66` // 40% opacity for ring
                           })
                         }}
-                        onClick={() => {
-                          if (!isMobile || !isAdmin) {
-                            // Pe desktop sau non-admin = preview direct
-                            setSelectedWriting(writing);
-                            return;
-                          }
-                          // Pe mobil admin: click = afișează opțiuni
-                          setMobileSelectedWritingId(writing.id);
-                        }}
-                        onDoubleClick={() => {
-                          // Double click = preview direct
-                          setSelectedWriting(writing);
-                        }}
+                        {...(isMobile && isAdmin 
+                          ? useLongPress(
+                              () => {
+                                // Long press = afișează opțiuni
+                                setMobileSelectedWritingId(writing.id);
+                              },
+                              () => {
+                                // Tap = deschide preview
+                                setSelectedWriting(writing);
+                                setMobileSelectedWritingId(null);
+                              }
+                            )
+                          : {
+                              onClick: () => {
+                                // Desktop sau non-admin = preview direct
+                                setSelectedWriting(writing);
+                              }
+                            }
+                        )}
                       >
                         <CardContent className="p-3 relative">
                           {/* Mobile action bar */}
@@ -2151,10 +2208,25 @@ const CreativeWriting: React.FC = () => {
                       data-writing-card="true"
                       className={`hover-scale cursor-pointer group border-art-accent/20 hover:border-art-accent/50 animate-scale-in h-full flex flex-col min-h-[240px] ${
                         dragOverId === writing.id ? 'ring-2 ring-offset-2 ring-art-accent/40' : ''
-                      }`
+                      } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`
                       }
                       style={{ animationDelay: `${index * 100}ms` }}
-                      onClick={() => setSelectedWriting(writing)}
+                      {...(isMobile && isAdmin 
+                        ? useLongPress(
+                            () => {
+                              // Long press = afișează opțiuni (poate adăugăm mai târziu)
+                              setMobileSelectedWritingId(writing.id);
+                            },
+                            () => {
+                              // Tap = deschide preview
+                              setSelectedWriting(writing);
+                              setMobileSelectedWritingId(null);
+                            }
+                          )
+                        : {
+                            onClick: () => setSelectedWriting(writing)
+                          }
+                      )}
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between mb-2">
@@ -2235,7 +2307,22 @@ const CreativeWriting: React.FC = () => {
                         animationDelay: `${(visibleWritings.length + index) * 100}ms`,
                         borderColor: writing._albumInfo?.color || '#7c3aed'
                       }}
-                      onClick={() => setSelectedWriting(writing)}
+                      {...(isMobile && isAdmin 
+                        ? useLongPress(
+                            () => {
+                              // Long press = afișează opțiuni (poate adăugăm mai târziu)
+                              setMobileSelectedWritingId(writing.id);
+                            },
+                            () => {
+                              // Tap = deschide preview
+                              setSelectedWriting(writing);
+                              setMobileSelectedWritingId(null);
+                            }
+                          )
+                        : {
+                            onClick: () => setSelectedWriting(writing)
+                          }
+                      )}
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">

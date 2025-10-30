@@ -85,6 +85,57 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   // Swipe state for mobile navigation
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Long press hook for mobile
+  const useLongPress = (
+    onLongPress: () => void,
+    onClick: () => void,
+    { threshold = 500 }: { threshold?: number } = {}
+  ) => {
+    const [longPressTriggered, setLongPressTriggered] = useState(false);
+    const timeout = useRef<NodeJS.Timeout>();
+    const target = useRef<EventTarget>();
+
+    const start = React.useCallback(
+      (event: React.TouchEvent | React.MouseEvent) => {
+        if (event.type === 'mousedown') {
+          // Ignore mouse events on mobile
+          if (isMobile) return;
+        }
+        
+        target.current = event.target;
+        setLongPressTriggered(false);
+        timeout.current = setTimeout(() => {
+          onLongPress();
+          setLongPressTriggered(true);
+        }, threshold);
+      },
+      [onLongPress, threshold]
+    );
+
+    const clear = React.useCallback(
+      (event: React.TouchEvent | React.MouseEvent, shouldTriggerClick = true) => {
+        if (timeout.current) {
+          clearTimeout(timeout.current);
+        }
+        
+        if (shouldTriggerClick && !longPressTriggered && event.target === target.current) {
+          onClick();
+        }
+        
+        setLongPressTriggered(false);
+      },
+      [onClick, longPressTriggered]
+    );
+
+    return {
+      onMouseDown: (e: React.MouseEvent) => start(e),
+      onMouseUp: (e: React.MouseEvent) => clear(e),
+      onMouseLeave: (e: React.MouseEvent) => clear(e, false),
+      onTouchStart: (e: React.TouchEvent) => start(e),
+      onTouchEnd: (e: React.TouchEvent) => clear(e),
+    };
+  };
   
   // Drag & drop state (using same logic as main writings grid)
   const dragItemId = useRef<number | null>(null);
@@ -412,39 +463,23 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     key={writing.id}
                     className={`p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors relative ${
                       isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
-                    }`}
-                    onClick={() => {
-                      if (!isMobile || !isAdmin) {
-                        // Pe desktop sau non-admin = preview direct
-                        onWritingClick(writing);
-                        return;
-                      }
-                      
-                      // Pe mobil admin: folosește timeout pentru a evita conflictul cu double-click
-                      if (clickTimeout) {
-                        clearTimeout(clickTimeout);
-                        setClickTimeout(null);
-                        return;
-                      }
-                      
-                      const timeout = setTimeout(() => {
-                        // Single click = afișează opțiuni
-                        setMobileSelectedWritingId(writing.id);
-                        setClickTimeout(null);
-                      }, 300);
-                      
-                      setClickTimeout(timeout);
-                    }}
-                    onDoubleClick={() => {
-                      // Clear single click timeout dacă există
-                      if (clickTimeout) {
-                        clearTimeout(clickTimeout);
-                        setClickTimeout(null);
-                      }
-                      
-                      // Double click = preview direct
-                      onWritingClick(writing);
-                    }}
+                    } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`}
+                    {...(isMobile && isAdmin 
+                      ? useLongPress(
+                          () => {
+                            // Long press = afișează opțiuni
+                            setMobileSelectedWritingId(writing.id);
+                          },
+                          () => {
+                            // Tap = deschide preview
+                            onWritingClick(writing);
+                            setMobileSelectedWritingId(null);
+                          }
+                        )
+                      : {
+                          onClick: () => onWritingClick(writing)
+                        }
+                    )}
                     {...(!isMobile && {
                       onContextMenu: (e) => {
                         if (!isAdmin) { e.preventDefault(); return; }
@@ -739,7 +774,20 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             onDragOver={isInAlbum ? (e) => handleDragOverCardEditDialog(e, writing.id) : undefined}
                             onDrop={isInAlbum ? (e) => handleDropOnCardEditDialog(e, writing.id) : undefined}
                             onDragLeave={isInAlbum ? handleDragLeave : undefined}
-                            onClick={() => onWritingClick(writing)}
+                            {...(isMobile && isAdmin 
+                              ? useLongPress(
+                                  () => {
+                                    // Long press = nu facem nimic aici, avem butoanele deja visible
+                                  },
+                                  () => {
+                                    // Tap = deschide preview
+                                    onWritingClick(writing);
+                                  }
+                                )
+                              : {
+                                  onClick: () => onWritingClick(writing)
+                                }
+                            )}
                           >
                             {/* Drag Drop Indicator */}
                             {isInAlbum && dragOverId === writing.id && (

@@ -118,10 +118,6 @@ const Profile: React.FC = () => {
             <h1 className={`${isMobile ? 'text-2xl' : 'text-4xl'} font-bold gradient-text mb-4`}>
               Creative Developer & Artist
             </h1>
-            <p className={`${isMobile ? 'text-base' : 'text-xl'} text-muted-foreground max-w-2xl mx-auto`}>
-              Pasionat de tehnologie și artă, combin creativitatea cu inovația tehnică 
-              pentru a crea experiențe digitale remarcabile.
-            </p>
           </div>
 
           {/* Tabs Navigation */}
