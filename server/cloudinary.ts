@@ -5,15 +5,34 @@ let initialized = false;
 export function initCloudinary() {
   if (initialized) return;
 
-  // Cloudinary can auto-configure from CLOUDINARY_URL
+  // Cloudinary SDK auto-configures from CLOUDINARY_URL environment variable
+  // Format: cloudinary://API_KEY:API_SECRET@CLOUD_NAME
   if (process.env.CLOUDINARY_URL) {
-    cloudinary.config({
-      cloudinary_url: process.env.CLOUDINARY_URL,
-      secure: true
-    });
-    initialized = true;
-    console.log('[Cloudinary] Initialized from CLOUDINARY_URL');
-    return;
+    try {
+      // Parse URL manually to extract credentials
+      const url = new URL(process.env.CLOUDINARY_URL);
+      const cloudName = url.hostname;
+      const apiKey = url.username;
+      const apiSecret = url.password;
+
+      if (!cloudName || !apiKey || !apiSecret) {
+        throw new Error('Invalid CLOUDINARY_URL format');
+      }
+
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+        secure: true
+      });
+
+      initialized = true;
+      console.log('[Cloudinary] Initialized from CLOUDINARY_URL with cloud:', cloudName);
+      return;
+    } catch (error) {
+      console.error('[Cloudinary] Failed to parse CLOUDINARY_URL:', error);
+      throw new Error('Invalid CLOUDINARY_URL format. Expected: cloudinary://API_KEY:API_SECRET@CLOUD_NAME');
+    }
   }
 
   // Fallback to individual variables
