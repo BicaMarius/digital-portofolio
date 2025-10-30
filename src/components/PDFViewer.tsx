@@ -312,15 +312,14 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         onTouchEnd={handleTouchEnd}
       >
         <div className="flex justify-center items-start min-h-full">
-          <div className={`bg-white shadow-lg rounded-lg overflow-hidden ${isMobile ? 'w-full' : 'max-w-4xl'}`}>
+          <div className={`bg-white shadow-lg rounded-lg ${isMobile ? 'w-full' : 'max-w-4xl'}`}>
             <canvas 
               ref={canvasRef} 
-              className="block w-full h-auto"
+              className="block mx-auto"
               style={{ 
                 imageRendering: 'crisp-edges',
                 WebkitFontSmoothing: 'antialiased',
-                width: '100%',
-                height: 'auto',
+                maxWidth: 'none', // Allow canvas to grow beyond container at high zoom
               }}
             />
           </div>
