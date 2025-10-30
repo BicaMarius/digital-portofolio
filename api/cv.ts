@@ -6,6 +6,7 @@ let cvData: any;
 let getSupabaseClient: any;
 let CV_BUCKET: string;
 let initialized = false;
+let schemaReady: Promise<void> | null = null;
 
 async function initializeModules() {
   if (initialized) return;
@@ -32,6 +33,29 @@ async function initializeModules() {
     console.error('Failed to initialize modules:', error);
     throw error;
   }
+}
+
+async function ensureCvSchema() {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      try {
+        if (!db) {
+          await initializeModules();
+        }
+        const { sql } = await import('drizzle-orm');
+        await db.execute(
+          sql`ALTER TABLE "cv_data" ADD COLUMN IF NOT EXISTS "storage_path" text`
+        );
+      } catch (error) {
+        console.error('Failed to ensure cv_data schema:', error);
+        // Reset so future calls can retry
+        schemaReady = null;
+        throw error;
+      }
+    })();
+  }
+
+  return schemaReady;
 }
 
 export const config = {
@@ -124,6 +148,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const path = await import('node:path');
 
   try {
+    await ensureCvSchema();
+
     if (req.method === 'GET') {
       const result = await db.select().from(cvData).limit(1);
       const cv = result[0] || null;
