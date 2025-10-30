@@ -176,12 +176,12 @@ const Profile: React.FC = () => {
                               return;
                             }
                             
-                            // Check file size (max 2MB)
-                            const maxSize = 2 * 1024 * 1024; // 2MB
+                            // Check file size (max 10MB for Cloudinary)
+                            const maxSize = 10 * 1024 * 1024; // 10MB
                             if (file.size > maxSize) {
                               toast({
                                 title: 'Fișier prea mare',
-                                description: 'CV-ul trebuie să fie mai mic de 2MB. Te rog să îl compresezi folosind tools.pdf24.org sau similar.',
+                                description: 'CV-ul trebuie să fie mai mic de 10MB.',
                                 variant: 'destructive'
                               });
                               e.target.value = '';

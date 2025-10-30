@@ -4,6 +4,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 let db: any;
 let pool: any;
 let cvData: any;
+let uploadToCloudinary: any;
+let deleteFromCloudinary: any;
 let initialized = false;
 let schemaReady: Promise<void> | null = null;
 
@@ -17,11 +19,15 @@ async function initializeModules() {
     db = dbModule.default || dbModule.db;
     pool = dbModule.pool;
     console.log('[CV API] DB module loaded:', !!db);
-    console.log('[CV API] Pool loaded:', !!pool);
     
     const schemaModule = await import('../shared/schema.js');
     cvData = schemaModule.cvData;
     console.log('[CV API] Schema module loaded:', !!cvData);
+    
+    const cloudinaryModule = await import('../server/cloudinary.js');
+    uploadToCloudinary = cloudinaryModule.uploadToCloudinary;
+    deleteFromCloudinary = cloudinaryModule.deleteFromCloudinary;
+    console.log('[CV API] Cloudinary module loaded');
     
     initialized = true;
     console.log('[CV API] All modules initialized successfully');
@@ -42,22 +48,23 @@ async function initializeModules() {
           throw new Error('Database pool not initialized');
         }
 
-        // Create table with new schema (file_data instead of file_url)
+        // Create table for Cloudinary-based storage
         await pool.query(`
           CREATE TABLE IF NOT EXISTS cv_data (
             id serial PRIMARY KEY,
             file_name text NOT NULL,
-            file_data text NOT NULL,
+            file_url text NOT NULL,
+            cloudinary_public_id text NOT NULL,
             mime_type text NOT NULL DEFAULT 'application/pdf',
             uploaded_at timestamp NOT NULL DEFAULT now()
           )
         `);
         console.log('[CV API] cv_data table ready ✓');
 
-        // Migration: add file_data column if upgrading from old schema
+        // Migration: add Cloudinary columns if upgrading from old schema
         try {
-          await pool.query(`ALTER TABLE cv_data ADD COLUMN IF NOT EXISTS file_data text`);
-          await pool.query(`ALTER TABLE cv_data ADD COLUMN IF NOT EXISTS mime_type text DEFAULT 'application/pdf'`);
+          await pool.query(`ALTER TABLE cv_data ADD COLUMN IF NOT EXISTS cloudinary_public_id text`);
+          await pool.query(`ALTER TABLE cv_data DROP COLUMN IF EXISTS file_data`);
           console.log('[CV API] Schema migration complete ✓');
         } catch (migrationError) {
           console.log('[CV API] Schema already up to date');
@@ -192,15 +199,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(null);
       }
 
-      // Return CV data with base64 encoded file converted to data URL
+      // Return CV with Cloudinary URL
       const response = {
         id: cv.id,
         fileName: cv.fileName,
-        fileUrl: `data:${cv.mimeType};base64,${cv.fileData}`,
+        fileUrl: cv.fileUrl,
         uploadedAt: cv.uploadedAt,
       };
       
-      console.log('[CV API] GET request - returning CV data');
+      console.log('[CV API] GET request - returning CV from Cloudinary');
       return res.json(response);
     }    if (req.method === 'POST') {
       console.log('[CV API] POST request - starting upload');
@@ -223,12 +230,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Accept doar fișiere PDF' });
       }
 
-      // Check file size (max 2MB for database storage - base64 overhead)
-      const maxSize = 2 * 1024 * 1024; // 2MB
+      // Check file size (Cloudinary free tier supports up to 10MB per file)
+      const maxSize = 10 * 1024 * 1024; // 10MB
       if (file.buffer.length > maxSize) {
         return res.status(400).json({ 
           error: 'Fișierul este prea mare', 
-          details: 'CV-ul trebuie să fie mai mic de 2MB. Te rog comprima PDF-ul.' 
+          details: 'CV-ul trebuie să fie mai mic de 10MB' 
         });
       }
 
@@ -237,37 +244,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sizeMB: (file.buffer.length / 1024 / 1024).toFixed(2)
       });
 
-      // Delete existing CV
+      // Delete existing CV from both Cloudinary and database
       const existing = await db.select().from(cvData).limit(1);
       const existingCV = existing[0];
 
-      console.log('[CV API] Existing CV record:', existingCV ? { id: existingCV.id } : 'none');
+      console.log('[CV API] Existing CV record:', existingCV ? { id: existingCV.id, publicId: existingCV.cloudinaryPublicId } : 'none');
 
       if (existingCV) {
+        // Delete from Cloudinary first
+        if (existingCV.cloudinaryPublicId) {
+          try {
+            await deleteFromCloudinary(existingCV.cloudinaryPublicId);
+            console.log('[CV API] Existing CV deleted from Cloudinary');
+          } catch (cloudinaryError) {
+            console.error('[CV API] Failed to delete from Cloudinary:', cloudinaryError);
+            // Continue anyway - file might not exist on Cloudinary
+          }
+        }
+        
+        // Delete from database
         await db.delete(cvData);
         console.log('[CV API] Existing CV deleted from database');
       }
 
-      // Convert file to base64 and store in database
-      const base64Data = file.buffer.toString('base64');
+      // Upload to Cloudinary
+      console.log('[CV API] Uploading to Cloudinary...');
+      const { url, publicId } = await uploadToCloudinary(
+        file.buffer,
+        file.originalname,
+        'portfolio-cv'
+      );
+      console.log('[CV API] Cloudinary upload successful:', { url, publicId });
       
+      // Save metadata to database
       const result = await db.insert(cvData).values({
         fileName: file.originalname,
-        fileData: base64Data,
+        fileUrl: url,
+        cloudinaryPublicId: publicId,
         mimeType: file.mimetype,
       }).returning();
 
       const newCV = result[0];
       
-      // Return CV with data URL
+      // Return CV with Cloudinary URL
       const response = {
         id: newCV.id,
         fileName: newCV.fileName,
-        fileUrl: `data:${newCV.mimeType};base64,${newCV.fileData}`,
+        fileUrl: newCV.fileUrl,
         uploadedAt: newCV.uploadedAt,
       };
       
-      console.log('[CV API] Upload successful, CV stored in database');
+      console.log('[CV API] Upload successful, CV stored in Cloudinary');
       return res.status(201).json(response);
     }
 
@@ -280,7 +307,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(404).json({ error: 'CV data not found' });
       }
 
-      // Simply delete from database (no external storage to clean up)
+      // Delete from Cloudinary first
+      if (existingCV.cloudinaryPublicId) {
+        try {
+          await deleteFromCloudinary(existingCV.cloudinaryPublicId);
+          console.log('[CV API] CV deleted from Cloudinary');
+        } catch (cloudinaryError) {
+          console.error('[CV API] Failed to delete from Cloudinary:', cloudinaryError);
+          // Continue anyway to clean up database
+        }
+      }
+
+      // Delete from database
       await db.delete(cvData);
       console.log('[CV API] DELETE request - CV removed from database');
       return res.status(204).end();

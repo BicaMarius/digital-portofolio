@@ -16,6 +16,7 @@ import {
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import { extname } from "node:path";
+import { uploadToCloudinary, deleteFromCloudinary } from "./cloudinary";
 
 type UploadedFile = {
   buffer: Buffer;
@@ -188,7 +189,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
-  // CV Data - stored directly in Neon database
+  // CV Data - files stored in Cloudinary
   app.get("/api/cv", async (req, res) => {
     try {
       const cv = await storage.getCVData();
@@ -196,11 +197,11 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.json(null);
       }
 
-      // Return CV with data URL
+      // Return CV with Cloudinary URL
       const response = {
         id: cv.id,
         fileName: cv.fileName,
-        fileUrl: `data:${cv.mimeType};base64,${cv.fileData}`,
+        fileUrl: cv.fileUrl,
         uploadedAt: cv.uploadedAt,
       };
       
@@ -222,35 +223,49 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(400).json({ error: "Accept doar fișiere PDF" });
       }
 
-      // Check file size (max 2MB for database storage)
-      const maxSize = 2 * 1024 * 1024; // 2MB
+      // Check file size (Cloudinary supports up to 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB
       if (file.size > maxSize) {
         return res.status(400).json({ 
           error: "Fișierul este prea mare", 
-          details: "CV-ul trebuie să fie mai mic de 2MB. Te rog comprima PDF-ul." 
+          details: "CV-ul trebuie să fie mai mic de 10MB" 
         });
       }
 
-      // Delete existing CV if any
+      // Delete existing CV if any (from both Cloudinary and database)
       const existing = await storage.getCVData();
+      if (existing && existing.cloudinaryPublicId) {
+        try {
+          await deleteFromCloudinary(existing.cloudinaryPublicId);
+          console.log('[Routes] Existing CV deleted from Cloudinary');
+        } catch (cloudinaryError) {
+          console.error('[Routes] Failed to delete from Cloudinary:', cloudinaryError);
+        }
+      }
       if (existing) {
         await storage.deleteCVData();
       }
 
-      // Convert file to base64 and store in database
-      const base64Data = file.buffer.toString('base64');
+      // Upload to Cloudinary
+      const { url, publicId } = await uploadToCloudinary(
+        file.buffer,
+        file.originalname,
+        'portfolio-cv'
+      );
 
+      // Save metadata to database
       const newCV = await storage.createCVData({
         fileName: file.originalname,
-        fileData: base64Data,
+        fileUrl: url,
+        cloudinaryPublicId: publicId,
         mimeType: file.mimetype,
       });
 
-      // Return CV with data URL
+      // Return CV with Cloudinary URL
       const response = {
         id: newCV.id,
         fileName: newCV.fileName,
-        fileUrl: `data:${newCV.mimeType};base64,${newCV.fileData}`,
+        fileUrl: newCV.fileUrl,
         uploadedAt: newCV.uploadedAt,
       };
 
@@ -268,6 +283,17 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(404).json({ error: "CV data not found" });
       }
 
+      // Delete from Cloudinary first
+      if (existing.cloudinaryPublicId) {
+        try {
+          await deleteFromCloudinary(existing.cloudinaryPublicId);
+          console.log('[Routes] CV deleted from Cloudinary');
+        } catch (cloudinaryError) {
+          console.error('[Routes] Failed to delete from Cloudinary:', cloudinaryError);
+        }
+      }
+
+      // Delete from database
       await storage.deleteCVData();
       res.status(204).send();
     } catch (error) {
