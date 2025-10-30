@@ -176,7 +176,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
     };
   }, [fileUrl]);
 
-  // Calculate base scale to fit container width
+  // Calculate base scale to fit container width (maintain aspect ratio)
   useEffect(() => {
     if (!pdfDocument || !contentRef.current) {
       return;
@@ -195,10 +195,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         // Calculate scale to fit container width with padding
         const padding = isMobile ? 16 : 32;
         const availableWidth = containerWidth - padding;
+        
+        // Base scale maintains aspect ratio - fits to width
         const calculatedScale = availableWidth / pageViewport.width;
         
         setBaseScale(calculatedScale);
-        setScale(calculatedScale * zoomLevel);
         
         page.cleanup();
       } catch (error) {
@@ -208,12 +209,22 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
     void calculateBaseScale();
 
+    // Recalculate on container resize
+    const resizeObserver = new ResizeObserver(() => {
+      void calculateBaseScale();
+    });
+
+    if (contentRef.current) {
+      resizeObserver.observe(contentRef.current);
+    }
+
     return () => {
       cancelled = true;
+      resizeObserver.disconnect();
     };
-  }, [pdfDocument, rotation, isMobile, zoomLevel]);
+  }, [pdfDocument, rotation, isMobile]);
 
-  // Update scale when zoom level changes
+  // Update scale when zoom level or base scale changes
   useEffect(() => {
     setScale(baseScale * zoomLevel);
   }, [baseScale, zoomLevel]);
@@ -244,14 +255,24 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         }
 
         // Use high-DPI rendering for crisp display at all zoom levels
-        const outputScale = Math.max(window.devicePixelRatio || 1, 2);
+        // Clamp outputScale to prevent excessive memory usage on high zoom
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        const outputScale = Math.min(Math.max(devicePixelRatio, 2), 3);
         const scaledViewport = page.getViewport({ scale: scale * outputScale, rotation });
 
-        // Set canvas dimensions for sharp rendering
+        // Set canvas internal dimensions (high-res for sharp rendering)
         canvas.width = Math.floor(scaledViewport.width);
         canvas.height = Math.floor(scaledViewport.height);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        
+        // Set canvas display dimensions (maintains aspect ratio, no stretching)
+        // Use exact dimensions to preserve aspect ratio at all zoom levels
+        const displayWidth = Math.floor(viewport.width);
+        const displayHeight = Math.floor(viewport.height);
+        
+        canvas.style.width = `${displayWidth}px`;
+        canvas.style.height = `${displayHeight}px`;
+        canvas.style.maxWidth = 'none'; // Don't constrain, let container handle scrolling
+        canvas.style.display = 'block';
 
         // Clear canvas before rendering
         context.clearRect(0, 0, canvas.width, canvas.height);
@@ -364,7 +385,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
           <div className="bg-white shadow-lg rounded-lg overflow-hidden inline-block">
             <canvas 
               ref={canvasRef} 
-              className="block max-w-full h-auto"
+              className="block"
               style={{ 
                 imageRendering: 'crisp-edges',
                 WebkitFontSmoothing: 'antialiased',
