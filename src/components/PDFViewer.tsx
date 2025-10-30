@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Download, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from 'pdfjs-dist';
 import type { RenderTask } from 'pdfjs-dist/types/src/display/api';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.js?url';
 
-GlobalWorkerOptions.workerSrc = workerSrc;
+// Use CDN worker for production builds
+GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.worker.min.mjs`;
 
 interface PDFViewerProps {
   fileUrl: string;
