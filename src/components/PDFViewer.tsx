@@ -121,12 +121,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   );
 
   useEffect(() => {
-    // Set initial scale based on device
-    setScale(isMobile ? 0.8 : 1);
+    // Always start at 100% zoom for better readability
+    setScale(1);
     setRotation(0);
     setCurrentPage(1);
     setRenderError(null);
-  }, [fileUrl, isMobile]);
+  }, [fileUrl]);
 
   useEffect(() => {
     const onFullChange = () => {
@@ -279,11 +279,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
           )}
 
           <div className="flex items-center gap-1">
-            {!isMobile && (
-              <Button variant="outline" size="sm" onClick={handleFullscreen}>
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            )}
+            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleFullscreen} className={isMobile ? 'h-8 w-8' : ''}>
+              {isFullscreen ? (
+                isMobile ? <Minimize2 className="h-3 w-3" /> : <Minimize2 className="h-4 w-4" />
+              ) : (
+                isMobile ? <Maximize2 className="h-3 w-3" /> : <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
             <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleDownload} className={isMobile ? 'h-8 w-8' : ''}>
               {isMobile ? <Download className="h-3 w-3" /> : <><Download className="h-4 w-4 mr-2" />Download</>}
             </Button>
@@ -311,11 +313,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="flex justify-center items-start min-h-full w-full">
-          <div className="inline-block bg-white shadow-lg rounded-lg">
+        <div className="flex justify-center items-start min-h-full">
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden inline-block">
             <canvas 
               ref={canvasRef} 
-              className="block"
+              className="block max-w-full h-auto"
               style={{ 
                 imageRendering: 'crisp-edges',
                 WebkitFontSmoothing: 'antialiased',
