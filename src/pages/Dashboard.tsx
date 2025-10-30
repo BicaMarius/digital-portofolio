@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
       <Navigation />
       
       {/* Hero Section - Compact */}
-      <section className="relative pt-12 sm:pt-14 md:pt-16 pb-4 sm:pb-6 md:pb-8 responsive-padding overflow-hidden">
+      <section className="relative pt-20 sm:pt-24 md:pt-28 pb-4 sm:pb-6 md:pb-8 responsive-padding overflow-hidden">
         {/* Background Image */}
         <div 
           className="absolute inset-0 z-0 opacity-20"
@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
       {/* Portfolio Grid - Compact */}
       <section className="py-4 sm:py-6 md:py-8 responsive-padding flex-1">
         <div className="responsive-container">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {portfolioCategories.map((category, index) => {
               const projectCount = isAdmin 
                 ? getTotalProjectCountByCategory(category.id)

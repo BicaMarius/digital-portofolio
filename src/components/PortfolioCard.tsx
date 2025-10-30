@@ -50,7 +50,7 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
   return (
     <Card 
       className={`
-        portfolio-card group cursor-pointer p-4 h-40 flex flex-col justify-between
+        portfolio-card group cursor-pointer p-6 h-48 flex flex-col justify-between
         hover-lift hover:shadow-2xl transition-all duration-500
         ${getCategoryStyle()}
         ${isPrivate ? 'opacity-70 border-dashed' : ''}
@@ -60,26 +60,26 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
       {/* Header with Icon and Count */}
       <div className="flex items-start justify-between">
         <div className={`
-          p-2 rounded-lg transition-all duration-300 group-hover:scale-110
+          p-3 rounded-lg transition-all duration-300 group-hover:scale-110
           bg-gradient-to-br from-background/50 to-card
           ${getIconColor()}
         `}>
-          <Icon className="h-6 w-6" />
+          <Icon className="h-8 w-8" />
         </div>
         
         {!isPrivate && (
-          <div className="text-xs font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+          <div className="text-xs font-mono text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
             {projectCount} proiecte
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold text-foreground group-hover:gradient-text transition-all duration-300">
+      <div className="space-y-2">
+        <h3 className="text-xl font-semibold text-foreground group-hover:gradient-text transition-all duration-300">
           {title}
         </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+        <p className="text-sm text-muted-foreground leading-relaxed">
           {description}
         </p>
       </div>
