@@ -1069,75 +1069,6 @@ const CreativeWriting: React.FC = () => {
   const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; writingId: number | null }>({ open: false, writingId: null });
   // Mobile action bar selection
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
-  
-  // Long press state
-  const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
-  const longPressTarget = useRef<EventTarget | null>(null);
-  const [isLongPressing, setIsLongPressing] = useState(false);
-
-  // Long press helper functions
-  const createLongPressHandlers = (
-    onLongPress: () => void,
-    onClick: () => void,
-    threshold: number = 500
-  ) => {
-    const startPos = useRef<{ x: number; y: number } | null>(null);
-    const MOVE_THRESHOLD = 10; // pixels - if moved more than this, it's a scroll
-
-    return {
-      onTouchStart: (e: React.TouchEvent) => {
-        const touch = e.touches[0];
-        startPos.current = { x: touch.clientX, y: touch.clientY };
-        longPressTarget.current = e.target;
-        setIsLongPressing(false);
-        longPressTimeout.current = setTimeout(() => {
-          setIsLongPressing(true);
-          onLongPress();
-          // Prevent text selection
-          if (window.getSelection) {
-            window.getSelection()?.removeAllRanges();
-          }
-        }, threshold);
-      },
-      onTouchEnd: (e: React.TouchEvent) => {
-        if (longPressTimeout.current) {
-          clearTimeout(longPressTimeout.current);
-          longPressTimeout.current = null;
-        }
-        
-        // Only trigger click if it wasn't a long press AND the touch didn't move much
-        if (!isLongPressing && e.target === longPressTarget.current) {
-          const touch = e.changedTouches[0];
-          if (startPos.current) {
-            const deltaX = Math.abs(touch.clientX - startPos.current.x);
-            const deltaY = Math.abs(touch.clientY - startPos.current.y);
-            
-            // Only trigger onClick if movement was minimal (not a scroll)
-            if (deltaX < MOVE_THRESHOLD && deltaY < MOVE_THRESHOLD) {
-              onClick();
-            }
-          }
-        }
-        
-        setIsLongPressing(false);
-        longPressTarget.current = null;
-        startPos.current = null;
-      },
-      onTouchMove: (e: React.TouchEvent) => {
-        // Cancel long press if user moves finger (scrolling)
-        if (startPos.current && longPressTimeout.current) {
-          const touch = e.touches[0];
-          const deltaX = Math.abs(touch.clientX - startPos.current.x);
-          const deltaY = Math.abs(touch.clientY - startPos.current.y);
-          
-          if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
-            clearTimeout(longPressTimeout.current);
-            longPressTimeout.current = null;
-          }
-        }
-      }
-    };
-  };
 
   // Close context menu and mobile action bar when clicking outside
   React.useEffect(() => {
@@ -1987,25 +1918,23 @@ const CreativeWriting: React.FC = () => {
                             '--tw-ring-color': `${writing._albumColor}66` // 40% opacity for ring
                           })
                         }}
-                        {...(isMobile && isAdmin 
-                          ? createLongPressHandlers(
-                              () => {
-                                // Long press = afișează opțiuni
-                                setMobileSelectedWritingId(writing.id);
-                              },
-                              () => {
-                                // Tap = deschide preview
-                                setSelectedWriting(writing);
-                                setMobileSelectedWritingId(null);
-                              }
-                            )
-                          : {
-                              onClick: () => {
-                                // Desktop sau non-admin = preview direct
-                                setSelectedWriting(writing);
-                              }
-                            }
-                        )}
+                        onClick={() => {
+                          if (!isMobile || !isAdmin) {
+                            // Desktop sau non-admin = preview direct
+                            setSelectedWriting(writing);
+                            return;
+                          }
+                          // Mobile admin = toggle action bar
+                          if (mobileSelectedWritingId === writing.id) {
+                            setMobileSelectedWritingId(null);
+                          } else {
+                            setMobileSelectedWritingId(writing.id);
+                          }
+                        }}
+                        onDoubleClick={() => {
+                          // Double click = preview direct
+                          setSelectedWriting(writing);
+                        }}
                       >
                         <CardContent className="p-3 relative">
                           {/* Mobile action bar */}
@@ -2229,22 +2158,8 @@ const CreativeWriting: React.FC = () => {
                       } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`
                       }
                       style={{ animationDelay: `${index * 100}ms` }}
-                      {...(isMobile && isAdmin 
-                        ? createLongPressHandlers(
-                            () => {
-                              // Long press = afișează opțiuni (poate adăugăm mai târziu)
-                              setMobileSelectedWritingId(writing.id);
-                            },
-                            () => {
-                              // Tap = deschide preview
-                              setSelectedWriting(writing);
-                              setMobileSelectedWritingId(null);
-                            }
-                          )
-                        : {
-                            onClick: () => setSelectedWriting(writing)
-                          }
-                      )}
+                      onClick={() => setSelectedWriting(writing)}
+                      onDoubleClick={() => setSelectedWriting(writing)}
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between mb-2">
@@ -2325,22 +2240,8 @@ const CreativeWriting: React.FC = () => {
                         animationDelay: `${(visibleWritings.length + index) * 100}ms`,
                         borderColor: writing._albumInfo?.color || '#7c3aed'
                       }}
-                      {...(isMobile && isAdmin 
-                        ? createLongPressHandlers(
-                            () => {
-                              // Long press = afișează opțiuni (poate adăugăm mai târziu)
-                              setMobileSelectedWritingId(writing.id);
-                            },
-                            () => {
-                              // Tap = deschide preview
-                              setSelectedWriting(writing);
-                              setMobileSelectedWritingId(null);
-                            }
-                          )
-                        : {
-                            onClick: () => setSelectedWriting(writing)
-                          }
-                      )}
+                      onClick={() => setSelectedWriting(writing)}
+                      onDoubleClick={() => setSelectedWriting(writing)}
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">

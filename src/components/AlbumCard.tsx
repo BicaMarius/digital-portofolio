@@ -86,72 +86,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  // Long press state
-  const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
-  const longPressTarget = useRef<EventTarget | null>(null);
-  const [isLongPressing, setIsLongPressing] = useState(false);
-
-  // Long press helper functions
-  const createLongPressHandlers = (
-    onLongPress: () => void,
-    onClick: () => void,
-    threshold: number = 500
-  ) => {
-    const startPos = useRef<{ x: number; y: number } | null>(null);
-    const MOVE_THRESHOLD = 10; // pixels
-
-    return {
-      onTouchStart: (e: React.TouchEvent) => {
-        const touch = e.touches[0];
-        startPos.current = { x: touch.clientX, y: touch.clientY };
-        longPressTarget.current = e.target;
-        setIsLongPressing(false);
-        longPressTimeout.current = setTimeout(() => {
-          setIsLongPressing(true);
-          onLongPress();
-          // Prevent text selection
-          if (window.getSelection) {
-            window.getSelection()?.removeAllRanges();
-          }
-        }, threshold);
-      },
-      onTouchEnd: (e: React.TouchEvent) => {
-        if (longPressTimeout.current) {
-          clearTimeout(longPressTimeout.current);
-          longPressTimeout.current = null;
-        }
-        
-        if (!isLongPressing && e.target === longPressTarget.current) {
-          const touch = e.changedTouches[0];
-          if (startPos.current) {
-            const deltaX = Math.abs(touch.clientX - startPos.current.x);
-            const deltaY = Math.abs(touch.clientY - startPos.current.y);
-            
-            // Only trigger onClick if movement was minimal
-            if (deltaX < MOVE_THRESHOLD && deltaY < MOVE_THRESHOLD) {
-              onClick();
-            }
-          }
-        }
-        
-        setIsLongPressing(false);
-        longPressTarget.current = null;
-        startPos.current = null;
-      },
-      onTouchMove: (e: React.TouchEvent) => {
-        if (startPos.current && longPressTimeout.current) {
-          const touch = e.touches[0];
-          const deltaX = Math.abs(touch.clientX - startPos.current.x);
-          const deltaY = Math.abs(touch.clientY - startPos.current.y);
-          
-          if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
-            clearTimeout(longPressTimeout.current);
-            longPressTimeout.current = null;
-          }
-        }
-      }
-    };
-  };
   
   // Drag & drop state (using same logic as main writings grid)
   const dragItemId = useRef<number | null>(null);
@@ -480,22 +414,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     className={`p-3 bg-background/50 rounded border cursor-pointer hover:bg-background/70 transition-colors relative ${
                       isExpanded ? (isMobile ? 'min-h-[100px]' : 'min-h-[140px]') : (isMobile ? 'min-h-[80px]' : 'min-h-[110px]')
                     } ${mobileSelectedWritingId === writing.id ? 'ring-2 ring-primary/60' : ''}`}
-                    {...(isMobile && isAdmin 
-                      ? createLongPressHandlers(
-                          () => {
-                            // Long press = afișează opțiuni
-                            setMobileSelectedWritingId(writing.id);
-                          },
-                          () => {
-                            // Tap = deschide preview
-                            onWritingClick(writing);
-                            setMobileSelectedWritingId(null);
-                          }
-                        )
-                      : {
-                          onClick: () => onWritingClick(writing)
-                        }
-                    )}
+                    onClick={() => onWritingClick(writing)}
+                    onDoubleClick={() => onWritingClick(writing)}
                     {...(!isMobile && {
                       onContextMenu: (e) => {
                         if (!isAdmin) { e.preventDefault(); return; }
@@ -790,20 +710,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             onDragOver={isInAlbum ? (e) => handleDragOverCardEditDialog(e, writing.id) : undefined}
                             onDrop={isInAlbum ? (e) => handleDropOnCardEditDialog(e, writing.id) : undefined}
                             onDragLeave={isInAlbum ? handleDragLeave : undefined}
-                            {...(isMobile && isAdmin 
-                              ? createLongPressHandlers(
-                                  () => {
-                                    // Long press = nu facem nimic aici, avem butoanele deja visible
-                                  },
-                                  () => {
-                                    // Tap = deschide preview
-                                    onWritingClick(writing);
-                                  }
-                                )
-                              : {
-                                  onClick: () => onWritingClick(writing)
-                                }
-                            )}
+                            onClick={() => onWritingClick(writing)}
+                            onDoubleClick={() => onWritingClick(writing)}
                           >
                             {/* Drag Drop Indicator */}
                             {isInAlbum && dragOverId === writing.id && (
