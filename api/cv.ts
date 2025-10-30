@@ -1,10 +1,38 @@
-import 'dotenv/config';
-import db from '../server/db.js';
-import { cvData } from '../shared/schema.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSupabaseClient, CV_BUCKET } from '../server/supabase.js';
-import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
+
+// Dynamic imports pentru a evita probleme cu ES modules pe Vercel
+let db: any;
+let cvData: any;
+let getSupabaseClient: any;
+let CV_BUCKET: string;
+let initialized = false;
+
+async function initializeModules() {
+  if (initialized) return;
+  
+  try {
+    console.log('Initializing modules...');
+    
+    const dbModule = await import('../server/db.js');
+    db = dbModule.default || dbModule.db;
+    console.log('DB module loaded:', !!db);
+    
+    const schemaModule = await import('../shared/schema.js');
+    cvData = schemaModule.cvData;
+    console.log('Schema module loaded:', !!cvData);
+    
+    const supabaseModule = await import('../server/supabase.js');
+    getSupabaseClient = supabaseModule.getSupabaseClient;
+    CV_BUCKET = supabaseModule.CV_BUCKET || 'portfolio-cv';
+    console.log('Supabase module loaded:', !!getSupabaseClient, 'Bucket:', CV_BUCKET);
+    
+    initialized = true;
+    console.log('All modules initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize modules:', error);
+    throw error;
+  }
+}
 
 export const config = {
   api: {
@@ -15,34 +43,45 @@ export const config = {
 async function parseMultipartFormData(req: VercelRequest): Promise<{ file?: { buffer: Buffer; mimetype: string; originalname: string } }> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
     req.on('end', () => {
       try {
         const buffer = Buffer.concat(chunks);
-        const boundary = req.headers['content-type']?.split('boundary=')[1];
+        const contentType = req.headers['content-type'] || '';
+        const boundaryMatch = contentType.match(/boundary=(.+?)(?:;|$)/);
         
-        if (!boundary) {
+        if (!boundaryMatch) {
+          console.error('No boundary found in Content-Type:', contentType);
           return resolve({});
         }
 
+        const boundary = boundaryMatch[1].trim();
         const parts = buffer.toString('binary').split(`--${boundary}`);
         
         for (const part of parts) {
           if (part.includes('Content-Disposition') && part.includes('filename')) {
             const filenameMatch = part.match(/filename="([^"]+)"/);
-            const contentTypeMatch = part.match(/Content-Type: ([^\r\n]+)/);
+            const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/i);
             
-            if (filenameMatch && contentTypeMatch) {
-              const headerEnd = part.indexOf('\r\n\r\n') + 4;
-              const dataStart = part.indexOf('\r\n\r\n', part.indexOf('Content-Type')) + 4;
+            if (filenameMatch) {
+              // Find where the actual file data starts (after all headers)
+              const doubleNewline = part.indexOf('\r\n\r\n');
+              if (doubleNewline === -1) continue;
+              
+              const dataStart = doubleNewline + 4;
               const dataEnd = part.lastIndexOf('\r\n');
               
-              const fileBuffer = Buffer.from(part.substring(dataStart, dataEnd), 'binary');
+              if (dataStart >= dataEnd) continue;
+              
+              const fileData = part.substring(dataStart, dataEnd);
+              const fileBuffer = Buffer.from(fileData, 'binary');
+              
+              const mimetype = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
               
               return resolve({
                 file: {
                   buffer: fileBuffer,
-                  mimetype: contentTypeMatch[1].trim(),
+                  mimetype,
                   originalname: filenameMatch[1],
                 },
               });
@@ -50,12 +89,17 @@ async function parseMultipartFormData(req: VercelRequest): Promise<{ file?: { bu
           }
         }
         
+        console.error('No file found in multipart data');
         resolve({});
       } catch (error) {
+        console.error('Error parsing multipart form data:', error);
         reject(error);
       }
     });
-    req.on('error', reject);
+    req.on('error', (error) => {
+      console.error('Request error:', error);
+      reject(error);
+    });
   });
 }
 
@@ -73,6 +117,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // Initialize modules dynamically
+  await initializeModules();
+  
+  const crypto = await import('node:crypto');
+  const path = await import('node:path');
+
   try {
     if (req.method === 'GET') {
       const result = await db.select().from(cvData).limit(1);
@@ -87,11 +137,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
+      console.log('POST /api/cv - Starting upload');
+      console.log('Content-Type:', req.headers['content-type']);
+      
       const { file } = await parseMultipartFormData(req);
 
       if (!file) {
+        console.error('No file found in request');
         return res.status(400).json({ error: 'No file uploaded' });
       }
+
+      console.log('File received:', { 
+        name: file.originalname, 
+        type: file.mimetype, 
+        size: file.buffer.length 
+      });
 
       if (file.mimetype !== 'application/pdf') {
         return res.status(400).json({ error: 'Accept doar fișiere PDF' });
@@ -113,8 +173,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await db.delete(cvData);
       }
 
-      const extension = extname(file.originalname).toLowerCase() || '.pdf';
-      const storagePath = `cv/${randomUUID()}${extension}`;
+      const extension = path.extname(file.originalname).toLowerCase() || '.pdf';
+      const storagePath = `cv/${crypto.randomUUID()}${extension}`;
 
       const { error: uploadError } = await supabase.storage
         .from(CV_BUCKET)
@@ -175,6 +235,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('CV API Error:', error);
-    return res.status(500).json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' });
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    return res.status(500).json({ 
+      error: 'Internal server error', 
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
+    });
   }
 }
