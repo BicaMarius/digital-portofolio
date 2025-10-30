@@ -64,8 +64,7 @@ const Dashboard: React.FC = () => {
               Bica Marius Adrian Digital Portfolio
             </h1>
             <p className="responsive-text text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Explorează universul meu creativ unde tehnologia întâlnește arta. 
-              Fiecare proiect este o poveste de inovație și creativitate.
+              Step into my digital universe, where technology and art forge a seamless synergy.
             </p>
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Star className="h-4 w-4 text-gaming-accent" />
