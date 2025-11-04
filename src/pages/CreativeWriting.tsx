@@ -731,10 +731,23 @@ const CreativeWriting: React.FC = () => {
     // set contenteditable content when dialog opens (handled in effect below)
   };
 
+  // Clean HTML content - remove trailing nbsp and normalize whitespace
+  const cleanHtmlContent = (html: string): string => {
+    return html
+      // Remove trailing &nbsp; entities
+      .replace(/(&nbsp;|\u00A0)+$/g, '')
+      // Remove trailing whitespace in each line before <br>
+      .replace(/\s+(<br\s*\/?>)/gi, '$1')
+      // Normalize multiple consecutive &nbsp; to single space
+      .replace(/(&nbsp;|\u00A0){2,}/g, ' ')
+      .trim();
+  };
+
   // save from editor
   const saveEditing = async () => {
     if (!editing) return;
-    const contentHtml = editorRef.current?.innerHTML || editing.content;
+    const rawContentHtml = editorRef.current?.innerHTML || editing.content;
+    const contentHtml = cleanHtmlContent(rawContentHtml);
     const plainTextWordCount = countWords(contentHtml);
     const now = new Date().toISOString().slice(0,10);
     const updated: WritingPiece = { 
@@ -1074,6 +1087,7 @@ const CreativeWriting: React.FC = () => {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const [longPressActive, setLongPressActive] = useState(false);
+  const actionButtonClicked = useRef<boolean>(false);
 
   // Long press handlers for mobile
   const handleTouchStart = (e: React.TouchEvent, writingId: number) => {
@@ -1121,6 +1135,14 @@ const CreativeWriting: React.FC = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
+    }
+    
+    // Check if an action button was clicked - if so, don't process touch end on card
+    if (actionButtonClicked.current) {
+      actionButtonClicked.current = false;
+      setLongPressActive(false);
+      touchStartPos.current = null;
+      return;
     }
     
     // Check if the touch ended on the mobile action bar or any of its buttons
@@ -2037,6 +2059,7 @@ const CreativeWriting: React.FC = () => {
                                   onTouchEnd={(e) => { 
                                     e.stopPropagation(); 
                                     e.preventDefault();
+                                    actionButtonClicked.current = true;
                                     removePriority(writing.id); 
                                     setMobileSelectedWritingId(null); 
                                   }}
@@ -2053,6 +2076,7 @@ const CreativeWriting: React.FC = () => {
                                   onTouchEnd={(e) => { 
                                     e.stopPropagation(); 
                                     e.preventDefault();
+                                    actionButtonClicked.current = true;
                                     moveWritingToTop(writing.id); 
                                     setMobileSelectedWritingId(null); 
                                   }}
@@ -2070,6 +2094,7 @@ const CreativeWriting: React.FC = () => {
                                   onTouchEnd={(e) => { 
                                     e.stopPropagation(); 
                                     e.preventDefault();
+                                    actionButtonClicked.current = true;
                                     setAddToAlbumDialog({ open: true, writingId: writing.id });
                                     setMobileSelectedWritingId(null);
                                   }}
@@ -2086,6 +2111,7 @@ const CreativeWriting: React.FC = () => {
                                 onTouchEnd={(e) => { 
                                   e.stopPropagation(); 
                                   e.preventDefault();
+                                  actionButtonClicked.current = true;
                                   deleteWriting(writing.id); 
                                   setMobileSelectedWritingId(null); 
                                 }}
@@ -2101,6 +2127,7 @@ const CreativeWriting: React.FC = () => {
                                 onTouchEnd={(e) => { 
                                   e.stopPropagation(); 
                                   e.preventDefault();
+                                  actionButtonClicked.current = true;
                                   setMobileSelectedWritingId(null); 
                                 }}
                               >
@@ -2574,13 +2601,22 @@ const CreativeWriting: React.FC = () => {
                   size="sm"
                   onClick={() => setIsEditorOpen(false)}
                   className="p-2 rounded-full"
+                  title="Închide"
                 >
                   <X className="h-5 w-5" />
                 </Button>
                 <div className="text-sm font-medium text-center">
                   {editing?.title || 'Text nou'}
                 </div>
-                <div className="w-9"></div> {/* Spacer for centering */}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={saveEditing}
+                  className="p-2 rounded-full"
+                  title="Salvează"
+                >
+                  <Save className="h-5 w-5" />
+                </Button>
               </div>
               
               {/* Mobile content area */}
