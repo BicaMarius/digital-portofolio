@@ -2033,10 +2033,15 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   className="h-7 w-7" 
                                   title="Anulează prioritate" 
-                                  onClick={(e) => { e.stopPropagation(); removePriority(writing.id); setMobileSelectedWritingId(null); }}
-                                  onTouchEnd={(e) => { e.stopPropagation(); }}
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onTouchEnd={(e) => { 
+                                    e.stopPropagation(); 
+                                    e.preventDefault();
+                                    removePriority(writing.id); 
+                                    setMobileSelectedWritingId(null); 
+                                  }}
                                 >
-                                  <ArrowUpFromLine className="h-4 w-4" />
+                                  <RotateCcw className="h-4 w-4" />
                                 </Button>
                               ) : (
                                 <Button 
@@ -2044,8 +2049,13 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   className="h-7 w-7" 
                                   title="Mută prima" 
-                                  onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); setMobileSelectedWritingId(null); }}
-                                  onTouchEnd={(e) => { e.stopPropagation(); }}
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onTouchEnd={(e) => { 
+                                    e.stopPropagation(); 
+                                    e.preventDefault();
+                                    moveWritingToTop(writing.id); 
+                                    setMobileSelectedWritingId(null); 
+                                  }}
                                 >
                                   <ArrowUp className="h-4 w-4" />
                                 </Button>
@@ -2056,12 +2066,13 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   className="h-7 w-7" 
                                   title="Adaugă în album" 
-                                  onClick={(e) => { 
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onTouchEnd={(e) => { 
                                     e.stopPropagation(); 
+                                    e.preventDefault();
                                     setAddToAlbumDialog({ open: true, writingId: writing.id });
                                     setMobileSelectedWritingId(null);
                                   }}
-                                  onTouchEnd={(e) => { e.stopPropagation(); }}
                                 >
                                   <FolderPlus className="h-4 w-4" />
                                 </Button>
@@ -2071,8 +2082,13 @@ const CreativeWriting: React.FC = () => {
                                 variant="ghost" 
                                 className="h-7 w-7 text-destructive" 
                                 title="Șterge" 
-                                onClick={(e) => { e.stopPropagation(); deleteWriting(writing.id); setMobileSelectedWritingId(null); }}
-                                onTouchEnd={(e) => { e.stopPropagation(); }}
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                onTouchEnd={(e) => { 
+                                  e.stopPropagation(); 
+                                  e.preventDefault();
+                                  deleteWriting(writing.id); 
+                                  setMobileSelectedWritingId(null); 
+                                }}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -2081,8 +2097,12 @@ const CreativeWriting: React.FC = () => {
                                 variant="ghost" 
                                 className="h-7 w-7" 
                                 title="Închide" 
-                                onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}
-                                onTouchEnd={(e) => { e.stopPropagation(); }}
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                onTouchEnd={(e) => { 
+                                  e.stopPropagation(); 
+                                  e.preventDefault();
+                                  setMobileSelectedWritingId(null); 
+                                }}
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -2126,8 +2146,16 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
+                                    if (!isMobile) {
+                                      setEditing(writing); 
+                                      setIsEditorOpen(true);
+                                    }
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
                                     setEditing(writing); 
-                                    setIsEditorOpen(true); 
+                                    setIsEditorOpen(true);
                                   }}
                                   title="Editează"
                                   className="h-6 w-6 p-0 flex-shrink-0"
@@ -2525,7 +2553,16 @@ const CreativeWriting: React.FC = () => {
       </Dialog>
 
       {/* Editor Modal */}
-      <Dialog open={isEditorOpen} onOpenChange={(open) => { if (!open) setIsEditorOpen(false); }}>
+      <Dialog open={isEditorOpen} onOpenChange={async (open) => { 
+        if (!open) {
+          // Auto-save when closing on mobile
+          if (isMobile && editing) {
+            await saveEditing();
+          } else {
+            setIsEditorOpen(false);
+          }
+        }
+      }}>
         <DialogContent className={`${isMobile ? 'max-w-full h-full w-full m-0 p-0 border-0 rounded-none' : 'max-w-3xl w-full'}`}>
           {isMobile ? (
             // Mobile fullscreen editor - redesigned like note app

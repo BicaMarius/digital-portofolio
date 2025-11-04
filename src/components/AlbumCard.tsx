@@ -544,8 +544,13 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                           variant="ghost" 
                           className="h-7 w-7" 
                           title="Scoate din album" 
-                          onClick={(e) => { e.stopPropagation(); onRemoveWritingFromAlbum?.(album.id, writing.id); setMobileSelectedWritingId(null); }}
-                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          onTouchEnd={(e) => { 
+                            e.stopPropagation(); 
+                            e.preventDefault();
+                            onRemoveWritingFromAlbum?.(album.id, writing.id); 
+                            setMobileSelectedWritingId(null); 
+                          }}
                         >
                           <Undo2 className="h-4 w-4" />
                         </Button>
@@ -554,8 +559,13 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                           variant="ghost" 
                           className="h-7 w-7" 
                           title="Editează" 
-                          onClick={(e) => { e.stopPropagation(); onEditWriting?.(writing); setMobileSelectedWritingId(null); }}
-                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          onTouchEnd={(e) => { 
+                            e.stopPropagation(); 
+                            e.preventDefault();
+                            onEditWriting?.(writing); 
+                            setMobileSelectedWritingId(null); 
+                          }}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -564,8 +574,13 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                           variant="ghost" 
                           className="h-7 w-7 text-destructive" 
                           title="Șterge" 
-                          onClick={(e) => { e.stopPropagation(); onDeleteWritingFromAlbum?.(album.id, writing.id); setMobileSelectedWritingId(null); }}
-                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          onTouchEnd={(e) => { 
+                            e.stopPropagation(); 
+                            e.preventDefault();
+                            onDeleteWritingFromAlbum?.(album.id, writing.id); 
+                            setMobileSelectedWritingId(null); 
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -574,8 +589,12 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                           variant="ghost" 
                           className="h-7 w-7" 
                           title="Închide" 
-                          onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}
-                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          onTouchEnd={(e) => { 
+                            e.stopPropagation(); 
+                            e.preventDefault();
+                            setMobileSelectedWritingId(null); 
+                          }}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -886,8 +905,17 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                               <Button
                                 size="sm"
                                 variant={isInAlbum ? "outline" : "default"}
-                                onClick={() => toggleWritingInAlbum(writing.id, isInAlbum)}
-                                onTouchEnd={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  if (!isMobile) {
+                                    e.stopPropagation();
+                                    toggleWritingInAlbum(writing.id, isInAlbum);
+                                  }
+                                }}
+                                onTouchEnd={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  toggleWritingInAlbum(writing.id, isInAlbum);
+                                }}
                                 title={isInAlbum ? "Scoate din album" : "Adaugă în album"}
                                 className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}
                               >
@@ -896,8 +924,17 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                onClick={() => onEditWriting?.(writing)} 
-                                onTouchEnd={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  if (!isMobile) {
+                                    e.stopPropagation();
+                                    onEditWriting?.(writing);
+                                  }
+                                }}
+                                onTouchEnd={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  onEditWriting?.(writing);
+                                }}
                                 title="Editează" 
                                 className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}
                               >
@@ -907,8 +944,17 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  onClick={() => onDeleteWritingFromAlbum?.(album.id, writing.id)}
-                                  onTouchEnd={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    if (!isMobile) {
+                                      e.stopPropagation();
+                                      onDeleteWritingFromAlbum?.(album.id, writing.id);
+                                    }
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    onDeleteWritingFromAlbum?.(album.id, writing.id);
+                                  }}
                                   title="Șterge definitiv"
                                   className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}
                                 >
