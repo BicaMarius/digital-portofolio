@@ -139,7 +139,12 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
       longPressTimer.current = null;
     }
     
+    // Check if the touch ended on the mobile action bar or any of its buttons
+    const target = e.target as HTMLElement;
+    const isTouchingActionBar = target.closest('[data-mobile-action-bar]');
+    
     // If long press was not triggered and touch didn't move much, it's a tap
+    // BUT don't open the writing if mobile action bar is already open for this writing
     if (!longPressActive && touchStartPos.current) {
       const touch = e.changedTouches[0];
       const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
@@ -147,8 +152,14 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
       
       // Only trigger tap if movement was minimal
       if (deltaX < 10 && deltaY < 10) {
-        // Tap = open writing
-        onWritingClick(writing);
+        // Don't open writing if action bar is visible OR if touching the action bar
+        if (mobileSelectedWritingId !== writing.id && !isTouchingActionBar) {
+          // Tap = open writing
+          onWritingClick(writing);
+        } else if (mobileSelectedWritingId === writing.id && !isTouchingActionBar) {
+          // Tapping the same writing again when action bar is open = close action bar
+          setMobileSelectedWritingId(null);
+        }
       }
     }
     
@@ -527,17 +538,45 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     
                     {/* Mobile action bar pentru scrieri din albumuri */}
                     {mobileSelectedWritingId === writing.id && isMobile && isAdmin && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Scoate din album" onClick={(e) => { e.stopPropagation(); onRemoveWritingFromAlbum?.(album.id, writing.id); setMobileSelectedWritingId(null); }}>
+                      <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7" 
+                          title="Scoate din album" 
+                          onClick={(e) => { e.stopPropagation(); onRemoveWritingFromAlbum?.(album.id, writing.id); setMobileSelectedWritingId(null); }}
+                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                        >
                           <Undo2 className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Editează" onClick={(e) => { e.stopPropagation(); onEditWriting?.(writing); setMobileSelectedWritingId(null); }}>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7" 
+                          title="Editează" 
+                          onClick={(e) => { e.stopPropagation(); onEditWriting?.(writing); setMobileSelectedWritingId(null); }}
+                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Șterge" onClick={(e) => { e.stopPropagation(); onDeleteWritingFromAlbum?.(album.id, writing.id); setMobileSelectedWritingId(null); }}>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7 text-destructive" 
+                          title="Șterge" 
+                          onClick={(e) => { e.stopPropagation(); onDeleteWritingFromAlbum?.(album.id, writing.id); setMobileSelectedWritingId(null); }}
+                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Închide" onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7" 
+                          title="Închide" 
+                          onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}
+                          onTouchEnd={(e) => { e.stopPropagation(); }}
+                        >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
@@ -838,17 +877,30 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                 </p>
                               </div>
                             </div>
-                            <div className={`flex gap-1 flex-shrink-0 ${isMobile ? 'flex-col' : ''}`} onClick={(e) => e.stopPropagation()}>
+                            <div 
+                              data-mobile-action-bar="true" 
+                              className={`flex gap-1 flex-shrink-0 ${isMobile ? 'flex-col' : ''}`} 
+                              onClick={(e) => e.stopPropagation()}
+                              onTouchEnd={(e) => e.stopPropagation()}
+                            >
                               <Button
                                 size="sm"
                                 variant={isInAlbum ? "outline" : "default"}
                                 onClick={() => toggleWritingInAlbum(writing.id, isInAlbum)}
+                                onTouchEnd={(e) => e.stopPropagation()}
                                 title={isInAlbum ? "Scoate din album" : "Adaugă în album"}
                                 className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}
                               >
                                 {isInAlbum ? <Minus className="h-2.5 w-2.5" /> : <Plus className="h-2.5 w-2.5" />}
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => onEditWriting?.(writing)} title="Editează" className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => onEditWriting?.(writing)} 
+                                onTouchEnd={(e) => e.stopPropagation()}
+                                title="Editează" 
+                                className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}
+                              >
                                 <Edit className="h-2.5 w-2.5" />
                               </Button>
                               {isInAlbum && (
@@ -856,6 +908,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                                   size="sm"
                                   variant="destructive"
                                   onClick={() => onDeleteWritingFromAlbum?.(album.id, writing.id)}
+                                  onTouchEnd={(e) => e.stopPropagation()}
                                   title="Șterge definitiv"
                                   className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} p-0`}
                                 >

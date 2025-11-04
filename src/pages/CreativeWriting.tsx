@@ -1123,7 +1123,12 @@ const CreativeWriting: React.FC = () => {
       longPressTimer.current = null;
     }
     
+    // Check if the touch ended on the mobile action bar or any of its buttons
+    const target = e.target as HTMLElement;
+    const isTouchingActionBar = target.closest('[data-mobile-action-bar]');
+    
     // If long press was not triggered and touch didn't move much, it's a tap
+    // BUT don't open the writing if mobile action bar is already open for this writing
     if (!longPressActive && touchStartPos.current) {
       const touch = e.changedTouches[0];
       const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
@@ -1131,10 +1136,16 @@ const CreativeWriting: React.FC = () => {
       
       // Only trigger tap if movement was minimal
       if (deltaX < 10 && deltaY < 10) {
-        // Tap = open writing
-        const writing = allVisibleWritings.find(w => w.id === writingId);
-        if (writing) {
-          setSelectedWriting(writing);
+        // Don't open writing if action bar is visible OR if touching the action bar
+        if (mobileSelectedWritingId !== writingId && !isTouchingActionBar) {
+          // Tap = open writing
+          const writing = allVisibleWritings.find(w => w.id === writingId);
+          if (writing) {
+            setSelectedWriting(writing);
+          }
+        } else if (mobileSelectedWritingId === writingId && !isTouchingActionBar) {
+          // Tapping the same writing again when action bar is open = close action bar
+          setMobileSelectedWritingId(null);
         }
       }
     }
@@ -2017,27 +2028,62 @@ const CreativeWriting: React.FC = () => {
                           {mobileSelectedWritingId === writing.id && isMobile && (
                             <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border">
                               {Array.isArray(writing.tags) && writing.tags.includes(PIN_TAG) ? (
-                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Anulează prioritate" onClick={(e) => { e.stopPropagation(); removePriority(writing.id); setMobileSelectedWritingId(null); }}>
+                                <Button 
+                                  size="icon" 
+                                  variant="ghost" 
+                                  className="h-7 w-7" 
+                                  title="Anulează prioritate" 
+                                  onClick={(e) => { e.stopPropagation(); removePriority(writing.id); setMobileSelectedWritingId(null); }}
+                                  onTouchEnd={(e) => { e.stopPropagation(); }}
+                                >
                                   <ArrowUpFromLine className="h-4 w-4" />
                                 </Button>
                               ) : (
-                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Mută prima" onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); setMobileSelectedWritingId(null); }}>
+                                <Button 
+                                  size="icon" 
+                                  variant="ghost" 
+                                  className="h-7 w-7" 
+                                  title="Mută prima" 
+                                  onClick={(e) => { e.stopPropagation(); moveWritingToTop(writing.id); setMobileSelectedWritingId(null); }}
+                                  onTouchEnd={(e) => { e.stopPropagation(); }}
+                                >
                                   <ArrowUp className="h-4 w-4" />
                                 </Button>
                               )}
                               {albums.length > 0 && (
-                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Adaugă în album" onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setAddToAlbumDialog({ open: true, writingId: writing.id });
-                                  setMobileSelectedWritingId(null);
-                                }}>
+                                <Button 
+                                  size="icon" 
+                                  variant="ghost" 
+                                  className="h-7 w-7" 
+                                  title="Adaugă în album" 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setAddToAlbumDialog({ open: true, writingId: writing.id });
+                                    setMobileSelectedWritingId(null);
+                                  }}
+                                  onTouchEnd={(e) => { e.stopPropagation(); }}
+                                >
                                   <FolderPlus className="h-4 w-4" />
                                 </Button>
                               )}
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Șterge" onClick={(e) => { e.stopPropagation(); deleteWriting(writing.id); setMobileSelectedWritingId(null); }}>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-7 w-7 text-destructive" 
+                                title="Șterge" 
+                                onClick={(e) => { e.stopPropagation(); deleteWriting(writing.id); setMobileSelectedWritingId(null); }}
+                                onTouchEnd={(e) => { e.stopPropagation(); }}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Închide" onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-7 w-7" 
+                                title="Închide" 
+                                onClick={(e) => { e.stopPropagation(); setMobileSelectedWritingId(null); }}
+                                onTouchEnd={(e) => { e.stopPropagation(); }}
+                              >
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
