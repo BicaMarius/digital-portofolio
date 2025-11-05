@@ -11,6 +11,18 @@ export const projects = pgTable("projects", {
   subcategory: text("subcategory").notNull(),
   isPrivate: boolean("is_private").notNull().default(false),
   tags: text("tags").array().notNull().default([]),
+  // New fields for enhanced project details
+  projectType: text("project_type"), // Tag: aplicatie, site web, platforma, joc, etc
+  icon: text("icon"), // Cloudinary URL for project icon
+  images: text("images").array().default([]), // Array of Cloudinary URLs for project images
+  hoursWorked: integer("hours_worked"), // Number of hours worked on project
+  frontendTech: text("frontend_tech").array().default([]), // Frontend technologies used
+  backendTech: text("backend_tech").array().default([]), // Backend technologies used
+  initialReleaseDate: text("initial_release_date"), // Date of first stable version
+  lastUpdatedDate: text("last_updated_date"), // Date of last update
+  additionalFiles: text("additional_files").array().default([]), // Cloudinary URLs for additional files (instructions, presentations, etc)
+  gitUrl: text("git_url"), // Git repository URL
+  projectUrl: text("project_url"), // Live project URL or access path
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -1,5 +1,5 @@
-// API helper functions for Creative Writing
-import type { Writing, Album, Tag } from '@shared/schema';
+// API helper functions for Creative Writing and Projects
+import type { Writing, Album, Tag, Project } from '@shared/schema';
 
 const API_BASE = '/api';
 
@@ -158,4 +158,53 @@ export async function deleteTag(id: number): Promise<void> {
   return apiCall<void>(`/tags/${id}`, {
     method: 'DELETE',
   });
+}
+
+// ============ PROJECTS API ============
+
+export async function getProjects(): Promise<Project[]> {
+  return apiCall<Project[]>('/projects');
+}
+
+export async function getProject(id: number): Promise<Project> {
+  return apiCall<Project>(`/projects/${id}`);
+}
+
+export async function createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
+  return apiCall<Project>('/projects', {
+    method: 'POST',
+    body: JSON.stringify(project),
+  });
+}
+
+export async function updateProject(id: number, updates: Partial<Project>): Promise<Project> {
+  try {
+    return await apiCall<Project>(`/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err?.status === 405) {
+      return apiCall<Project>(`/projects-update?id=${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      });
+    }
+    throw err;
+  }
+}
+
+export async function deleteProject(id: number): Promise<void> {
+  try {
+    return await apiCall<void>(`/projects/${id}`, { method: 'DELETE' });
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err?.status === 405) {
+      return apiCall<void>(`/projects-delete?id=${id}`, {
+        method: 'DELETE',
+      });
+    }
+    throw err;
+  }
 }
