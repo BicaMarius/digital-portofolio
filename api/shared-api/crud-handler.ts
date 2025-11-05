@@ -23,33 +23,34 @@ export function createCrudHandler(table: any) {
     try {
       const { id } = req.query;
 
-      // GET all or GET by id
-      if (req.method === 'GET') {
-        if (id) {
-          const items = await db
-            .select()
-            .from(table)
-            .where(eq(table.id, parseInt(id as string)));
-          
-          if (items.length === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-          }
-          
-          return res.status(200).json(items[0]);
-        } else {
-          const items = await db.select().from(table);
-          return res.status(200).json(items);
-        }
+      // GET all items (when no ID)
+      if (req.method === 'GET' && !id) {
+        const items = await db.select().from(table);
+        return res.status(200).json(items);
       }
 
-      // POST - Create new
-      if (req.method === 'POST') {
+      // GET single item by ID
+      if (req.method === 'GET' && id) {
+        const items = await db
+          .select()
+          .from(table)
+          .where(eq(table.id, parseInt(id as string)));
+        
+        if (items.length === 0) {
+          return res.status(404).json({ error: 'Item not found' });
+        }
+        
+        return res.status(200).json(items[0]);
+      }
+
+      // POST - Create new item (no ID needed)
+      if (req.method === 'POST' && !id) {
         const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
         const newItem = await db.insert(table).values(payload).returning();
         return res.status(201).json(newItem[0]);
       }
 
-      // PATCH - Update
+      // PATCH - Update existing item (requires ID)
       if (req.method === 'PATCH' && id) {
         const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
         
@@ -71,7 +72,7 @@ export function createCrudHandler(table: any) {
         return res.status(200).json(updated[0]);
       }
 
-      // DELETE
+      // DELETE - Delete item (requires ID)
       if (req.method === 'DELETE' && id) {
         await db
           .delete(table)
