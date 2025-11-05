@@ -47,37 +47,14 @@ export async function createWriting(writing: Omit<Writing, 'id'>): Promise<Writi
 }
 
 export async function updateWriting(id: number, updates: Partial<Writing>): Promise<Writing> {
-  try {
-    return await apiCall<Writing>(`/writings/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  } catch (e) {
-    const err = e as Error & { status?: number };
-    if (err?.status === 405) {
-      // Fallback to POST command endpoint
-      return apiCall<Writing>(`/writings-update`, {
-        method: 'POST',
-        body: JSON.stringify({ id, updates }),
-      });
-    }
-    throw err;
-  }
+  return apiCall<Writing>(`/writings/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteWriting(id: number): Promise<void> {
-  try {
-    return await apiCall<void>(`/writings/${id}`, { method: 'DELETE' });
-  } catch (e) {
-    const err = e as Error & { status?: number };
-    if (err?.status === 405) {
-      return apiCall<void>(`/writings-delete`, {
-        method: 'POST',
-        body: JSON.stringify({ id }),
-      });
-    }
-    throw err;
-  }
+  return apiCall<void>(`/writings/${id}`, { method: 'DELETE' });
 }
 
 // ============ ALBUMS API ============
@@ -98,36 +75,14 @@ export async function createAlbum(album: Omit<Album, 'id'>): Promise<Album> {
 }
 
 export async function updateAlbum(id: number, updates: Partial<Album>): Promise<Album> {
-  try {
-    return await apiCall<Album>(`/albums/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  } catch (e) {
-    const err = e as Error & { status?: number };
-    if (err?.status === 405) {
-      return apiCall<Album>(`/albums-update`, {
-        method: 'POST',
-        body: JSON.stringify({ id, updates }),
-      });
-    }
-    throw err;
-  }
+  return apiCall<Album>(`/albums/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteAlbum(id: number): Promise<void> {
-  try {
-    return await apiCall<void>(`/albums/${id}`, { method: 'DELETE' });
-  } catch (e) {
-    const err = e as Error & { status?: number };
-    if (err?.status === 405) {
-      return apiCall<void>(`/albums-delete`, {
-        method: 'POST',
-        body: JSON.stringify({ id }),
-      });
-    }
-    throw err;
-  }
+  return apiCall<void>(`/albums/${id}`, { method: 'DELETE' });
 }
 
 // ============ TAGS API ============
@@ -178,33 +133,12 @@ export async function createProject(project: Omit<Project, 'id' | 'createdAt' | 
 }
 
 export async function updateProject(id: number, updates: Partial<Project>): Promise<Project> {
-  try {
-    return await apiCall<Project>(`/projects/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  } catch (e) {
-    const err = e as Error & { status?: number };
-    if (err?.status === 405) {
-      return apiCall<Project>(`/projects-update?id=${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(updates),
-      });
-    }
-    throw err;
-  }
+  return apiCall<Project>(`/projects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteProject(id: number): Promise<void> {
-  try {
-    return await apiCall<void>(`/projects/${id}`, { method: 'DELETE' });
-  } catch (e) {
-    const err = e as Error & { status?: number };
-    if (err?.status === 405) {
-      return apiCall<void>(`/projects-delete?id=${id}`, {
-        method: 'DELETE',
-      });
-    }
-    throw err;
-  }
+  return apiCall<void>(`/projects/${id}`, { method: 'DELETE' });
 }
