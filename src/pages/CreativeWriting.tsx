@@ -2055,8 +2055,7 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   className="h-7 w-7" 
                                   title="Anulează prioritate" 
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onTouchEnd={(e) => { 
+                                  onPointerDown={(e) => { 
                                     e.stopPropagation(); 
                                     e.preventDefault();
                                     actionButtonClicked.current = true;
@@ -2072,8 +2071,7 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   className="h-7 w-7" 
                                   title="Mută prima" 
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onTouchEnd={(e) => { 
+                                  onPointerDown={(e) => { 
                                     e.stopPropagation(); 
                                     e.preventDefault();
                                     actionButtonClicked.current = true;
@@ -2090,8 +2088,7 @@ const CreativeWriting: React.FC = () => {
                                   variant="ghost" 
                                   className="h-7 w-7" 
                                   title="Adaugă în album" 
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onTouchEnd={(e) => { 
+                                  onPointerDown={(e) => { 
                                     e.stopPropagation(); 
                                     e.preventDefault();
                                     actionButtonClicked.current = true;
@@ -2107,8 +2104,7 @@ const CreativeWriting: React.FC = () => {
                                 variant="ghost" 
                                 className="h-7 w-7 text-destructive" 
                                 title="Șterge" 
-                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                onTouchEnd={(e) => { 
+                                onPointerDown={(e) => { 
                                   e.stopPropagation(); 
                                   e.preventDefault();
                                   actionButtonClicked.current = true;
@@ -2123,8 +2119,7 @@ const CreativeWriting: React.FC = () => {
                                 variant="ghost" 
                                 className="h-7 w-7" 
                                 title="Închide" 
-                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                onTouchEnd={(e) => { 
+                                onPointerDown={(e) => { 
                                   e.stopPropagation(); 
                                   e.preventDefault();
                                   actionButtonClicked.current = true;
@@ -2590,7 +2585,7 @@ const CreativeWriting: React.FC = () => {
           }
         }
       }}>
-        <DialogContent className={`${isMobile ? 'max-w-full h-full w-full m-0 p-0 border-0 rounded-none' : 'max-w-3xl w-full'}`}>
+        <DialogContent className={`${isMobile ? 'max-w-full h-full w-full m-0 p-0 border-0 rounded-none [&>button]:hidden' : 'max-w-3xl w-full'}`}>
           {isMobile ? (
             // Mobile fullscreen editor - redesigned like note app
             <div className="flex flex-col h-full bg-background">
