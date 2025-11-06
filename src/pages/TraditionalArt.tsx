@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, FolderOpen, Folder, Images, Grid3X3, List } from 'lucide-react';
+import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, Images, Grid3X3, List, ChevronsUpDown } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -232,7 +232,7 @@ const TraditionalArt: React.FC = () => {
                   <List className="h-4 w-4" />
                 </Button>
               </div>
-              <span className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Collapse / Expand</span>
+              <ChevronsUpDown className="h-4 w-4 text-muted-foreground hidden sm:block" />
               <Switch
                 checked={expandAll}
                 onCheckedChange={(checked) => {
@@ -268,8 +268,12 @@ const TraditionalArt: React.FC = () => {
                         setExpandAll(next.size === albums.length);
                       }}
                     >
-                      <div className="relative w-12 h-12 rounded-md bg-muted flex items-center justify-center">
-                        {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
+                      <div className="relative w-12 h-12">
+                        <div className="absolute -left-1 -top-1 w-10 h-10 rounded bg-muted border border-border/70" />
+                        <div className="absolute -right-1 -bottom-1 w-10 h-10 rounded bg-muted border border-border/70" />
+                        <div className="absolute inset-0 rounded overflow-hidden border border-border">
+                          <img src={album.cover} alt={album.title} className="w-full h-full object-cover opacity-90" />
+                        </div>
                         <span className="absolute -right-2 -top-2 text-xs bg-background border border-border rounded-full px-1">{album.artworks.length}</span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -335,7 +339,7 @@ const TraditionalArt: React.FC = () => {
                         <CardContent className="p-0">
                           <button
                             aria-expanded={isExpanded}
-                            className="relative w-[160px] h-[120px] sm:w-[200px] sm:h-[150px]"
+                            className="relative w-[160px] h-[160px] sm:w-[220px] sm:h-[300px]"
                             onClick={() => {
                               const next = new Set(expandedAlbumIds);
                               if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
@@ -343,22 +347,17 @@ const TraditionalArt: React.FC = () => {
                               setExpandAll(next.size === albums.length);
                             }}
                           >
-                            {/* Visual cover same size as image cards */}
-                            <div className="absolute inset-0 bg-muted flex items-center justify-center">
-                              {isExpanded ? (
-                                <FolderOpen className="h-8 w-8 text-art-accent" />
-                              ) : (
-                                <Folder className="h-8 w-8 text-muted-foreground" />
-                              )}
+                            {/* Cover image with subtle stacked sheets */}
+                            <div className="absolute -left-2 -top-2 w-10 h-10 rounded bg-muted border border-border/70 hidden sm:block" />
+                            <div className="absolute -right-2 -bottom-2 w-10 h-10 rounded bg-muted border border-border/70 hidden sm:block" />
+                            <div className="absolute inset-0 bg-muted">
+                              <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
                             </div>
                             {!isExpanded && (
-                              <>
-                                <div className="absolute -left-1 -top-1 w-4 h-4 rounded-sm bg-muted border border-border" />
-                                <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-muted border border-border" />
-                              </>
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
                             )}
-                            <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur px-2 py-1 text-xs flex items-center justify-between">
-                              <span className="font-medium truncate max-w-[120px] sm:max-w-[160px]">{album.title}</span>
+                            <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur px-2 py-2 text-sm flex items-center justify-between">
+                              <span className="font-medium truncate max-w-[160px] sm:max-w-[200px]">{album.title}</span>
                               <span className="ml-2 flex items-center gap-1"><Images className="h-3 w-3" />{album.artworks.length}</span>
                             </div>
                           </button>
@@ -378,7 +377,7 @@ const TraditionalArt: React.FC = () => {
                             onClick={() => setSelectedArtwork(artwork)}
                           >
                             <CardContent className="p-0">
-                              <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
+                              <div className="w-[160px] h-[160px] sm:w-[220px] sm:h-[300px] overflow-hidden">
                                 <img src={artwork.image} alt={artwork.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                               </div>
                             </CardContent>
