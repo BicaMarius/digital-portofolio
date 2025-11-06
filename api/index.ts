@@ -1,12 +1,12 @@
 import type { Request, Response } from 'express';
 import express from 'express';
-import { db } from '../server/db';
+import { db } from '../server/db.js';
 import { 
   writings, 
   projects, 
   albums, 
   tags
-} from '../shared/schema';
+} from '../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 const app = express();
