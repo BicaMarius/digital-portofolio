@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, FolderOpen, Folder, Images } from 'lucide-react';
+import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, FolderOpen, Folder, Images, Grid3X3, List } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -83,6 +83,7 @@ const TraditionalArt: React.FC = () => {
   const [selectedArtwork, setSelectedArtwork] = useState<TraditionalArtwork | null>(null);
   // Album UX state
   const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [expandAll, setExpandAll] = useState(true);
@@ -205,7 +206,25 @@ const TraditionalArt: React.FC = () => {
             </Select>
 
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs sm:text-sm text-muted-foreground hidden xs:block">Collapse / Expand</span>
+              <div className="flex gap-1">
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'outline'}
+                  size="icon"
+                  className="h-10 w-10"
+                  onClick={() => setViewMode('grid')}
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'outline'}
+                  size="icon"
+                  className="h-10 w-10"
+                  onClick={() => setViewMode('list')}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+              <span className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Collapse / Expand</span>
               <Switch
                 checked={expandAll}
                 onCheckedChange={(checked) => {
@@ -223,75 +242,139 @@ const TraditionalArt: React.FC = () => {
             )}
           </div>
 
-          {/* Albums list */}
-          <div className="space-y-4">
-            {filteredAlbums.map((album) => {
-              const isExpanded = expandedAlbumIds.has(album.id);
-              return (
-                <div key={album.id} className="border border-border/60 rounded-xl overflow-hidden">
-                  {/* Album header / cover */}
-                  <button
-                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors"
-                    onClick={() => {
-                      const next = new Set(expandedAlbumIds);
-                      if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
-                      setExpandedAlbumIds(next);
-                      setExpandAll(next.size === albums.length);
-                    }}
-                  >
-                    <div className="relative w-12 h-12 rounded-md bg-muted flex items-center justify-center">
-                      {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
-                      <span className="absolute -right-2 -top-2 text-xs bg-background border border-border rounded-full px-1">{album.artworks.length}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold truncate">{album.title}</h3>
-                        <Badge variant="outline" className="bg-art-accent/10 border-art-accent/20 text-xs">
-                          <Images className="h-3 w-3 mr-1" /> {album.artworks.length}
-                        </Badge>
+          {viewMode === 'list' ? (
+            // LIST VIEW: vertical albums with nested image grid
+            <div className="space-y-4">
+              {filteredAlbums.map((album) => {
+                const isExpanded = expandedAlbumIds.has(album.id);
+                return (
+                  <div key={album.id} className="border border-border/60 rounded-xl overflow-hidden">
+                    {/* Album header */}
+                    <button
+                      aria-expanded={isExpanded}
+                      className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors"
+                      onClick={() => {
+                        const next = new Set(expandedAlbumIds);
+                        if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
+                        setExpandedAlbumIds(next);
+                        setExpandAll(next.size === albums.length);
+                      }}
+                    >
+                      <div className="relative w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                        {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
+                        <span className="absolute -right-2 -top-2 text-xs bg-background border border-border rounded-full px-1">{album.artworks.length}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">Click pentru a {isExpanded ? 'închide' : 'extinde'} albumul</p>
-                    </div>
-                  </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold truncate">{album.title}</h3>
+                          <Badge variant="outline" className="bg-art-accent/10 border-art-accent/20 text-xs">
+                            <Images className="h-3 w-3 mr-1" /> {album.artworks.length}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">Click pentru a {isExpanded ? 'închide' : 'extinde'} albumul</p>
+                      </div>
+                    </button>
 
-                  {/* Images strip - expand left to right with per-item stagger */}
-                  <div className={`px-4 pb-4 transition-[max-height] duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'} overflow-hidden`}>
-                    <div className="flex flex-wrap gap-3 pt-2">
-                      {album.artworks.map((artwork, i) => (
+                    {/* Images strip */}
+                    <div className={`px-4 pb-4 transition-[max-height] duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'} overflow-hidden`}>
+                      <div className="flex flex-wrap gap-3 pt-2">
+                        {album.artworks.map((artwork, i) => (
+                          <Card
+                            key={artwork.id}
+                            className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300"
+                            style={{ transitionDelay: isExpanded ? `${i * 40}ms` : '0ms', opacity: isExpanded ? 1 : 0, transform: isExpanded ? 'translateX(0)' : 'translateX(-12px)' }}
+                            onClick={() => setSelectedArtwork(artwork)}
+                          >
+                            <CardContent className="p-0">
+                              <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
+                                <img
+                                  src={artwork.image}
+                                  alt={artwork.title}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                />
+                              </div>
+                              <div className="px-3 py-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium truncate max-w-[120px] sm:max-w-[160px]">{artwork.title}</span>
+                                  <Badge className="bg-art-accent/20 text-art-accent ml-2" variant="outline">
+                                    <span className="flex items-center gap-1">
+                                      {getCategoryIcon(artwork.category)}
+                                    </span>
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">{artwork.medium}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            // GRID VIEW: horizontal flow with inline albums and images
+            <div className="overflow-x-auto pb-2">
+              <div className="inline-flex items-stretch gap-3 min-w-full">
+                {filteredAlbums.flatMap((album) => {
+                  const isExpanded = expandedAlbumIds.has(album.id);
+                  const header = (
+                    <Card key={`album-${album.id}`} className="min-w-[180px] max-w-[220px]">
+                      <button
+                        aria-expanded={isExpanded}
+                        className="w-full text-left p-3 flex items-center gap-3"
+                        onClick={() => {
+                          const next = new Set(expandedAlbumIds);
+                          if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
+                          setExpandedAlbumIds(next);
+                          setExpandAll(next.size === albums.length);
+                        }}
+                      >
+                        {/* Stacked thumbnails look */}
+                        <div className="relative w-12 h-12">
+                          <div className="absolute inset-0 rounded-md bg-muted flex items-center justify-center border border-border">
+                            {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
+                          </div>
+                          {!isExpanded && (
+                            <>
+                              <div className="absolute -left-1 -top-1 w-4 h-4 rounded-sm bg-muted border border-border" />
+                              <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-muted border border-border" />
+                            </>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate max-w-[120px]">{album.title}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Images className="h-3 w-3" /> {album.artworks.length} imagini
+                          </div>
+                        </div>
+                      </button>
+                    </Card>
+                  );
+
+                  const images = isExpanded
+                    ? album.artworks.map((artwork, i) => (
                         <Card
-                          key={artwork.id}
-                          className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300"
-                          style={{ transitionDelay: isExpanded ? `${i * 40}ms` : '0ms', opacity: isExpanded ? 1 : 0, transform: isExpanded ? 'translateX(0)' : 'translateX(-12px)' }}
+                          key={`art-${album.id}-${artwork.id}`}
+                          className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px]"
+                          style={{ transitionDelay: `${i * 40}ms`, opacity: 1, transform: 'translateX(0)' }}
                           onClick={() => setSelectedArtwork(artwork)}
                         >
                           <CardContent className="p-0">
                             <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
-                              <img
-                                src={artwork.image}
-                                alt={artwork.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                              />
-                            </div>
-                            <div className="px-3 py-2">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium truncate max-w-[120px] sm:max-w-[160px]">{artwork.title}</span>
-                                <Badge className="bg-art-accent/20 text-art-accent ml-2" variant="outline">
-                                  <span className="flex items-center gap-1">
-                                    {getCategoryIcon(artwork.category)}
-                                  </span>
-                                </Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground truncate">{artwork.medium}</p>
+                              <img src={artwork.image} alt={artwork.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                      ))
+                    : [];
+
+                  return [header, ...images];
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Note: Pagination no longer needed in albums layout */}
         </div>
