@@ -331,20 +331,25 @@ const TraditionalArt: React.FC = () => {
                   parts.push({
                     key: `album-${album.id}`,
                     node: (
-                      <Card key={`album-${album.id}`} className="min-w-[180px] max-w-[220px]">
-                        <button
-                          aria-expanded={isExpanded}
-                          className="w-full text-left p-3 flex items-center gap-3"
-                          onClick={() => {
-                            const next = new Set(expandedAlbumIds);
-                            if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
-                            setExpandedAlbumIds(next);
-                            setExpandAll(next.size === albums.length);
-                          }}
-                        >
-                          <div className="relative w-12 h-12">
-                            <div className="absolute inset-0 rounded-md bg-muted flex items-center justify-center border border-border">
-                              {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
+                      <Card key={`album-${album.id}`} className="group overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px]">
+                        <CardContent className="p-0">
+                          <button
+                            aria-expanded={isExpanded}
+                            className="relative w-[160px] h-[120px] sm:w-[200px] sm:h-[150px]"
+                            onClick={() => {
+                              const next = new Set(expandedAlbumIds);
+                              if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
+                              setExpandedAlbumIds(next);
+                              setExpandAll(next.size === albums.length);
+                            }}
+                          >
+                            {/* Visual cover same size as image cards */}
+                            <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                              {isExpanded ? (
+                                <FolderOpen className="h-8 w-8 text-art-accent" />
+                              ) : (
+                                <Folder className="h-8 w-8 text-muted-foreground" />
+                              )}
                             </div>
                             {!isExpanded && (
                               <>
@@ -352,14 +357,12 @@ const TraditionalArt: React.FC = () => {
                                 <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-muted border border-border" />
                               </>
                             )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-semibold truncate max-w-[120px]">{album.title}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Images className="h-3 w-3" /> {album.artworks.length} imagini
+                            <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur px-2 py-1 text-xs flex items-center justify-between">
+                              <span className="font-medium truncate max-w-[120px] sm:max-w-[160px]">{album.title}</span>
+                              <span className="ml-2 flex items-center gap-1"><Images className="h-3 w-3" />{album.artworks.length}</span>
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                        </CardContent>
                       </Card>
                     ),
                   });
