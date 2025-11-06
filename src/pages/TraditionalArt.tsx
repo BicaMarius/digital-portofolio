@@ -6,6 +6,7 @@ import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import AlbumCoverDialog from '@/components/AlbumCoverDialog';
+import { getAlbums as apiGetAlbums, createAlbum as apiCreateAlbum, updateAlbum as apiUpdateAlbum } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,8 @@ interface TraditionalAlbum {
   title: string;
   cover: string;
   artworks: TraditionalArtwork[];
+  coverPos?: { x: number; y: number };
+  coverScale?: number;
 }
 
 const mockArtworks: TraditionalArtwork[] = [
@@ -117,11 +120,32 @@ const TraditionalArt: React.FC = () => {
   }, [isAdmin]);
 
   const [albums, setAlbums] = useState<TraditionalAlbum[]>(seedAlbums);
+  const [dbApplied, setDbApplied] = useState(false);
 
   // Sync albums when seed changes (e.g., admin toggle affects visibility)
   React.useEffect(() => {
     setAlbums(seedAlbums);
   }, [seedAlbums]);
+
+  // Optional DB overrides for title/cover/position while keeping mock artworks
+  React.useEffect(() => {
+    if (dbApplied) return;
+    (async () => {
+      try {
+        const list = await apiGetAlbums();
+        setAlbums(prev => prev.map(a => {
+          const match = (list as any[]).find(x => x.name === a.title);
+          if (!match) return a;
+          const { url, pos, scale } = parseIconWithPos(match.icon || '');
+          return { ...a, title: match.name || a.title, cover: url || a.cover, coverPos: pos || a.coverPos, coverScale: scale ?? a.coverScale };
+        }));
+      } catch (e) {
+        console.warn('DB albums not available; staying on mock-only covers');
+      } finally {
+        setDbApplied(true);
+      }
+    })();
+  }, [dbApplied]);
 
   // Initialize expanded state (default: all expanded)
   React.useEffect(() => {
@@ -168,6 +192,27 @@ const TraditionalArt: React.FC = () => {
     }
   };
 
+  function parseIconWithPos(icon: string): { url: string; pos?: { x: number; y: number }; scale?: number } {
+    if (!icon) return { url: '' };
+    const [url, hash] = icon.split('#');
+    if (!hash) return { url };
+    const params = new URLSearchParams(hash);
+    const x = Number(params.get('x'));
+    const y = Number(params.get('y'));
+    const s = Number(params.get('s'));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return { url };
+    const out: any = { url, pos: { x, y } };
+    if (Number.isFinite(s) && s > 0) out.scale = s;
+    return out;
+  }
+
+  function buildIconWithPos(url: string, pos?: { x: number; y: number }, scale?: number) {
+    if (!url) return '';
+    if (!pos) return url;
+    const params = new URLSearchParams({ x: String(Math.round(pos.x)), y: String(Math.round(pos.y)) });
+    if (scale && scale !== 1) params.set('s', String(Number(scale.toFixed(2))));
+    return `${url}#${params.toString()}`;
+  }
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'drawing': return <Pencil className="h-3 w-3" />;
@@ -283,7 +328,7 @@ const TraditionalArt: React.FC = () => {
                         <div className="absolute -left-1 -top-1 w-10 h-10 rounded bg-muted border border-border/70" />
                         <div className="absolute -right-1 -bottom-1 w-10 h-10 rounded bg-muted border border-border/70" />
                         <div className="absolute inset-0 rounded overflow-hidden border border-border">
-                          <img src={album.cover} alt={album.title} className="w-full h-full object-cover opacity-90" />
+                          <img src={album.cover} alt={album.title} className="w-full h-full object-cover opacity-90" style={{ ...(album.coverPos ? { objectPosition: `${album.coverPos.x}% ${album.coverPos.y}%` } : {}), ...(album.coverScale ? { transform: `scale(${album.coverScale})`, transformOrigin: `${album.coverPos?.x ?? 50}% ${album.coverPos?.y ?? 50}%` } : {}) }} />
                         </div>
                         <span className="absolute -right-2 -top-2 text-xs bg-background border border-border rounded-full px-1">{album.artworks.length}</span>
                       </div>
@@ -369,7 +414,7 @@ const TraditionalArt: React.FC = () => {
                             <div className="absolute -left-2 -top-2 w-10 h-10 rounded bg-muted border border-border/70 hidden sm:block" />
                             <div className="absolute -right-2 -bottom-2 w-10 h-10 rounded bg-muted border border-border/70 hidden sm:block" />
                             <div className="absolute inset-0 bg-muted">
-                              <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+                              <img src={album.cover} alt={album.title} className="w-full h-full object-cover" style={{ ...(album.coverPos ? { objectPosition: `${album.coverPos.x}% ${album.coverPos.y}%` } : {}), ...(album.coverScale ? { transform: `scale(${album.coverScale})`, transformOrigin: `${album.coverPos?.x ?? 50}% ${album.coverPos?.y ?? 50}%` } : {}) }} />
                             </div>
                             {!isExpanded && (
                               <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
@@ -528,9 +573,23 @@ const TraditionalArt: React.FC = () => {
           open={!!editingAlbum}
           onOpenChange={(open) => !open && setEditingAlbum(null)}
           album={editingAlbum as any}
-          onSave={(updates) => {
+          onSave={async (updates) => {
             if (!editingAlbum) return;
-            setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? { ...a, title: updates.title ?? a.title, cover: updates.cover ?? a.cover } : a));
+            const newTitle = updates.title ?? editingAlbum.title;
+            const newCover = updates.cover ?? editingAlbum.cover;
+            const iconWithPos = buildIconWithPos(newCover, updates.coverPos, (updates as any).coverPosScale ?? updates.coverScale);
+            try {
+              const list = await apiGetAlbums().catch(() => [] as any[]);
+              const match: any = (list as any[]).find(x => x.name === editingAlbum.title) || null;
+              if (match) {
+                await apiUpdateAlbum(match.id, { name: newTitle, icon: iconWithPos });
+              } else {
+                await apiCreateAlbum({ name: newTitle, itemIds: [], icon: iconWithPos } as any);
+              }
+            } catch (e) {
+              console.warn('Failed to persist album cover/title; keeping local update only', e);
+            }
+            setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? { ...a, title: newTitle, cover: newCover, coverPos: updates.coverPos ?? a.coverPos, coverScale: ((updates as any).coverPosScale ?? updates.coverScale) ?? a.coverScale } : a));
             setEditingAlbum(null);
           }}
           onRemoveFromAlbum={(artworkId) => {
