@@ -84,6 +84,8 @@ const TraditionalArt: React.FC = () => {
   // Album UX state
   const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [gridPage, setGridPage] = useState(0);
+  const GRID_PER_PAGE = 24;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [expandAll, setExpandAll] = useState(true);
@@ -117,7 +119,13 @@ const TraditionalArt: React.FC = () => {
     const all = new Set(albums.map(a => a.id));
     setExpandedAlbumIds(all);
     setExpandAll(true);
+    setGridPage(0);
   }, [albums.length]);
+
+  // When switching views, reset pagination to first page
+  React.useEffect(() => {
+    setGridPage(0);
+  }, [viewMode]);
 
   const filteredAlbums = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -314,66 +322,98 @@ const TraditionalArt: React.FC = () => {
               })}
             </div>
           ) : (
-            // GRID VIEW: horizontal flow with inline albums and images
-            <div className="overflow-x-auto pb-2">
-              <div className="inline-flex items-stretch gap-3 min-w-full">
-                {filteredAlbums.flatMap((album) => {
+            // GRID VIEW: wrapped rows with pagination
+            <>
+              {(() => {
+                const flattened = filteredAlbums.flatMap((album) => {
                   const isExpanded = expandedAlbumIds.has(album.id);
-                  const header = (
-                    <Card key={`album-${album.id}`} className="min-w-[180px] max-w-[220px]">
-                      <button
-                        aria-expanded={isExpanded}
-                        className="w-full text-left p-3 flex items-center gap-3"
-                        onClick={() => {
-                          const next = new Set(expandedAlbumIds);
-                          if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
-                          setExpandedAlbumIds(next);
-                          setExpandAll(next.size === albums.length);
-                        }}
-                      >
-                        {/* Stacked thumbnails look */}
-                        <div className="relative w-12 h-12">
-                          <div className="absolute inset-0 rounded-md bg-muted flex items-center justify-center border border-border">
-                            {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
-                          </div>
-                          {!isExpanded && (
-                            <>
-                              <div className="absolute -left-1 -top-1 w-4 h-4 rounded-sm bg-muted border border-border" />
-                              <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-muted border border-border" />
-                            </>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold truncate max-w-[120px]">{album.title}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Images className="h-3 w-3" /> {album.artworks.length} imagini
-                          </div>
-                        </div>
-                      </button>
-                    </Card>
-                  );
-
-                  const images = isExpanded
-                    ? album.artworks.map((artwork, i) => (
-                        <Card
-                          key={`art-${album.id}-${artwork.id}`}
-                          className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px]"
-                          style={{ transitionDelay: `${i * 40}ms`, opacity: 1, transform: 'translateX(0)' }}
-                          onClick={() => setSelectedArtwork(artwork)}
+                  const parts: Array<{ key: string; node: React.ReactNode }> = [];
+                  parts.push({
+                    key: `album-${album.id}`,
+                    node: (
+                      <Card key={`album-${album.id}`} className="min-w-[180px] max-w-[220px]">
+                        <button
+                          aria-expanded={isExpanded}
+                          className="w-full text-left p-3 flex items-center gap-3"
+                          onClick={() => {
+                            const next = new Set(expandedAlbumIds);
+                            if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
+                            setExpandedAlbumIds(next);
+                            setExpandAll(next.size === albums.length);
+                          }}
                         >
-                          <CardContent className="p-0">
-                            <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
-                              <img src={artwork.image} alt={artwork.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                          <div className="relative w-12 h-12">
+                            <div className="absolute inset-0 rounded-md bg-muted flex items-center justify-center border border-border">
+                              {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))
-                    : [];
+                            {!isExpanded && (
+                              <>
+                                <div className="absolute -left-1 -top-1 w-4 h-4 rounded-sm bg-muted border border-border" />
+                                <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-muted border border-border" />
+                              </>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold truncate max-w-[120px]">{album.title}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Images className="h-3 w-3" /> {album.artworks.length} imagini
+                            </div>
+                          </div>
+                        </button>
+                      </Card>
+                    ),
+                  });
+                  if (isExpanded) {
+                    album.artworks.forEach((artwork, i) => {
+                      parts.push({
+                        key: `art-${album.id}-${artwork.id}`,
+                        node: (
+                          <Card
+                            key={`art-${album.id}-${artwork.id}`}
+                            className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px]"
+                            style={{ transitionDelay: `${i * 40}ms`, opacity: 1, transform: 'translateX(0)' }}
+                            onClick={() => setSelectedArtwork(artwork)}
+                          >
+                            <CardContent className="p-0">
+                              <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
+                                <img src={artwork.image} alt={artwork.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ),
+                      });
+                    });
+                  }
+                  return parts;
+                });
 
-                  return [header, ...images];
-                })}
-              </div>
-            </div>
+                const totalPages = Math.max(1, Math.ceil(flattened.length / GRID_PER_PAGE));
+                const safePage = Math.min(gridPage, totalPages - 1);
+                if (safePage !== gridPage) setGridPage(safePage);
+                const pageItems = flattened.slice(safePage * GRID_PER_PAGE, (safePage + 1) * GRID_PER_PAGE);
+
+                return (
+                  <>
+                    <div className="flex flex-wrap gap-3 mb-6">
+                      {pageItems.map((it) => (
+                        <div key={it.key}>{it.node}</div>
+                      ))}
+                    </div>
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-center gap-4">
+                        <Button variant="outline" onClick={() => setGridPage(Math.max(0, safePage - 1))} disabled={safePage === 0}>
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-muted-foreground">{safePage + 1} din {totalPages}</span>
+                        <Button variant="outline" onClick={() => setGridPage(Math.min(totalPages - 1, safePage + 1))} disabled={safePage === totalPages - 1}>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </>
           )}
 
           {/* Note: Pagination no longer needed in albums layout */}
