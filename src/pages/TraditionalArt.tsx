@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, X, Palette, Brush } from 'lucide-react';
+import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, FolderOpen, Folder, Images } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 
 interface TraditionalArtwork {
   id: number;
@@ -20,6 +21,13 @@ interface TraditionalArtwork {
   description?: string;
   materials: string[];
   isPrivate?: boolean;
+}
+
+interface TraditionalAlbum {
+  id: number;
+  title: string;
+  cover: string;
+  artworks: TraditionalArtwork[];
 }
 
 const mockArtworks: TraditionalArtwork[] = [
@@ -73,37 +81,72 @@ const mockArtworks: TraditionalArtwork[] = [
 const TraditionalArt: React.FC = () => {
   const { isAdmin } = useAdmin();
   const [selectedArtwork, setSelectedArtwork] = useState<TraditionalArtwork | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // Album UX state
+  const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(0);
-  const artworksPerPage = viewMode === 'grid' ? 12 : 6;
+  const [expandAll, setExpandAll] = useState(true);
 
-  const visibleArtworks = (isAdmin ? mockArtworks : mockArtworks.filter(artwork => !artwork.isPrivate))
-    .filter(artwork => 
-      artwork.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (filterCategory === 'all' || artwork.category === filterCategory)
-    );
+  // Seed albums from artworks (demo): group by category and add a mixed album
+  const albums: TraditionalAlbum[] = useMemo(() => {
+    const visible = (isAdmin ? mockArtworks : mockArtworks.filter(a => !a.isPrivate));
+    const byCategory = (category: TraditionalArtwork['category'], title: string, id: number): TraditionalAlbum => ({
+      id,
+      title,
+      cover: '/placeholder.svg',
+      artworks: visible.filter(a => a.category === category),
+    });
+    const mixed: TraditionalAlbum = {
+      id: 99,
+      title: 'Portofoliu mixt',
+      cover: '/placeholder.svg',
+      artworks: visible,
+    };
+    return [
+      byCategory('drawing', 'Desene', 1),
+      byCategory('painting', 'Picturi', 2),
+      byCategory('portrait', 'Portrete', 3),
+      byCategory('landscape', 'Peisaje', 4),
+      mixed,
+    ].filter(alb => alb.artworks.length > 0);
+  }, [isAdmin]);
 
-  const totalPages = Math.ceil(visibleArtworks.length / artworksPerPage);
-  const currentArtworks = visibleArtworks.slice(
-    currentPage * artworksPerPage,
-    (currentPage + 1) * artworksPerPage
-  );
+  // Initialize expanded state (default: all expanded)
+  React.useEffect(() => {
+    const all = new Set(albums.map(a => a.id));
+    setExpandedAlbumIds(all);
+    setExpandAll(true);
+  }, [albums.length]);
 
+  const filteredAlbums = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return albums
+      .map(album => ({
+        ...album,
+        artworks: album.artworks.filter(a =>
+          a.title.toLowerCase().includes(term) && (filterCategory === 'all' || a.category === filterCategory)
+        ),
+      }))
+      .filter(a => a.artworks.length > 0 || albumMatchesTitle(a.title, term));
+  }, [albums, searchTerm, filterCategory]);
+
+  const albumMatchesTitle = (title: string, term: string) => title.toLowerCase().includes(term);
+
+  // Navigation between all visible artworks (flattened)
+  const flatVisibleArtworks = useMemo(() => filteredAlbums.flatMap(a => a.artworks), [filteredAlbums]);
   const nextArtwork = () => {
-    if (selectedArtwork) {
-      const currentIndex = visibleArtworks.findIndex(a => a.id === selectedArtwork.id);
-      const nextIndex = (currentIndex + 1) % visibleArtworks.length;
-      setSelectedArtwork(visibleArtworks[nextIndex]);
+    if (selectedArtwork && flatVisibleArtworks.length) {
+      const currentIndex = flatVisibleArtworks.findIndex(a => a.id === selectedArtwork.id);
+      const nextIndex = (currentIndex + 1) % flatVisibleArtworks.length;
+      setSelectedArtwork(flatVisibleArtworks[nextIndex]);
     }
   };
 
   const prevArtwork = () => {
-    if (selectedArtwork) {
-      const currentIndex = visibleArtworks.findIndex(a => a.id === selectedArtwork.id);
-      const prevIndex = (currentIndex - 1 + visibleArtworks.length) % visibleArtworks.length;
-      setSelectedArtwork(visibleArtworks[prevIndex]);
+    if (selectedArtwork && flatVisibleArtworks.length) {
+      const currentIndex = flatVisibleArtworks.findIndex(a => a.id === selectedArtwork.id);
+      const prevIndex = (currentIndex - 1 + flatVisibleArtworks.length) % flatVisibleArtworks.length;
+      setSelectedArtwork(flatVisibleArtworks[prevIndex]);
     }
   };
 
@@ -134,21 +177,21 @@ const TraditionalArt: React.FC = () => {
             </p>
           </div>
 
-          {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-8">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          {/* Controls - responsive single-row on small screens */}
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Caută opere de artă..."
+                placeholder="Caută albume sau lucrări..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-9 h-10"
               />
             </div>
-            
+
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
+              <SelectTrigger className="w-[140px] sm:w-[180px] h-10">
+                <Filter className="h-4 w-4 mr-2 hidden sm:inline" />
                 <SelectValue placeholder="Categorie" />
               </SelectTrigger>
               <SelectContent>
@@ -161,137 +204,96 @@ const TraditionalArt: React.FC = () => {
               </SelectContent>
             </Select>
 
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'outline'}
-                size="icon"
-                onClick={() => setViewMode('grid')}
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'outline'}
-                size="icon"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs sm:text-sm text-muted-foreground hidden xs:block">Collapse / Expand</span>
+              <Switch
+                checked={expandAll}
+                onCheckedChange={(checked) => {
+                  setExpandAll(!!checked);
+                  setExpandedAlbumIds(checked ? new Set(albums.map(a => a.id)) : new Set());
+                }}
+              />
             </div>
 
             {isAdmin && (
-              <Button className="bg-art-accent hover:bg-art-accent/80">
+              <Button className="bg-art-accent hover:bg-art-accent/80 h-10">
                 <Plus className="h-4 w-4 mr-2" />
                 Adaugă Operă
               </Button>
             )}
           </div>
 
-          {/* Artworks Grid */}
-          <div className={viewMode === 'grid' 
-            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8" 
-            : "space-y-6 mb-8"
-          }>
-            {currentArtworks.map((artwork, index) => (
-              <Card 
-                key={artwork.id}
-                className="group cursor-pointer overflow-hidden hover-scale animate-scale-in border-art-accent/20 hover:border-art-accent/50"
-                style={{ animationDelay: `${index * 50}ms` }}
-                onClick={() => setSelectedArtwork(artwork)}
-              >
-                <CardContent className="p-0">
-                  <div className={viewMode === 'list' 
-                    ? "flex gap-4" 
-                    : "flex flex-col"
-                  }>
-                    <div className={viewMode === 'grid' 
-                      ? "aspect-[3/4] overflow-hidden" 
-                      : "w-48 h-36 flex-shrink-0 overflow-hidden rounded-lg"
-                    }>
-                      <img 
-                        src={artwork.image} 
-                        alt={artwork.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                      />
-                      {artwork.isPrivate && !isAdmin && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="text-white font-semibold">Private</span>
-                        </div>
-                      )}
+          {/* Albums list */}
+          <div className="space-y-4">
+            {filteredAlbums.map((album) => {
+              const isExpanded = expandedAlbumIds.has(album.id);
+              return (
+                <div key={album.id} className="border border-border/60 rounded-xl overflow-hidden">
+                  {/* Album header / cover */}
+                  <button
+                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors"
+                    onClick={() => {
+                      const next = new Set(expandedAlbumIds);
+                      if (next.has(album.id)) next.delete(album.id); else next.add(album.id);
+                      setExpandedAlbumIds(next);
+                      setExpandAll(next.size === albums.length);
+                    }}
+                  >
+                    <div className="relative w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                      {isExpanded ? <FolderOpen className="h-6 w-6 text-art-accent" /> : <Folder className="h-6 w-6 text-muted-foreground" />}
+                      <span className="absolute -right-2 -top-2 text-xs bg-background border border-border rounded-full px-1">{album.artworks.length}</span>
                     </div>
-                    
-                    <div className={viewMode === 'grid' ? "p-4" : "flex-1 p-4"}>
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-lg">{artwork.title}</h3>
-                        <Badge className="bg-art-accent/20 text-art-accent ml-2" variant="outline">
-                          <span className="flex items-center gap-1">
-                            {getCategoryIcon(artwork.category)}
-                            {artwork.category}
-                          </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold truncate">{album.title}</h3>
+                        <Badge variant="outline" className="bg-art-accent/10 border-art-accent/20 text-xs">
+                          <Images className="h-3 w-3 mr-1" /> {album.artworks.length}
                         </Badge>
                       </div>
-                      
-                      <p className="text-muted-foreground text-sm mb-2">{artwork.medium}</p>
-                      
-                      {viewMode === 'list' && artwork.description && (
-                        <p className="text-muted-foreground text-sm mb-3">{artwork.description}</p>
-                      )}
-                      
-                      <div className={viewMode === 'grid' 
-                        ? "flex justify-between items-center text-xs text-muted-foreground" 
-                        : "flex gap-4 text-xs text-muted-foreground"
-                      }>
-                        <span>{artwork.date}</span>
-                        {artwork.dimensions && <span>{artwork.dimensions}</span>}
-                      </div>
-                      
-                      {viewMode === 'list' && (
-                        <div className="flex flex-wrap gap-1 mt-3">
-                          {artwork.materials.slice(0, 3).map((material) => (
-                            <span 
-                              key={material}
-                              className="px-2 py-1 bg-muted rounded text-xs"
-                            >
-                              {material}
-                            </span>
-                          ))}
-                          {artwork.materials.length > 3 && (
-                            <span className="px-2 py-1 bg-muted rounded text-xs">
-                              +{artwork.materials.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <p className="text-xs text-muted-foreground truncate">Click pentru a {isExpanded ? 'închide' : 'extinde'} albumul</p>
+                    </div>
+                  </button>
+
+                  {/* Images strip - expand left to right with per-item stagger */}
+                  <div className={`px-4 pb-4 transition-[max-height] duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'} overflow-hidden`}>
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      {album.artworks.map((artwork, i) => (
+                        <Card
+                          key={artwork.id}
+                          className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300"
+                          style={{ transitionDelay: isExpanded ? `${i * 40}ms` : '0ms', opacity: isExpanded ? 1 : 0, transform: isExpanded ? 'translateX(0)' : 'translateX(-12px)' }}
+                          onClick={() => setSelectedArtwork(artwork)}
+                        >
+                          <CardContent className="p-0">
+                            <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
+                              <img
+                                src={artwork.image}
+                                alt={artwork.title}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                              />
+                            </div>
+                            <div className="px-3 py-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium truncate max-w-[120px] sm:max-w-[160px]">{artwork.title}</span>
+                                <Badge className="bg-art-accent/20 text-art-accent ml-2" variant="outline">
+                                  <span className="flex items-center gap-1">
+                                    {getCategoryIcon(artwork.category)}
+                                  </span>
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">{artwork.medium}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              
-              <span className="text-muted-foreground">
-                {currentPage + 1} din {totalPages}
-              </span>
-
-              <Button
-                variant="outline"
-                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                disabled={currentPage === totalPages - 1}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          {/* Note: Pagination no longer needed in albums layout */}
         </div>
       </div>
 
@@ -300,15 +302,6 @@ const TraditionalArt: React.FC = () => {
         <DialogContent className="max-w-7xl max-h-[90vh] p-0 bg-card">
           {selectedArtwork && (
             <div className="relative flex items-center justify-center h-full">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-4 right-4 z-10"
-                onClick={() => setSelectedArtwork(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-
               <Button
                 variant="ghost"
                 size="icon"
