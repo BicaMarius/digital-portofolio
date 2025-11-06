@@ -1,5 +1,5 @@
-// API helper functions for Creative Writing and Projects
-import type { Writing, Album, Tag, Project } from '@shared/schema';
+// API helper functions for Creative Writing, Projects, Albums, and Gallery Items
+import type { Writing, Album, Tag, Project, GalleryItem } from '@shared/schema';
 
 const API_BASE = '/api';
 
@@ -141,4 +141,32 @@ export async function updateProject(id: number, updates: Partial<Project>): Prom
 
 export async function deleteProject(id: number): Promise<void> {
   return apiCall<void>(`/projects/${id}`, { method: 'DELETE' });
+}
+
+// ============ GALLERY ITEMS API ============
+
+export async function getGalleryItems(): Promise<GalleryItem[]> {
+  return apiCall<GalleryItem[]>('/galleryItems');
+}
+
+export async function getGalleryItem(id: number): Promise<GalleryItem> {
+  return apiCall<GalleryItem>(`/galleryItems/${id}`);
+}
+
+export async function createGalleryItem(item: Omit<GalleryItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<GalleryItem> {
+  return apiCall<GalleryItem>('/galleryItems', {
+    method: 'POST',
+    body: JSON.stringify(item),
+  });
+}
+
+export async function updateGalleryItem(id: number, updates: Partial<GalleryItem>): Promise<GalleryItem> {
+  return apiCall<GalleryItem>(`/galleryItems/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteGalleryItem(id: number): Promise<void> {
+  return apiCall<void>(`/galleryItems/${id}`, { method: 'DELETE' });
 }

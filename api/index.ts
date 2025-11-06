@@ -1,16 +1,20 @@
 import type { Request, Response } from 'express';
 import express from 'express';
 import { db } from '../server/db.js';
+import multer from 'multer';
+import { uploadImageToCloudinary } from '../server/cloudinary.js';
 import { 
   writings, 
   projects, 
   albums, 
-  tags
+  tags,
+  galleryItems
 } from '../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 const app = express();
 app.use(express.json());
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // Resource configuration map
 const resourceMap = {
@@ -18,6 +22,7 @@ const resourceMap = {
   projects: { table: projects },
   albums: { table: albums },
   tags: { table: tags },
+  galleryItems: { table: galleryItems },
 };
 
 // Health check
@@ -127,6 +132,25 @@ Object.entries(resourceMap).forEach(([resourceName, config]) => {
       res.status(500).json({ error: `Failed to delete ${resourceName}` });
     }
   });
+});
+
+// Image upload endpoint for covers (multipart/form-data)
+app.post('/api/upload/cover', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const { buffer, originalname, mimetype } = req.file as Express.Multer.File;
+    if (!mimetype?.startsWith('image/')) {
+      return res.status(400).json({ error: 'Invalid file type. Please upload an image.' });
+    }
+
+    const { url, publicId } = await uploadImageToCloudinary(buffer, originalname, 'portfolio-art-covers');
+    return res.status(201).json({ url, publicId });
+  } catch (error) {
+    console.error('Error uploading cover image:', error);
+    return res.status(500).json({ error: 'Failed to upload image' });
+  }
 });
 
 // Special endpoint for CV

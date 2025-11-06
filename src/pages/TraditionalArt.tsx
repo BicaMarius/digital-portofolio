@@ -2,9 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, Images, Grid3X3, List, ChevronsUpDown } from 'lucide-react';
+import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, Images, Grid3X3, List, ChevronsUpDown, Edit } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import AlbumCoverDialog from '@/components/AlbumCoverDialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -89,9 +90,10 @@ const TraditionalArt: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [expandAll, setExpandAll] = useState(true);
+  const [editingAlbum, setEditingAlbum] = useState<TraditionalAlbum | null>(null);
 
   // Seed albums from artworks (demo): group by category and add a mixed album
-  const albums: TraditionalAlbum[] = useMemo(() => {
+  const seedAlbums: TraditionalAlbum[] = useMemo(() => {
     const visible = (isAdmin ? mockArtworks : mockArtworks.filter(a => !a.isPrivate));
     const byCategory = (category: TraditionalArtwork['category'], title: string, id: number): TraditionalAlbum => ({
       id,
@@ -113,6 +115,13 @@ const TraditionalArt: React.FC = () => {
       mixed,
     ].filter(alb => alb.artworks.length > 0);
   }, [isAdmin]);
+
+  const [albums, setAlbums] = useState<TraditionalAlbum[]>(seedAlbums);
+
+  // Sync albums when seed changes (e.g., admin toggle affects visibility)
+  React.useEffect(() => {
+    setAlbums(seedAlbums);
+  }, [seedAlbums]);
 
   // Initialize expanded state (default: all expanded)
   React.useEffect(() => {
@@ -243,9 +252,10 @@ const TraditionalArt: React.FC = () => {
             </div>
 
             {isAdmin && (
-              <Button className="bg-art-accent hover:bg-art-accent/80 h-10">
-                <Plus className="h-4 w-4 mr-2" />
-                Adaugă Operă
+              <Button className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md">
+                <Brush className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Adaugă Operă</span>
+                <span className="sm:hidden">Adaugă</span>
               </Button>
             )}
           </div>
@@ -257,7 +267,8 @@ const TraditionalArt: React.FC = () => {
                 const isExpanded = expandedAlbumIds.has(album.id);
                 return (
                   <div key={album.id} className="border border-border/60 rounded-xl overflow-hidden">
-                    {/* Album header */}
+                    {/* Album header */
+                    }
                     <button
                       aria-expanded={isExpanded}
                       className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors"
@@ -282,6 +293,13 @@ const TraditionalArt: React.FC = () => {
                           <Badge variant="outline" className="bg-art-accent/10 border-art-accent/20 text-xs">
                             <Images className="h-3 w-3 mr-1" /> {album.artworks.length}
                           </Badge>
+                          {isAdmin && (
+                            <span className="ml-auto">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingAlbum(album); }}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">Click pentru a {isExpanded ? 'închide' : 'extinde'} albumul</p>
                       </div>
@@ -289,7 +307,7 @@ const TraditionalArt: React.FC = () => {
 
                     {/* Images strip */}
                     <div className={`px-4 pb-4 transition-[max-height] duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'} overflow-hidden`}>
-                      <div className="flex flex-wrap gap-3 pt-2">
+                      <div className="flex flex-wrap gap-3 pt-2 justify-center sm:justify-start">
                         {album.artworks.map((artwork, i) => (
                           <Card
                             key={artwork.id}
@@ -335,7 +353,7 @@ const TraditionalArt: React.FC = () => {
                   parts.push({
                     key: `album-${album.id}`,
                     node: (
-                      <Card key={`album-${album.id}`} className="group overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px]">
+                      <Card key={`album-${album.id}`} className="group overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px] relative">
                         <CardContent className="p-0">
                           <button
                             aria-expanded={isExpanded}
@@ -361,6 +379,13 @@ const TraditionalArt: React.FC = () => {
                               <span className="ml-2 flex items-center gap-1"><Images className="h-3 w-3" />{album.artworks.length}</span>
                             </div>
                           </button>
+                          {isAdmin && (
+                            <div className="absolute top-1 right-1 z-10">
+                              <Button size="icon" variant="secondary" className="h-7 w-7 opacity-90 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setEditingAlbum(album); }}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ),
@@ -496,6 +521,29 @@ const TraditionalArt: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Admin: Edit album title/cover and manage items */}
+      {isAdmin && (
+        <AlbumCoverDialog
+          open={!!editingAlbum}
+          onOpenChange={(open) => !open && setEditingAlbum(null)}
+          album={editingAlbum as any}
+          onSave={(updates) => {
+            if (!editingAlbum) return;
+            setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? { ...a, title: updates.title ?? a.title, cover: updates.cover ?? a.cover } : a));
+            setEditingAlbum(null);
+          }}
+          onRemoveFromAlbum={(artworkId) => {
+            if (!editingAlbum) return;
+            setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? { ...a, artworks: a.artworks.filter(w => w.id !== artworkId) } : a));
+          }}
+          onDeleteArtwork={(artworkId) => {
+            // For demo: remove from this album only
+            if (!editingAlbum) return;
+            setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? { ...a, artworks: a.artworks.filter(w => w.id !== artworkId) } : a));
+          }}
+        />
+      )}
     </div>
   );
 };

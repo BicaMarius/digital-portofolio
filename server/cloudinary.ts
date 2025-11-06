@@ -97,6 +97,40 @@ export async function uploadToCloudinary(
   });
 }
 
+// Image-specific upload helper (for album covers and gallery images)
+export async function uploadImageToCloudinary(
+  fileBuffer: Buffer,
+  fileName: string,
+  folder: string = 'portfolio-art'
+): Promise<{ url: string; publicId: string }> {
+  initCloudinary();
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: 'image',
+        public_id: `art_${Date.now()}`,
+        overwrite: false,
+        type: 'upload',
+        access_mode: 'public'
+      },
+      (error, result) => {
+        if (error) {
+          console.error('[Cloudinary] Image upload error:', error);
+          reject(error);
+        } else if (result) {
+          resolve({ url: result.secure_url, publicId: result.public_id });
+        } else {
+          reject(new Error('Image upload failed - no result returned'));
+        }
+      }
+    );
+
+    uploadStream.end(fileBuffer);
+  });
+}
+
 export async function deleteFromCloudinary(publicId: string): Promise<void> {
   initCloudinary();
 
