@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Minus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Slider } from '@/components/ui/slider';
+// Removed slider control per new UX; keep wheel-zoom optional
 
 export interface CoverDialogArtwork {
   id: number;
@@ -59,7 +59,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl w-[95vw] md:w-[80vw] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Editează album</DialogTitle>
         </DialogHeader>
@@ -76,7 +76,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               <TabsTrigger value="content">Conținut</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="cover" className="space-y-3">
+            <TabsContent value="cover" className="space-y-3 min-h-[28rem]">
               <div className="flex items-center gap-3">
                 <input
                   id="cover-file"
@@ -150,13 +150,14 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                     }}
                     title="Trage pentru a repoziționa"
                   >
-                    {/* grid overlay when dragging */}
+                    {/* grid overlay (rule of thirds) */}
                     <div
                       className="absolute inset-0 pointer-events-none"
                       style={{
-                        backgroundImage: 'linear-gradient(to right, rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.15) 1px, transparent 1px)',
-                        backgroundSize: '20px 20px',
-                        opacity: dragging ? 0.35 : 0,
+                        backgroundImage: 'linear-gradient(to right, rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.35) 1px, transparent 1px)',
+                        backgroundSize: '33.333% 100%, 100% 33.333%',
+                        backgroundPosition: '33.333% 0, 0 33.333%, 66.666% 0, 0 66.666%',
+                        opacity: 0.7,
                         transition: 'opacity 150ms',
                         zIndex: 1,
                       }}
@@ -168,16 +169,8 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                       style={{ objectPosition: `${pos.x}% ${pos.y}%`, transform: `scale(${zoom})`, transformOrigin: `${pos.x}% ${pos.y}%` }}
                     />
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-2">
-                    <div className="text-xs text-muted-foreground">Centrere: X {Math.round(pos.x)}% · Y {Math.round(pos.y)}%</div>
-                    <div className="flex items-center gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => setZoom(z => Math.max(0.8, Number((z - 0.1).toFixed(2))))}>-</Button>
-                      <div className="w-40">
-                        <Slider value={[zoom]} min={0.8} max={2.5} step={0.05} onValueChange={(v) => setZoom(v[0])} />
-                      </div>
-                      <Button type="button" size="sm" variant="outline" onClick={() => setZoom(z => Math.min(2.5, Number((z + 0.1).toFixed(2))))}>+</Button>
-                      <span className="text-xs text-muted-foreground w-10 text-right">{Math.round(zoom * 100)}%</span>
-                    </div>
+                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    <span>Centrere: X {Math.round(pos.x)}% · Y {Math.round(pos.y)}% (zoom cu rotița mouse-ului)</span>
                   </div>
                 </div>
               )}
@@ -188,14 +181,14 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               </div>
             </TabsContent>
 
-            <TabsContent value="content">
-              <div className="max-h-[50vh] overflow-auto space-y-2 pr-1">
+            <TabsContent value="content" className="min-h-[28rem]">
+              <div className="max-h-[50vh] md:max-h-[55vh] overflow-auto space-y-2 pr-1">
                 {album.artworks.map((art) => (
                   <Card key={art.id}>
                     <CardContent className="p-2 flex items-center gap-2">
                       <img src={art.image} alt={art.title} className="w-12 h-12 object-cover rounded" />
                       <span className="flex-1 truncate text-sm" title={art.title}>{art.title}</span>
-                      <Button size="icon" variant="ghost" className="text-indigo-500 hover:text-indigo-400" title="Setează ca copertă" onClick={() => { setCoverUrl(art.image); setPos({ x: 50, y: 50 }); }}>
+                      <Button size="icon" variant="ghost" className="text-indigo-500 hover:text-indigo-400" title="Setează ca copertă" onClick={() => { setCoverUrl(art.image); setPos({ x: 50, y: 50 }); onSave({ cover: art.image, coverPos: { x: 50, y: 50 } }); }}>
                         <ImageIcon className="h-4 w-4" />
                       </Button>
                       {onRemoveFromAlbum && (

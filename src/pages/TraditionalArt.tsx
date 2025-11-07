@@ -252,7 +252,7 @@ const TraditionalArt: React.FC = () => {
               />
             </div>
 
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v || 'all')}>
               <SelectTrigger className="w-[140px] sm:w-[180px] h-10">
                 <Filter className="h-4 w-4 mr-2 hidden sm:inline" />
                 <SelectValue placeholder="Categorie" />
@@ -330,7 +330,7 @@ const TraditionalArt: React.FC = () => {
                         <div className="absolute inset-0 rounded overflow-hidden border border-border">
                           <img src={album.cover} alt={album.title} className="w-full h-full object-cover opacity-90" style={{ ...(album.coverPos ? { objectPosition: `${album.coverPos.x}% ${album.coverPos.y}%` } : {}), ...(album.coverScale ? { transform: `scale(${album.coverScale})`, transformOrigin: `${album.coverPos?.x ?? 50}% ${album.coverPos?.y ?? 50}%` } : {}) }} />
                         </div>
-                        <span className="absolute -right-2 -top-2 text-xs bg-background border border-border rounded-full px-1">{album.artworks.length}</span>
+                        {/* Removed duplicate count bubble for cleaner design */}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -340,7 +340,7 @@ const TraditionalArt: React.FC = () => {
                           </Badge>
                           {isAdmin && (
                             <span className="ml-auto">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingAlbum(album); }}>
+                              <Button size="icon" className="h-7 w-7 bg-indigo-600 text-white hover:bg-indigo-600/90" onClick={(e) => { e.stopPropagation(); setEditingAlbum(album); }}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </span>
@@ -426,7 +426,7 @@ const TraditionalArt: React.FC = () => {
                           </button>
                           {isAdmin && (
                             <div className="absolute top-1 right-1 z-10">
-                              <Button size="icon" variant="secondary" className="h-7 w-7 opacity-90 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setEditingAlbum(album); }}>
+                              <Button size="icon" className="h-7 w-7 bg-indigo-600 text-white opacity-90 hover:opacity-100 hover:bg-indigo-600/90" onClick={(e) => { e.stopPropagation(); setEditingAlbum(album); }}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </div>
