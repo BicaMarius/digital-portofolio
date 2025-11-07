@@ -60,7 +60,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] md:w-[80vw] max-h-[90vh]">
+      <DialogContent className="w-[96vw] sm:w-[90vw] sm:max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Editează album</DialogTitle>
         </DialogHeader>
@@ -77,8 +77,8 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               <TabsTrigger value="content">Conținut</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="cover" className="space-y-3 min-h-[28rem]">
-              <div className="flex items-center gap-3">
+            <TabsContent value="cover" className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3 justify-between">
                 <input
                   id="cover-file"
                   type="file"
@@ -110,16 +110,19 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                     }
                   }}
                 />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="bg-indigo-600 hover:bg-indigo-600/90 text-white"
-                  disabled={uploading}
-                  onClick={() => document.getElementById('cover-file')?.click()}
-                >
-                  {uploading ? 'Se încarcă…' : 'Încarcă din dispozitiv'}
-                </Button>
-                <span className="text-xs text-muted-foreground">sau alege din lucrările albumului (fila Conținut)</span>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="bg-indigo-600 hover:bg-indigo-600/90 text-white"
+                    disabled={uploading}
+                    onClick={() => document.getElementById('cover-file')?.click()}
+                  >
+                    {uploading ? 'Se încarcă…' : 'Încarcă din dispozitiv'}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">sau alege din lucrările albumului (fila Conținut)</span>
+                </div>
+                <Button className="ml-auto bg-indigo-600 hover:bg-indigo-600/90 text-white" onClick={() => onSave({ title, cover: coverUrl, coverPos: pos, coverPosScale: zoom } as any)}>Salvează</Button>
               </div>
 
               {coverUrl && (
@@ -231,10 +234,6 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                 </div>
               )}
               {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-
-              <div>
-                <Button className="bg-indigo-600 hover:bg-indigo-600/90 text-white" onClick={() => onSave({ title, cover: coverUrl, coverPos: pos, coverPosScale: zoom } as any)}>Salvează</Button>
-              </div>
             </TabsContent>
 
             <TabsContent value="content" className="min-h-[28rem]">

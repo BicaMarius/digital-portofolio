@@ -303,7 +303,7 @@ const TraditionalArt: React.FC = () => {
             </div>
 
             {isAdmin && (
-              <Button className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md">
+              <Button className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md hidden sm:inline-flex">
                 <Brush className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Adaugă Operă</span>
                 <span className="sm:hidden">Adaugă</span>
@@ -358,7 +358,8 @@ const TraditionalArt: React.FC = () => {
 
                     {/* Images strip */}
                     <div className={`px-4 pb-4 transition-[max-height] duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'} overflow-hidden`}>
-                      <div className="flex flex-wrap gap-3 pt-2 justify-center sm:justify-start">
+                      {/* Mobile: 2 columns grid; Desktop: fallback to wrapped flex */}
+                      <div className="grid grid-cols-2 gap-3 pt-2 justify-center sm:justify-start sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                         {album.artworks.map((artwork, i) => (
                           <Card
                             key={artwork.id}
@@ -367,7 +368,7 @@ const TraditionalArt: React.FC = () => {
                             onClick={() => setSelectedArtwork(artwork)}
                           >
                             <CardContent className="p-0">
-                              <div className="w-[160px] h-[120px] sm:w-[200px] sm:h-[150px] overflow-hidden">
+                              <div className="w-full aspect-[4/3] overflow-hidden">
                                 <img
                                   src={artwork.image}
                                   alt={artwork.title}
@@ -471,7 +472,7 @@ const TraditionalArt: React.FC = () => {
 
                 return (
                   <>
-                    <div className="flex flex-wrap gap-3 mb-6">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 mb-6">
                       {pageItems.map((it) => (
                         <div key={it.key}>{it.node}</div>
                       ))}
@@ -505,7 +506,7 @@ const TraditionalArt: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10"
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 hidden sm:flex"
                 onClick={prevArtwork}
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -514,31 +515,40 @@ const TraditionalArt: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 hidden sm:flex"
                 onClick={nextArtwork}
               >
                 <ChevronRight className="h-6 w-6" />
               </Button>
 
-              <div className="flex flex-col lg:flex-row items-center justify-center max-w-6xl gap-8 p-8">
-                <div className="flex-1 max-w-2xl">
+              <div className="flex flex-col lg:flex-row items-center justify-center max-w-6xl gap-6 sm:gap-8 p-4 sm:p-6 lg:p-8">
+                <div className="flex-1 w-full max-w-2xl">
                   <img 
                     src={selectedArtwork.image} 
                     alt={selectedArtwork.title}
-                    className="w-full h-auto max-h-[70vh] object-contain rounded-lg shadow-lg"
+                    className="w-full h-auto max-h-[60vh] sm:max-h-[70vh] object-contain rounded-lg shadow-lg"
                   />
+                  {/* Mobile navigation under image */}
+                  <div className="mt-3 flex items-center justify-between sm:hidden">
+                    <Button variant="outline" size="icon" onClick={prevArtwork}>
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={nextArtwork}>
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="flex-1 max-w-md space-y-4">
+                <div className="flex-1 w-full max-w-md space-y-3 sm:space-y-4">
                   <div>
-                    <h3 className="text-3xl font-bold mb-2">{selectedArtwork.title}</h3>
-                    <p className="text-xl text-muted-foreground mb-4">{selectedArtwork.medium}</p>
+                    <h3 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">{selectedArtwork.title}</h3>
+                    <p className="text-base sm:text-xl text-muted-foreground mb-3 sm:mb-4">{selectedArtwork.medium}</p>
                     {selectedArtwork.description && (
-                      <p className="text-muted-foreground">{selectedArtwork.description}</p>
+                      <p className="text-sm sm:text-base text-muted-foreground">{selectedArtwork.description}</p>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 py-4 border-y border-border">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 py-3 sm:py-4 border-y border-border">
                     <div>
                       <span className="text-muted-foreground">Categoria:</span>
                       <p className="font-medium capitalize">{selectedArtwork.category}</p>
@@ -571,6 +581,13 @@ const TraditionalArt: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Mobile FAB: Add Operă */}
+      {isAdmin && (
+        <Button size="icon" className="sm:hidden fixed bottom-5 right-5 h-12 w-12 rounded-full bg-indigo-600 text-white shadow-lg">
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
 
       {/* Admin: Edit album title/cover and manage items */}
       {isAdmin && (
