@@ -164,6 +164,10 @@ const TraditionalArt: React.FC = () => {
     setGridPage(0);
   }, [viewMode]);
 
+  function albumMatchesTitle(title: string, term: string) {
+    return title.toLowerCase().includes(term);
+  }
+
   const filteredAlbums = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return albums
@@ -175,8 +179,6 @@ const TraditionalArt: React.FC = () => {
       }))
       .filter(a => a.artworks.length > 0 || albumMatchesTitle(a.title, term));
   }, [albums, searchTerm, filterCategory]);
-
-  const albumMatchesTitle = (title: string, term: string) => title.toLowerCase().includes(term);
 
   // Navigation between all visible artworks (flattened)
   const flatVisibleArtworks = useMemo(() => filteredAlbums.flatMap(a => a.artworks), [filteredAlbums]);
