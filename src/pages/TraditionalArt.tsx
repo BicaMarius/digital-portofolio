@@ -6,7 +6,6 @@ import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import AlbumCoverDialog from '@/components/AlbumCoverDialog';
-import { getAlbums as apiGetAlbums, createAlbum as apiCreateAlbum, updateAlbum as apiUpdateAlbum } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -120,32 +119,37 @@ const TraditionalArt: React.FC = () => {
   }, [isAdmin]);
 
   const [albums, setAlbums] = useState<TraditionalAlbum[]>(seedAlbums);
-  const [dbApplied, setDbApplied] = useState(false);
+
+  // Persist only locally to avoid polluting Creative Writing albums
+  const META_KEY = 'ta-album-meta-v1';
+  type MetaEntry = { title: string; cover: string; pos?: { x: number; y: number }; scale?: number };
+  const loadMeta = (): Record<string, MetaEntry> => {
+    try {
+      const raw = localStorage.getItem(META_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+  const saveMeta = (map: Record<string, MetaEntry>) => {
+    try { localStorage.setItem(META_KEY, JSON.stringify(map)); } catch {}
+  };
 
   // Sync albums when seed changes (e.g., admin toggle affects visibility)
   React.useEffect(() => {
     setAlbums(seedAlbums);
   }, [seedAlbums]);
 
-  // Optional DB overrides for title/cover/position while keeping mock artworks
+  // Local overrides for title/cover/position while keeping mock artworks
   React.useEffect(() => {
-    if (dbApplied) return;
-    (async () => {
-      try {
-        const list = await apiGetAlbums();
-        setAlbums(prev => prev.map(a => {
-          const match = (list as any[]).find(x => x.name === a.title);
-          if (!match) return a;
-          const { url, pos, scale } = parseIconWithPos(match.icon || '');
-          return { ...a, title: match.name || a.title, cover: url || a.cover, coverPos: pos || a.coverPos, coverScale: scale ?? a.coverScale };
-        }));
-      } catch (e) {
-        console.warn('DB albums not available; staying on mock-only covers');
-      } finally {
-        setDbApplied(true);
-      }
-    })();
-  }, [dbApplied]);
+    const meta = loadMeta();
+    setAlbums(prev => prev.map(a => {
+      const m = meta[a.title];
+      if (!m) return a;
+      return { ...a, title: m.title || a.title, cover: m.cover || a.cover, coverPos: m.pos ?? a.coverPos, coverScale: m.scale ?? a.coverScale };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedAlbums.length]);
 
   // Initialize expanded state (default: all expanded)
   React.useEffect(() => {
@@ -461,7 +465,6 @@ const TraditionalArt: React.FC = () => {
 
                 const totalPages = Math.max(1, Math.ceil(flattened.length / GRID_PER_PAGE));
                 const safePage = Math.min(gridPage, totalPages - 1);
-                if (safePage !== gridPage) setGridPage(safePage);
                 const pageItems = flattened.slice(safePage * GRID_PER_PAGE, (safePage + 1) * GRID_PER_PAGE);
 
                 return (
@@ -577,18 +580,10 @@ const TraditionalArt: React.FC = () => {
             if (!editingAlbum) return;
             const newTitle = updates.title ?? editingAlbum.title;
             const newCover = updates.cover ?? editingAlbum.cover;
-            const iconWithPos = buildIconWithPos(newCover, updates.coverPos, (updates as any).coverPosScale ?? updates.coverScale);
-            try {
-              const list = await apiGetAlbums().catch(() => [] as any[]);
-              const match: any = (list as any[]).find(x => x.name === editingAlbum.title) || null;
-              if (match) {
-                await apiUpdateAlbum(match.id, { name: newTitle, icon: iconWithPos });
-              } else {
-                await apiCreateAlbum({ name: newTitle, itemIds: [], icon: iconWithPos } as any);
-              }
-            } catch (e) {
-              console.warn('Failed to persist album cover/title; keeping local update only', e);
-            }
+            // Save only to local state + localStorage to avoid creating albums in Creative Writing
+            const meta = loadMeta();
+            meta[editingAlbum.title] = { title: newTitle, cover: newCover, pos: updates.coverPos, scale: (updates as any).coverPosScale ?? updates.coverScale };
+            saveMeta(meta);
             setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? { ...a, title: newTitle, cover: newCover, coverPos: updates.coverPos ?? a.coverPos, coverScale: ((updates as any).coverPosScale ?? updates.coverScale) ?? a.coverScale } : a));
             setEditingAlbum(null);
           }}

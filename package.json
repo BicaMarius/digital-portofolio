@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx server/seed.ts"
+    "db:seed": "tsx server/seed.ts",
+    "cleanup:ta-albums": "tsx server/cleanup-ta-albums.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
