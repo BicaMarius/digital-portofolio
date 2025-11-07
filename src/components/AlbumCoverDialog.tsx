@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Minus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 // Removed slider control per new UX; keep wheel-zoom optional
 
 export interface CoverDialogArtwork {
@@ -123,54 +124,109 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
 
               {coverUrl && (
                 <div className="mt-1">
-                  <div
-                    className="w-full max-w-xl h-48 sm:h-64 md:h-72 rounded border border-border overflow-hidden relative select-none"
-                    onMouseDown={(e) => { setDragging(true); (e.currentTarget as HTMLDivElement).dataset.dragStartX = String(e.clientX); (e.currentTarget as HTMLDivElement).dataset.dragStartY = String(e.clientY); (e.currentTarget as HTMLDivElement).dataset.startX = String(pos.x); (e.currentTarget as HTMLDivElement).dataset.startY = String(pos.y); }}
-                    onMouseMove={(e) => {
-                      if (!dragging) return;
-                      const el = e.currentTarget as HTMLDivElement;
-                      const sx = Number(el.dataset.dragStartX || 0);
-                      const sy = Number(el.dataset.dragStartY || 0);
-                      const startX = Number(el.dataset.startX || 50);
-                      const startY = Number(el.dataset.startY || 50);
-                      const dx = e.clientX - sx;
-                      const dy = e.clientY - sy;
-                      // Heuristic: 2px movement ~ 1% position change
-                      const nx = Math.max(0, Math.min(100, startX + dx / 2));
-                      const ny = Math.max(0, Math.min(100, startY + dy / 2));
-                      setPos({ x: nx, y: ny });
-                    }}
-                    onMouseUp={() => setDragging(false)}
-                    onMouseLeave={() => setDragging(false)}
-                    onWheel={(e) => {
-                      e.preventDefault();
-                      const delta = -e.deltaY; // wheel up to zoom in
-                      const step = delta > 0 ? 0.05 : -0.05;
-                      setZoom(z => Math.max(0.8, Math.min(2.5, Number((z + step).toFixed(2)))));
-                    }}
-                    title="Trage pentru a repoziționa"
-                  >
-                    {/* grid overlay (rule of thirds) */}
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        backgroundImage: 'linear-gradient(to right, rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.35) 1px, transparent 1px)',
-                        backgroundSize: '33.333% 100%, 100% 33.333%',
-                        backgroundPosition: '33.333% 0, 0 33.333%, 66.666% 0, 0 66.666%',
-                        opacity: 0.7,
-                        transition: 'opacity 150ms',
-                        zIndex: 1,
-                      }}
-                    />
-                    <img
-                      src={coverUrl}
-                      alt="Previzualizare copertă"
-                      className="w-full h-full object-cover"
-                      style={{ objectPosition: `${pos.x}% ${pos.y}%`, transform: `scale(${zoom})`, transformOrigin: `${pos.x}% ${pos.y}%` }}
-                    />
+                  {/* Preview EXACTLY mirrors cover aspect: square on xs, 11/15 portrait on sm+ */}
+                  {/* XS: same as grid/card (square) */}
+                  <div className="sm:hidden">
+                    <AspectRatio ratio={1}>
+                      <div
+                        className="relative w-full h-full rounded border border-border overflow-hidden select-none"
+                        onMouseDown={(e) => { setDragging(true); (e.currentTarget as HTMLDivElement).dataset.dragStartX = String(e.clientX); (e.currentTarget as HTMLDivElement).dataset.dragStartY = String(e.clientY); (e.currentTarget as HTMLDivElement).dataset.startX = String(pos.x); (e.currentTarget as HTMLDivElement).dataset.startY = String(pos.y); }}
+                        onMouseMove={(e) => {
+                          if (!dragging) return;
+                          const el = e.currentTarget as HTMLDivElement;
+                          const sx = Number(el.dataset.dragStartX || 0);
+                          const sy = Number(el.dataset.dragStartY || 0);
+                          const startX = Number(el.dataset.startX || 50);
+                          const startY = Number(el.dataset.startY || 50);
+                          const dx = e.clientX - sx;
+                          const dy = e.clientY - sy;
+                          const nx = Math.max(0, Math.min(100, startX + dx / 2));
+                          const ny = Math.max(0, Math.min(100, startY + dy / 2));
+                          setPos({ x: nx, y: ny });
+                        }}
+                        onMouseUp={() => setDragging(false)}
+                        onMouseLeave={() => setDragging(false)}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          const delta = -e.deltaY;
+                          const step = delta > 0 ? 0.05 : -0.05;
+                          setZoom(z => Math.max(0.8, Math.min(2.5, Number((z + step).toFixed(2)))));
+                        }}
+                        title="Trage pentru a repoziționa"
+                      >
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            backgroundImage: 'linear-gradient(to right, rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.35) 1px, transparent 1px)',
+                            backgroundSize: '33.333% 100%, 100% 33.333%',
+                            backgroundPosition: '33.333% 0, 0 33.333%, 66.666% 0, 0 66.666%',
+                            opacity: 0.7,
+                            transition: 'opacity 150ms',
+                            zIndex: 1,
+                          }}
+                        />
+                        <img
+                          src={coverUrl}
+                          alt="Previzualizare copertă"
+                          className="w-full h-full object-cover"
+                          style={{ objectPosition: `${pos.x}% ${pos.y}%`, transform: `scale(${zoom})`, transformOrigin: `${pos.x}% ${pos.y}%` }}
+                        />
+                      </div>
+                    </AspectRatio>
                   </div>
+
+                  {/* SM+: portrait like album card (11/15 ratio ≈ 220x300). Made wider for a better editing surface */}
+                  <div className="hidden sm:block w-full max-w-[420px]">
+                    <AspectRatio ratio={11/15}>
+                      <div
+                        className="relative w-full h-full rounded border border-border overflow-hidden select-none"
+                        onMouseDown={(e) => { setDragging(true); (e.currentTarget as HTMLDivElement).dataset.dragStartX = String(e.clientX); (e.currentTarget as HTMLDivElement).dataset.dragStartY = String(e.clientY); (e.currentTarget as HTMLDivElement).dataset.startX = String(pos.x); (e.currentTarget as HTMLDivElement).dataset.startY = String(pos.y); }}
+                        onMouseMove={(e) => {
+                          if (!dragging) return;
+                          const el = e.currentTarget as HTMLDivElement;
+                          const sx = Number(el.dataset.dragStartX || 0);
+                          const sy = Number(el.dataset.dragStartY || 0);
+                          const startX = Number(el.dataset.startX || 50);
+                          const startY = Number(el.dataset.startY || 50);
+                          const dx = e.clientX - sx;
+                          const dy = e.clientY - sy;
+                          const nx = Math.max(0, Math.min(100, startX + dx / 2));
+                          const ny = Math.max(0, Math.min(100, startY + dy / 2));
+                          setPos({ x: nx, y: ny });
+                        }}
+                        onMouseUp={() => setDragging(false)}
+                        onMouseLeave={() => setDragging(false)}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          const delta = -e.deltaY;
+                          const step = delta > 0 ? 0.05 : -0.05;
+                          setZoom(z => Math.max(0.8, Math.min(2.5, Number((z + step).toFixed(2)))));
+                        }}
+                        title="Trage pentru a repoziționa"
+                      >
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            backgroundImage: 'linear-gradient(to right, rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.35) 1px, transparent 1px)',
+                            backgroundSize: '33.333% 100%, 100% 33.333%',
+                            backgroundPosition: '33.333% 0, 0 33.333%, 66.666% 0, 0 66.666%',
+                            opacity: 0.7,
+                            transition: 'opacity 150ms',
+                            zIndex: 1,
+                          }}
+                        />
+                        <img
+                          src={coverUrl}
+                          alt="Previzualizare copertă"
+                          className="w-full h-full object-cover"
+                          style={{ objectPosition: `${pos.x}% ${pos.y}%`, transform: `scale(${zoom})`, transformOrigin: `${pos.x}% ${pos.y}%` }}
+                        />
+                      </div>
+                    </AspectRatio>
+                  </div>
+
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                    <span>Centrere: X {Math.round(pos.x)}% · Y {Math.round(pos.y)}% (zoom cu rotița mouse-ului)</span>
+                    <span>Centrare: X {Math.round(pos.x)}% · Y {Math.round(pos.y)}% (zoom cu rotița mouse-ului)</span>
                   </div>
                 </div>
               )}
