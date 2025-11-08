@@ -16,7 +16,7 @@ import type {
   Tag,
   InsertTag,
   UpdateTag,
-} from "@shared/schema";
+} from "../shared/schema.js";
 
 export interface IStorage {
   // Projects
@@ -357,8 +357,8 @@ export class MemStorage implements IStorage {
 }
 
 // Database Storage implementation using Drizzle ORM
-import { db } from "./db";
-import * as schema from "@shared/schema";
+import { db } from "./db.js";
+import * as schema from "../shared/schema.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 const { projects, galleryItems, cvData, writings, albums, tags } = schema;

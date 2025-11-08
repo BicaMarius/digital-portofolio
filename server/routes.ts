@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { z } from "zod";
-import type { IStorage } from "./storage";
+import type { IStorage } from "./storage.js";
 import {
   insertProjectSchema,
   updateProjectSchema,
@@ -12,11 +12,11 @@ import {
   updateAlbumSchema,
   insertTagSchema,
   updateTagSchema,
-} from "@shared/schema";
+} from "../shared/schema.js";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import { extname } from "node:path";
-import { uploadToCloudinary, deleteFromCloudinary, uploadImageToCloudinary } from "./cloudinary";
+import { uploadToCloudinary, deleteFromCloudinary, uploadImageToCloudinary } from "./cloudinary.js";
 
 type UploadedFile = {
   buffer: Buffer;
