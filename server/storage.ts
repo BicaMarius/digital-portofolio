@@ -31,6 +31,8 @@ export interface IStorage {
   getGalleryItems(): Promise<GalleryItem[]>;
   getGalleryItemById(id: number): Promise<GalleryItem | null>;
   getGalleryItemsByCategory(category: string): Promise<GalleryItem[]>;
+  getTrashedGalleryItems(): Promise<GalleryItem[]>;
+  getTrashedGalleryItemsByCategory(category: string): Promise<GalleryItem[]>;
   createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem>;
   updateGalleryItem(id: number, updates: UpdateGalleryItem): Promise<GalleryItem | null>;
   deleteGalleryItem(id: number): Promise<boolean>;
@@ -94,8 +96,25 @@ export class MemStorage implements IStorage {
 
   async createProject(project: InsertProject): Promise<Project> {
     const newProject: Project = {
-      ...project,
       id: this.projectIdCounter++,
+      title: project.title,
+      description: project.description,
+      image: project.image,
+      category: project.category,
+      subcategory: project.subcategory,
+      isPrivate: project.isPrivate ?? false,
+      tags: project.tags ?? [],
+      projectType: project.projectType ?? null,
+      icon: project.icon ?? null,
+      images: project.images ?? [],
+      hoursWorked: project.hoursWorked ?? null,
+      frontendTech: project.frontendTech ?? [],
+      backendTech: project.backendTech ?? [],
+      initialReleaseDate: project.initialReleaseDate ?? null,
+      lastUpdatedDate: project.lastUpdatedDate ?? null,
+      additionalFiles: project.additionalFiles ?? [],
+      gitUrl: project.gitUrl ?? null,
+      projectUrl: project.projectUrl ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -140,13 +159,31 @@ export class MemStorage implements IStorage {
 
   async createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem> {
     const newItem: GalleryItem = {
-      ...item,
       id: this.galleryIdCounter++,
+      title: item.title,
+      image: item.image,
+      category: item.category,
+      subcategory: item.subcategory,
+      isPrivate: item.isPrivate ?? false,
+      medium: item.medium ?? null,
+      description: item.description ?? null,
+      materials: item.materials ?? [],
+      dimensions: item.dimensions ?? null,
+      date: item.date ?? null,
+      deletedAt: item.deletedAt ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     this.galleryItems.set(newItem.id, newItem);
     return newItem;
+  }
+
+  async getTrashedGalleryItems(): Promise<GalleryItem[]> {
+    return Array.from(this.galleryItems.values()).filter(item => item.deletedAt !== null);
+  }
+
+  async getTrashedGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
+    return Array.from(this.galleryItems.values()).filter(item => item.category === category && item.deletedAt !== null);
   }
 
   async updateGalleryItem(
@@ -176,8 +213,11 @@ export class MemStorage implements IStorage {
 
   async createCVData(cv: InsertCVData): Promise<CVData> {
     const newCV: CVData = {
-      ...cv,
       id: this.cvIdCounter++,
+      fileName: cv.fileName,
+      fileUrl: cv.fileUrl,
+      cloudinaryPublicId: cv.cloudinaryPublicId,
+      mimeType: cv.mimeType ?? 'application/pdf',
       uploadedAt: new Date(),
     };
     this.cvData = newCV;
@@ -201,8 +241,19 @@ export class MemStorage implements IStorage {
 
   async createWriting(writing: InsertWriting): Promise<Writing> {
     const newWriting: Writing = {
-      ...writing,
       id: this.writingIdCounter++,
+      title: writing.title,
+      type: writing.type,
+      content: writing.content,
+      excerpt: writing.excerpt,
+      wordCount: writing.wordCount ?? 0,
+      dateWritten: writing.dateWritten,
+      lastModified: writing.lastModified,
+      tags: writing.tags ?? [],
+      mood: writing.mood,
+      isPrivate: writing.isPrivate ?? false,
+      published: writing.published ?? false,
+      deletedAt: writing.deletedAt ?? null,
     };
     this.writings.set(newWriting.id, newWriting);
     return newWriting;
@@ -238,8 +289,12 @@ export class MemStorage implements IStorage {
 
   async createAlbum(album: InsertAlbum): Promise<Album> {
     const newAlbum: Album = {
-      ...album,
       id: this.albumIdCounter++,
+      name: album.name,
+      color: album.color ?? null,
+      icon: album.icon ?? null,
+      itemIds: album.itemIds ?? [],
+      contentType: album.contentType ?? null,
     };
     this.albums.set(newAlbum.id, newAlbum);
     return newAlbum;
@@ -275,8 +330,10 @@ export class MemStorage implements IStorage {
 
   async createTag(tag: InsertTag): Promise<Tag> {
     const newTag: Tag = {
-      ...tag,
       id: this.tagIdCounter++,
+      name: tag.name,
+      type: tag.type,
+      sentiment: tag.sentiment ?? null,
     };
     this.tags.set(newTag.id, newTag);
     return newTag;
@@ -302,7 +359,7 @@ export class MemStorage implements IStorage {
 // Database Storage implementation using Drizzle ORM
 import { db } from "./db";
 import * as schema from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 const { projects, galleryItems, cvData, writings, albums, tags } = schema;
 
@@ -322,7 +379,23 @@ export class DbStorage implements IStorage {
   }
 
   async createProject(project: InsertProject): Promise<Project> {
-    const result = await db.insert(projects).values(project).returning();
+    const base: InsertProject = {
+      ...project,
+      isPrivate: project.isPrivate ?? false,
+      tags: project.tags ?? [],
+      projectType: project.projectType ?? null,
+      icon: project.icon ?? null,
+      images: project.images ?? [],
+      hoursWorked: project.hoursWorked ?? null,
+      frontendTech: project.frontendTech ?? [],
+      backendTech: project.backendTech ?? [],
+      initialReleaseDate: project.initialReleaseDate ?? null,
+      lastUpdatedDate: project.lastUpdatedDate ?? null,
+      additionalFiles: project.additionalFiles ?? [],
+      gitUrl: project.gitUrl ?? null,
+      projectUrl: project.projectUrl ?? null,
+    };
+    const result = await db.insert(projects).values(base).returning();
     return result[0];
   }
 
@@ -342,20 +415,52 @@ export class DbStorage implements IStorage {
 
   // Gallery Items
   async getGalleryItems(): Promise<GalleryItem[]> {
-    return await db.select().from(galleryItems);
+    // Exclude soft-deleted items
+    return await db.select().from(galleryItems).where(isNull(galleryItems.deletedAt));
   }
 
   async getGalleryItemById(id: number): Promise<GalleryItem | null> {
-    const result = await db.select().from(galleryItems).where(eq(galleryItems.id, id));
+    const result = await db
+      .select()
+      .from(galleryItems)
+      .where(eq(galleryItems.id, id));
     return result[0] || null;
   }
 
   async getGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
-    return await db.select().from(galleryItems).where(eq(galleryItems.category, category));
+    // Exclude soft-deleted items for category
+    return await db
+      .select()
+      .from(galleryItems)
+      .where(and(eq(galleryItems.category, category), isNull(galleryItems.deletedAt)));
+  }
+
+  async getTrashedGalleryItems(): Promise<GalleryItem[]> {
+    return await db
+      .select()
+      .from(galleryItems)
+      .where(sql`"deleted_at" IS NOT NULL`);
+  }
+
+  async getTrashedGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
+    return await db
+      .select()
+      .from(galleryItems)
+      .where(and(eq(galleryItems.category, category), sql`"deleted_at" IS NOT NULL`));
   }
 
   async createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem> {
-    const result = await db.insert(galleryItems).values(item).returning();
+    const base: InsertGalleryItem = {
+      ...item,
+      isPrivate: item.isPrivate ?? false,
+      medium: item.medium ?? null,
+      description: item.description ?? null,
+      materials: item.materials ?? [],
+      dimensions: item.dimensions ?? null,
+      date: item.date ?? null,
+      deletedAt: item.deletedAt ?? null,
+    };
+    const result = await db.insert(galleryItems).values(base).returning();
     return result[0];
   }
 

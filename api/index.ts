@@ -145,7 +145,9 @@ app.post('/api/upload/cover', upload.single('file'), async (req: Request, res: R
       return res.status(400).json({ error: 'Invalid file type. Please upload an image.' });
     }
 
-    const { url, publicId } = await uploadImageToCloudinary(buffer, originalname, 'portfolio-art-covers');
+    // Allow optional folder override via multipart field `folder`
+    const folder = (req.body?.folder as string) || 'portfolio-art-covers';
+    const { url, publicId } = await uploadImageToCloudinary(buffer, originalname, folder);
     return res.status(201).json({ url, publicId });
   } catch (error) {
     console.error('Error uploading cover image:', error);

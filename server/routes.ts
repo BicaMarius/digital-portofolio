@@ -16,7 +16,7 @@ import {
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import { extname } from "node:path";
-import { uploadToCloudinary, deleteFromCloudinary } from "./cloudinary";
+import { uploadToCloudinary, deleteFromCloudinary, uploadImageToCloudinary } from "./cloudinary";
 
 type UploadedFile = {
   buffer: Buffer;
@@ -116,6 +116,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const items = await storage.getGalleryItems();
       res.json(items);
     } catch (error) {
+      console.error('[Routes] GET /api/gallery failed:', error);
       res.status(500).json({ error: "Failed to fetch gallery items" });
     }
   });
@@ -139,16 +140,42 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const items = await storage.getGalleryItemsByCategory(category);
       res.json(items);
     } catch (error) {
+      console.error('[Routes] GET /api/gallery/category/:category failed:', error);
       res.status(500).json({ error: "Failed to fetch gallery items" });
+    }
+  });
+
+  // Trash (soft-deleted gallery items)
+  app.get("/api/gallery/trash", async (_req, res) => {
+    try {
+      const items = await storage.getTrashedGalleryItems();
+      res.json(items);
+    } catch (error) {
+      console.error('[Routes] GET /api/gallery/trash failed:', error);
+      res.status(500).json({ error: "Failed to fetch trashed gallery items" });
+    }
+  });
+
+  app.get("/api/gallery/trash/category/:category", async (req, res) => {
+    try {
+      const { category } = req.params;
+      const items = await storage.getTrashedGalleryItemsByCategory(category);
+      res.json(items);
+    } catch (error) {
+      console.error('[Routes] GET /api/gallery/trash/category/:category failed:', error);
+      res.status(500).json({ error: "Failed to fetch trashed gallery items" });
     }
   });
 
   app.post("/api/gallery", async (req, res) => {
     try {
       const item = insertGalleryItemSchema.parse(req.body);
+      console.log('[Routes] POST /api/gallery incoming', item);
       const newItem = await storage.createGalleryItem(item);
+      console.log('[Routes] POST /api/gallery created', newItem);
       res.status(201).json(newItem);
     } catch (error) {
+      console.error('[Routes] POST /api/gallery error', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -163,12 +190,15 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(400).json({ error: "Invalid gallery item ID" });
       }
       const updates = updateGalleryItemSchema.parse(req.body);
+      console.log('[Routes] PATCH /api/gallery/:id incoming', { id, updates });
       const updatedItem = await storage.updateGalleryItem(id, updates);
       if (!updatedItem) {
         return res.status(404).json({ error: "Gallery item not found" });
       }
+      console.log('[Routes] PATCH /api/gallery/:id success', updatedItem);
       res.json(updatedItem);
     } catch (error) {
+      console.error('[Routes] PATCH /api/gallery/:id error', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -179,13 +209,30 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.delete("/api/gallery/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      console.log('[Routes] DELETE /api/gallery/:id incoming', { id });
       const deleted = await storage.deleteGalleryItem(id);
       if (!deleted) {
+        console.warn('[Routes] DELETE /api/gallery/:id not found', { id });
         return res.status(404).json({ error: "Gallery item not found" });
       }
+      console.log('[Routes] DELETE /api/gallery/:id success', { id });
       res.status(204).send();
     } catch (error) {
+      console.error('[Routes] DELETE /api/gallery/:id error', error);
       res.status(500).json({ error: "Failed to delete gallery item" });
+    }
+  });
+
+  // Generic image upload (Cloudinary) for artworks/covers
+  app.post("/api/upload/image", upload.single("file"), async (req, res) => {
+    try {
+      const file = (req as Request & { file?: UploadedFile }).file;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+      const folder = (req.body?.folder as string) || 'portfolio-art-items';
+      const { url, publicId } = await uploadImageToCloudinary(file.buffer, file.originalname, folder);
+      res.json({ url, publicId });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload image" });
     }
   });
 
@@ -375,7 +422,10 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.get("/api/albums", async (req, res) => {
     try {
       const albums = await storage.getAlbums();
-      res.json(albums);
+      // Filter by contentType if provided
+      const contentType = req.query.contentType as string | undefined;
+      const filtered = contentType ? albums.filter(a => a.contentType === contentType) : albums;
+      res.json(filtered);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch albums" });
     }

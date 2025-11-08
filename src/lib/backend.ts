@@ -2,7 +2,7 @@
 import { Project, GalleryItem, CVData } from '@/types';
 
 // Mock data storage
-let projects: Project[] = [
+const projects: Project[] = [
   {
     id: '1',
     title: 'E-Commerce Platform',
@@ -41,7 +41,7 @@ let projects: Project[] = [
   }
 ];
 
-let galleryItems: GalleryItem[] = [
+const galleryItems: GalleryItem[] = [
   {
     id: '1',
     title: 'Landscape Photography',

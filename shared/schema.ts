@@ -45,6 +45,13 @@ export const galleryItems = pgTable("gallery_items", {
   category: varchar("category", { length: 10 }).notNull(),
   subcategory: text("subcategory").notNull(),
   isPrivate: boolean("is_private").notNull().default(false),
+  // Extended artwork metadata
+  medium: text("medium"),
+  description: text("description"),
+  materials: text("materials").array().default([]),
+  dimensions: text("dimensions"),
+  date: text("date"),
+  deletedAt: text("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -108,6 +115,7 @@ export const albums = pgTable("albums", {
   color: text("color"),
   icon: text("icon"),
   itemIds: integer("item_ids").array().notNull().default([]),
+  contentType: text("content_type"), // 'art' or 'writings' to scope albums by dashboard
 });
 
 export const insertAlbumSchema = createInsertSchema(albums).omit({

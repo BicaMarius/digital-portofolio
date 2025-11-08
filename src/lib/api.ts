@@ -59,8 +59,9 @@ export async function deleteWriting(id: number): Promise<void> {
 
 // ============ ALBUMS API ============
 
-export async function getAlbums(): Promise<Album[]> {
-  return apiCall<Album[]>('/albums');
+export async function getAlbums(contentType?: 'art' | 'writings'): Promise<Album[]> {
+  const query = contentType ? `?contentType=${contentType}` : '';
+  return apiCall<Album[]>(`/albums${query}`);
 }
 
 export async function getAlbum(id: number): Promise<Album> {
@@ -83,6 +84,17 @@ export async function updateAlbum(id: number, updates: Partial<Album>): Promise<
 
 export async function deleteAlbum(id: number): Promise<void> {
   return apiCall<void>(`/albums/${id}`, { method: 'DELETE' });
+}
+
+// Convenience helpers for album membership
+export async function addItemToAlbum(album: Album, itemId: number): Promise<Album> {
+  const next = Array.from(new Set([...(album.itemIds || []), itemId]));
+  return updateAlbum(album.id, { itemIds: next } as Partial<Album>);
+}
+
+export async function removeItemFromAlbum(album: Album, itemId: number): Promise<Album> {
+  const next = (album.itemIds || []).filter((id) => id !== itemId);
+  return updateAlbum(album.id, { itemIds: next } as Partial<Album>);
 }
 
 // ============ TAGS API ============
@@ -146,27 +158,54 @@ export async function deleteProject(id: number): Promise<void> {
 // ============ GALLERY ITEMS API ============
 
 export async function getGalleryItems(): Promise<GalleryItem[]> {
-  return apiCall<GalleryItem[]>('/galleryItems');
+  return apiCall<GalleryItem[]>('/gallery');
+}
+
+export async function getGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
+  return apiCall<GalleryItem[]>(`/gallery/category/${encodeURIComponent(category)}`);
+}
+
+export async function getTrashedGalleryItems(): Promise<GalleryItem[]> {
+  return apiCall<GalleryItem[]>('/gallery/trash');
+}
+
+export async function getTrashedGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
+  return apiCall<GalleryItem[]>(`/gallery/trash/category/${encodeURIComponent(category)}`);
 }
 
 export async function getGalleryItem(id: number): Promise<GalleryItem> {
-  return apiCall<GalleryItem>(`/galleryItems/${id}`);
+  return apiCall<GalleryItem>(`/gallery/${id}`);
 }
 
 export async function createGalleryItem(item: Omit<GalleryItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<GalleryItem> {
-  return apiCall<GalleryItem>('/galleryItems', {
+  return apiCall<GalleryItem>('/gallery', {
     method: 'POST',
     body: JSON.stringify(item),
   });
 }
 
 export async function updateGalleryItem(id: number, updates: Partial<GalleryItem>): Promise<GalleryItem> {
-  return apiCall<GalleryItem>(`/galleryItems/${id}`, {
+  return apiCall<GalleryItem>(`/gallery/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),
   });
 }
 
 export async function deleteGalleryItem(id: number): Promise<void> {
-  return apiCall<void>(`/galleryItems/${id}`, { method: 'DELETE' });
+  return apiCall<void>(`/gallery/${id}`, { method: 'DELETE' });
+}
+
+// Soft delete helper (sets deletedAt instead of hard delete)
+export async function softDeleteGalleryItem(id: number): Promise<GalleryItem> {
+  return apiCall<GalleryItem>(`/gallery/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: new Date().toISOString() }),
+  });
+}
+
+export async function restoreGalleryItem(id: number): Promise<GalleryItem> {
+  return apiCall<GalleryItem>(`/gallery/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: null }),
+  });
 }

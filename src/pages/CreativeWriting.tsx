@@ -1439,7 +1439,8 @@ const CreativeWriting: React.FC = () => {
         name,
         color,
         icon: 'Book',
-        itemIds
+        itemIds,
+        contentType: 'writings'
       });
 
       setAlbumNameDialog({ open: false, sourceId: null, targetId: null });
@@ -3382,7 +3383,6 @@ const CreativeWriting: React.FC = () => {
             <div 
               className="relative"
               onMouseEnter={() => !isMobile && setHoveredAlbumSubmenu(true)}
-              onMouseLeave={() => !isMobile && setHoveredAlbumSubmenu(false)}
             >
               <button 
                 className="w-full text-left p-2 hover:bg-muted/50 flex items-center justify-between transition-colors"
@@ -3401,7 +3401,11 @@ const CreativeWriting: React.FC = () => {
               
               {/* Submenu */}
               {hoveredAlbumSubmenu && !isMobile && (
-                <div className={`absolute ${isMobile ? 'right-full top-0 mr-1 w-64 max-w-[85vw]' : 'left-full top-0 ml-1 w-48'} bg-popover border rounded shadow-lg p-1 backdrop-blur-sm z-70 ${isMobile ? 'max-h-60 overflow-y-auto' : ''}`}>
+                <div 
+                  className={`absolute ${isMobile ? 'right-full top-0 mr-1 w-64 max-w-[85vw]' : 'left-full top-0 ml-1 w-48'} bg-popover border rounded shadow-lg p-1 backdrop-blur-sm z-70 ${isMobile ? 'max-h-60 overflow-y-auto' : ''}`}
+                  onMouseEnter={() => !isMobile && setHoveredAlbumSubmenu(true)}
+                  onMouseLeave={() => !isMobile && setHoveredAlbumSubmenu(false)}
+                >
                   {albums.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground">Nu există albume</div>
                   ) : (
@@ -3452,7 +3456,8 @@ const CreativeWriting: React.FC = () => {
             </div>
             
             <button 
-              className="w-full text-left p-2 hover:bg-muted/50 transition-colors flex items-center gap-2" 
+              className="w-full text-left p-2 hover:bg-muted/50 transition-colors flex items-center gap-2"
+              onMouseEnter={() => !isMobile && setHoveredAlbumSubmenu(false)}
               onClick={() => {
                 const id = contextMenu.writingId;
                 if (id == null) return;
@@ -3481,7 +3486,8 @@ const CreativeWriting: React.FC = () => {
             </button>
             
             <button 
-              className="w-full text-left p-2 hover:bg-muted/50 text-destructive transition-colors" 
+              className="w-full text-left p-2 hover:bg-muted/50 text-destructive transition-colors"
+              onMouseEnter={() => !isMobile && setHoveredAlbumSubmenu(false)}
               onClick={() => {
                 const id = contextMenu.writingId;
                 if (id == null) return;

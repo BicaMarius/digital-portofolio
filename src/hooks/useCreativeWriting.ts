@@ -12,8 +12,8 @@ export function useWritings() {
 
 export function useAlbums() {
   return useQuery({
-    queryKey: ['albums'],
-    queryFn: api.getAlbums,
+    queryKey: ['albums', 'writings'],
+    queryFn: () => api.getAlbums('writings'),
   });
 }
 
