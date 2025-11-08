@@ -3,6 +3,8 @@ import express from 'express';
 import { db } from '../server/db.js';
 import multer from 'multer';
 import { uploadImageToCloudinary } from '../server/cloudinary.js';
+import { registerRoutes } from '../server/routes.js';
+import { DbStorage } from '../server/storage.js';
 import { 
   writings, 
   projects, 
@@ -15,6 +17,10 @@ import { eq } from 'drizzle-orm';
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Register all routes from server/routes.ts
+const storage = new DbStorage();
+registerRoutes(app, storage);
 
 // Resource configuration map
 const resourceMap = {
