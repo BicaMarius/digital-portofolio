@@ -66,7 +66,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const project = insertProjectSchema.parse(req.body);
+      const project = insertProjectSchema.parse(req.body) as any;
       const newProject = await storage.createProject(project);
       res.status(201).json(newProject);
     } catch (error) {
@@ -169,7 +169,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/gallery", async (req, res) => {
     try {
-      const item = insertGalleryItemSchema.parse(req.body);
+      const item = insertGalleryItemSchema.parse(req.body) as any;
       console.log('[Routes] POST /api/gallery incoming', item);
       const newItem = await storage.createGalleryItem(item);
       console.log('[Routes] POST /api/gallery created', newItem);
@@ -374,7 +374,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/writings", async (req, res) => {
     try {
-      const writing = insertWritingSchema.parse(req.body);
+      const writing = insertWritingSchema.parse(req.body) as any;
       const newWriting = await storage.createWriting(writing);
       res.status(201).json(newWriting);
     } catch (error) {
@@ -446,7 +446,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/albums", async (req, res) => {
     try {
-      const album = insertAlbumSchema.parse(req.body);
+      const album = insertAlbumSchema.parse(req.body) as any;
       const newAlbum = await storage.createAlbum(album);
       res.status(201).json(newAlbum);
     } catch (error) {
@@ -515,7 +515,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/tags", async (req, res) => {
     try {
-      const tag = insertTagSchema.parse(req.body);
+      const tag = insertTagSchema.parse(req.body) as any;
       const newTag = await storage.createTag(tag);
       res.status(201).json(newTag);
     } catch (error) {
