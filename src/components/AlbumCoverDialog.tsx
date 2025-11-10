@@ -77,7 +77,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               <TabsTrigger value="content">Conținut</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="cover" className="space-y-3">
+            <TabsContent value="cover" className="space-y-3 min-h-[400px]">
               <div className="flex flex-wrap items-center gap-3 justify-between">
                 <input
                   id="cover-file"
@@ -236,7 +236,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
             </TabsContent>
 
-            <TabsContent value="content" className="min-h-[28rem]">
+            <TabsContent value="content" className="min-h-[400px]">
               <div className="max-h-[50vh] md:max-h-[55vh] overflow-auto space-y-2 pr-1">
                 {album.artworks.map((art) => (
                   <Card key={art.id}>

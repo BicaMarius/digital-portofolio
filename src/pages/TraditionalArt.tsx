@@ -1018,7 +1018,7 @@ const TraditionalArt: React.FC = () => {
         <>
           {/* Add Artwork Modal */}
           <Dialog open={addingArtwork} onOpenChange={(o) => !o && setAddingArtwork(false)}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg sm:top-[12vh] sm:translate-y-0">
               <DialogHeader>
                 <DialogTitle>Adaugă Operă</DialogTitle>
                 <DialogDescription className="sr-only">Completează detaliile și imaginea operei</DialogDescription>
@@ -1030,7 +1030,7 @@ const TraditionalArt: React.FC = () => {
                     <TabsTrigger value="details">Detalii</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="info" className="space-y-3">
+                  <TabsContent value="info" className="space-y-3 min-h-[420px]">
                     <div className="border-2 border-dashed rounded-md p-4 bg-muted/20">
                       {newArtworkFile ? (
                         <img src={URL.createObjectURL(newArtworkFile)} alt="previzualizare" className="w-full h-56 object-contain rounded" />
@@ -1059,34 +1059,32 @@ const TraditionalArt: React.FC = () => {
                     </Select>
                   </TabsContent>
 
-                  <TabsContent value="details" className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label>Data</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start">
-                              <CalendarIcon className="h-4 w-4 mr-2" />
-                              {newArtworkDate}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={new Date(newArtworkDate)}
-                              onSelect={(d: Date | undefined) => d && setNewArtworkDate(d.toISOString().slice(0,10))}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Dimensiuni</Label>
-                        <div className="flex items-center gap-2">
-                          <Input type="number" placeholder="L" value={dimW} onChange={(e) => setDimW(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
-                          <span className="text-muted-foreground">×</span>
-                          <Input type="number" placeholder="l" value={dimH} onChange={(e) => setDimH(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
-                        </div>
+                  <TabsContent value="details" className="space-y-3 min-h-[420px]">
+                    <div className="space-y-1">
+                      <Label>Data</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start">
+                            <CalendarIcon className="h-4 w-4 mr-2" />
+                            {newArtworkDate}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={new Date(newArtworkDate)}
+                            onSelect={(d: Date | undefined) => d && setNewArtworkDate(d.toISOString().slice(0,10))}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Dimensiuni</Label>
+                      <div className="flex items-center gap-2">
+                        <Input type="number" placeholder="L" value={dimW} onChange={(e) => setDimW(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
+                        <span className="text-muted-foreground">×</span>
+                        <Input type="number" placeholder="l" value={dimH} onChange={(e) => setDimH(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -1117,17 +1115,17 @@ const TraditionalArt: React.FC = () => {
                             }
                           }}
                         />
-                        {materialsTags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {materialsTags.map((m) => (
-                              <Badge key={m} variant="outline" className="bg-art-accent/10 border-art-accent/20">
-                                <span className="mr-1">{m}</span>
-                                <button className="text-xs" onClick={() => setMaterialsTags(materialsTags.filter(x => x !== m))}>×</button>
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
                       </div>
+                      {materialsTags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {materialsTags.map((m) => (
+                            <Badge key={m} variant="secondary" className="bg-violet-500/20 border-violet-500/30 text-violet-700 dark:text-violet-300">
+                              <span className="mr-1">{m}</span>
+                              <button className="text-xs hover:text-violet-900 dark:hover:text-violet-100" onClick={() => setMaterialsTags(materialsTags.filter(x => x !== m))}>×</button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>Destinație</Label>
@@ -1266,7 +1264,7 @@ const TraditionalArt: React.FC = () => {
 
           {/* Edit Artwork Modal */}
           <Dialog open={!!editingArtwork} onOpenChange={(o) => !o && setEditingArtwork(null)}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg sm:top-[12vh] sm:translate-y-0">
               <DialogHeader>
                 <DialogTitle>Editează Operă</DialogTitle>
                 <DialogDescription className="sr-only">Modifică detaliile și imaginea operei</DialogDescription>
@@ -1279,7 +1277,7 @@ const TraditionalArt: React.FC = () => {
                       <TabsTrigger value="details">Detalii</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="info" className="space-y-3">
+                    <TabsContent value="info" className="space-y-3 min-h-[420px]">
                       <div className="border rounded p-3 flex flex-col items-center gap-3 bg-muted/30">
                         <img src={editingArtwork.image} alt={editingArtwork.title} className="w-full h-48 object-contain rounded" />
                         <label className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border cursor-pointer bg-background hover:bg-muted transition-colors">
@@ -1327,50 +1325,74 @@ const TraditionalArt: React.FC = () => {
                           <SelectItem value="sketch">Schiță</SelectItem>
                         </SelectContent>
                       </Select>
+                      
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="outline" onClick={() => setEditingArtwork(null)}>Anulează</Button>
+                        <Button onClick={async () => {
+                          if (!editingArtwork) return;
+                          try {
+                            console.log('[TraditionalArt] Updating artwork:', editingArtwork.id, editingArtwork);
+                            const updated = await updateGalleryItem(editingArtwork.id, {
+                              title: editingArtwork.title,
+                              medium: editingArtwork.medium,
+                              description: editingArtwork.description,
+                              materials: editingArtwork.materials,
+                              dimensions: editingArtwork.dimensions,
+                              date: editingArtwork.date,
+                              subcategory: editingArtwork.category,
+                            } as any);
+                            console.log('[TraditionalArt] Update result:', updated);
+                            toast({ title: 'Salvat', description: 'Modificările au fost salvate în cloud.' });
+                            setEditingArtwork(null);
+                            await reloadArtworks();
+                          } catch (e) {
+                            console.error('[TraditionalArt] Edit error:', e);
+                            toast({ title: 'Eroare', description: `Nu s-a putut salva: ${e instanceof Error ? e.message : 'Eroare necunoscută'}`, variant: 'destructive' });
+                          }
+                        }}>Salvează</Button>
+                      </div>
                     </TabsContent>
 
-                    <TabsContent value="details" className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label>Data</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-full justify-start">
-                                <CalendarIcon className="h-4 w-4 mr-2" />
-                                {editingArtwork.date}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={new Date(editingArtwork.date)}
-                                onSelect={(d: Date | undefined) => d && setEditingArtwork(prev => prev ? { ...prev, date: d.toISOString().slice(0,10) } : prev)}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Dimensiuni</Label>
-                          <div className="flex items-center gap-2">
-                            <Input type="number" placeholder="L" value={editDimW} onChange={(e) => {
-                              const val = e.target.value === '' ? '' : Number(e.target.value);
-                              setEditDimW(val);
-                              const h = editDimH;
-                              if (val !== '' && h !== '') {
-                                setEditingArtwork(prev => prev ? { ...prev, dimensions: `${val} × ${h} cm` } : prev);
-                              }
-                            }} className="[appearance:textfield]" />
-                            <span className="text-muted-foreground">×</span>
-                            <Input type="number" placeholder="l" value={editDimH} onChange={(e) => {
-                              const val = e.target.value === '' ? '' : Number(e.target.value);
-                              setEditDimH(val);
-                              const w = editDimW;
-                              if (w !== '' && val !== '') {
-                                setEditingArtwork(prev => prev ? { ...prev, dimensions: `${w} × ${val} cm` } : prev);
-                              }
-                            }} className="[appearance:textfield]" />
-                          </div>
+                    <TabsContent value="details" className="space-y-3 min-h-[420px]">
+                      <div className="space-y-1">
+                        <Label>Data</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-start">
+                              <CalendarIcon className="h-4 w-4 mr-2" />
+                              {editingArtwork.date}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={new Date(editingArtwork.date)}
+                              onSelect={(d: Date | undefined) => d && setEditingArtwork(prev => prev ? { ...prev, date: d.toISOString().slice(0,10) } : prev)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Dimensiuni</Label>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" placeholder="L" value={editDimW} onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            setEditDimW(val);
+                            const h = editDimH;
+                            if (val !== '' && h !== '') {
+                              setEditingArtwork(prev => prev ? { ...prev, dimensions: `${val} × ${h} cm` } : prev);
+                            }
+                          }} className="[appearance:textfield]" />
+                          <span className="text-muted-foreground">×</span>
+                          <Input type="number" placeholder="l" value={editDimH} onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            setEditDimH(val);
+                            const w = editDimW;
+                            if (w !== '' && val !== '') {
+                              setEditingArtwork(prev => prev ? { ...prev, dimensions: `${w} × ${val} cm` } : prev);
+                            }
+                          }} className="[appearance:textfield]" />
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -1403,55 +1425,56 @@ const TraditionalArt: React.FC = () => {
                               }
                             }}
                           />
-                          {editMaterialsTags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {editMaterialsTags.map((mat) => (
-                                <Badge key={mat} variant="secondary" className="text-xs">
-                                  {mat}
-                                  <button
-                                    className="ml-1 hover:text-destructive"
-                                    onClick={() => {
-                                      const next = editMaterialsTags.filter((m) => m !== mat);
-                                      setEditMaterialsTags(next);
-                                      setEditingArtwork(prev => prev ? { ...prev, materials: next } : prev);
-                                    }}
-                                  >
-                                    ×
-                                  </button>
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
                         </div>
+                        {editMaterialsTags.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {editMaterialsTags.map((mat) => (
+                              <Badge key={mat} variant="secondary" className="bg-violet-500/20 border-violet-500/30 text-violet-700 dark:text-violet-300">
+                                <span className="mr-1">{mat}</span>
+                                <button
+                                  className="text-xs hover:text-violet-900 dark:hover:text-violet-100"
+                                  onClick={() => {
+                                    const next = editMaterialsTags.filter((m) => m !== mat);
+                                    setEditMaterialsTags(next);
+                                    setEditingArtwork(prev => prev ? { ...prev, materials: next } : prev);
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="outline" onClick={() => setEditingArtwork(null)}>Anulează</Button>
+                        <Button onClick={async () => {
+                          if (!editingArtwork) return;
+                          try {
+                            console.log('[TraditionalArt] Updating artwork:', editingArtwork.id, editingArtwork);
+                            const updated = await updateGalleryItem(editingArtwork.id, {
+                              title: editingArtwork.title,
+                              medium: editingArtwork.medium,
+                              description: editingArtwork.description,
+                              materials: editingArtwork.materials,
+                              dimensions: editingArtwork.dimensions,
+                              date: editingArtwork.date,
+                              subcategory: editingArtwork.category,
+                            } as any);
+                            console.log('[TraditionalArt] Update result:', updated);
+                            toast({ title: 'Salvat', description: 'Modificările au fost salvate în cloud.' });
+                            setEditingArtwork(null);
+                            await reloadArtworks();
+                          } catch (e) {
+                            console.error('[TraditionalArt] Edit error:', e);
+                            toast({ title: 'Eroare', description: `Nu s-a putut salva: ${e instanceof Error ? e.message : 'Eroare necunoscută'}`, variant: 'destructive' });
+                          }
+                        }}>Salvează</Button>
                       </div>
                     </TabsContent>
                   </Tabs>
 
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setEditingArtwork(null)}>Anulează</Button>
-                    <Button onClick={async () => {
-                      if (!editingArtwork) return;
-                      try {
-                        console.log('[TraditionalArt] Updating artwork:', editingArtwork.id, editingArtwork);
-                        const updated = await updateGalleryItem(editingArtwork.id, {
-                          title: editingArtwork.title,
-                          medium: editingArtwork.medium,
-                          description: editingArtwork.description,
-                          materials: editingArtwork.materials,
-                          dimensions: editingArtwork.dimensions,
-                          date: editingArtwork.date,
-                          subcategory: editingArtwork.category,
-                        } as any);
-                        console.log('[TraditionalArt] Update result:', updated);
-                        toast({ title: 'Salvat', description: 'Modificările au fost salvate în cloud.' });
-                        setEditingArtwork(null);
-                        await reloadArtworks();
-                      } catch (e) {
-                        console.error('[TraditionalArt] Edit error:', e);
-                        toast({ title: 'Eroare', description: `Nu s-a putut salva: ${e instanceof Error ? e.message : 'Eroare necunoscută'}`, variant: 'destructive' });
-                      }
-                    }}>Salvează</Button>
-                  </div>
                 </div>
               )}
             </DialogContent>
