@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, X, Image as ImageIcon, MapPin, Calendar } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -105,6 +105,24 @@ const Photography: React.FC = () => {
     }
   };
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!selectedPhoto) return;
+      
+      if (e.key === 'ArrowLeft') {
+        prevPhoto();
+      } else if (e.key === 'ArrowRight') {
+        nextPhoto();
+      } else if (e.key === 'Escape') {
+        setSelectedPhoto(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [selectedPhoto, visiblePhotos]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -179,35 +197,59 @@ const Photography: React.FC = () => {
           {/* Photos Grid */}
           <div className={viewMode === 'grid' 
             ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8" 
-            : "space-y-4 mb-8"
+            : "space-y-6 mb-8"
           }>
             {currentPhotos.map((photo, index) => (
               <Card 
                 key={photo.id}
-                className="group cursor-pointer overflow-hidden hover-scale animate-scale-in"
+                className="group cursor-pointer overflow-hidden hover:shadow-xl hover:scale-105 transition-all duration-300 animate-scale-in"
                 style={{ animationDelay: `${index * 50}ms` }}
                 onClick={() => setSelectedPhoto(photo)}
               >
                 <CardContent className="p-0">
-                  <div className={viewMode === 'grid' ? "aspect-square" : "aspect-video md:aspect-[3/2]"}>
-                    <img 
-                      src={photo.image} 
-                      alt={photo.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                    />
-                    {photo.isPrivate && !isAdmin && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <span className="text-white font-semibold">Private</span>
+                  {viewMode === 'grid' ? (
+                    <div className="aspect-square relative overflow-hidden">
+                      <img 
+                        src={photo.image} 
+                        alt={photo.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      {photo.isPrivate && !isAdmin && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="text-white font-semibold">Private</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex gap-4 p-4">
+                      <div className="w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden">
+                        <img 
+                          src={photo.image} 
+                          alt={photo.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
                       </div>
-                    )}
-                  </div>
-                  {viewMode === 'list' && (
-                    <div className="p-4">
-                      <h3 className="font-semibold text-lg mb-1">{photo.title}</h3>
-                      <p className="text-muted-foreground text-sm mb-2">{photo.device}</p>
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span>{photo.date}</span>
-                        {photo.location && <span>{photo.location}</span>}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-2 mb-2">
+                          <ImageIcon className="h-5 w-5 text-art-accent flex-shrink-0 mt-0.5" />
+                          <h3 className="font-semibold text-lg leading-tight">{photo.title}</h3>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Camera className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <p className="text-muted-foreground text-sm">{photo.device}</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>{photo.date}</span>
+                          </div>
+                          {photo.location && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              <span>{photo.location}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -245,23 +287,18 @@ const Photography: React.FC = () => {
 
       {/* Full Screen Modal */}
       <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
-        <DialogContent className="max-w-7xl max-h-[90vh] p-0 bg-black/95">
+        <DialogContent className="max-w-[100vw] w-full h-full max-h-screen p-0 bg-black/98 border-0 rounded-none">
           {selectedPhoto && (
-            <div className="relative flex items-center justify-center h-full">
+            <div className="relative w-full h-full flex flex-col">
+              {/* Navigation Arrows */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
-                onClick={() => setSelectedPhoto(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 text-white hover:bg-white/20"
-                onClick={prevPhoto}
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevPhoto();
+                }}
               >
                 <ChevronLeft className="h-6 w-6" />
               </Button>
@@ -269,41 +306,52 @@ const Photography: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 text-white hover:bg-white/20"
-                onClick={nextPhoto}
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextPhoto();
+                }}
               >
                 <ChevronRight className="h-6 w-6" />
               </Button>
 
-              <img 
-                src={selectedPhoto.image} 
-                alt={selectedPhoto.title}
-                className="max-w-full max-h-full object-contain"
-              />
+              {/* Image Container */}
+              <div className="flex-1 flex items-center justify-center p-4 sm:p-8 pb-32 sm:pb-40">
+                <img 
+                  src={selectedPhoto.image} 
+                  alt={selectedPhoto.title}
+                  className="max-w-full max-h-full w-auto h-auto object-contain"
+                />
+              </div>
 
-              <div className="absolute bottom-4 left-4 right-4 bg-black/70 rounded-lg p-4 text-white">
-                <h3 className="text-xl font-semibold mb-2">{selectedPhoto.title}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-400">Device:</span>
-                    <p>{selectedPhoto.device}</p>
+              {/* Info Panel */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 pb-6 px-6 sm:px-8">
+                <div className="max-w-4xl mx-auto">
+                  {/* Title */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <ImageIcon className="h-6 w-6 text-art-accent flex-shrink-0 mt-1" />
+                    <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{selectedPhoto.title}</h3>
                   </div>
-                  <div>
-                    <span className="text-gray-400">Date:</span>
-                    <p>{selectedPhoto.date}</p>
+                  
+                  {/* Device */}
+                  <div className="flex items-center gap-2 mb-2 ml-9">
+                    <Camera className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                    <p className="text-lg text-gray-300">{selectedPhoto.device}</p>
                   </div>
-                  {selectedPhoto.location && (
-                    <div>
-                      <span className="text-gray-400">Location:</span>
-                      <p>{selectedPhoto.location}</p>
+                  
+                  {/* Date & Location */}
+                  <div className="flex items-center gap-4 ml-9 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-400">{selectedPhoto.date}</span>
                     </div>
-                  )}
-                  {selectedPhoto.settings && (
-                    <div>
-                      <span className="text-gray-400">Settings:</span>
-                      <p>{selectedPhoto.settings.aperture} • {selectedPhoto.settings.shutter} • ISO {selectedPhoto.settings.iso}</p>
-                    </div>
-                  )}
+                    {selectedPhoto.location && (
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm text-gray-400">{selectedPhoto.location}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
