@@ -168,6 +168,8 @@ export class MemStorage implements IStorage {
       medium: item.medium ?? null,
       description: item.description ?? null,
       materials: item.materials ?? [],
+      device: item.device ?? null,
+      location: item.location ?? null,
       dimensions: item.dimensions ?? null,
       date: item.date ?? null,
       deletedAt: item.deletedAt ?? null,

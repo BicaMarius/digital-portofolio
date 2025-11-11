@@ -51,6 +51,9 @@ export const galleryItems = pgTable("gallery_items", {
   materials: text("materials").array().default([]),
   dimensions: text("dimensions"),
   date: text("date"),
+  // Photography specific fields
+  device: text("device"), // Camera/phone used
+  location: text("location"), // Where photo was taken
   deletedAt: text("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

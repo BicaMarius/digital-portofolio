@@ -588,21 +588,20 @@ const TraditionalArt: React.FC = () => {
               />
             </div>
 
-            {/* Trash Button */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <button
-                  className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
-                  title={`Coș (${trash.length})`}
-                >
-                  <Trash className="h-4 w-4" />
-                  {trash.length > 0 && (
+            {/* Trash Button - show only when there are items */}
+            {trash.length > 0 && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button
+                    className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
+                    title={`Coș (${trash.length})`}
+                  >
+                    <Trash className="h-4 w-4" />
                     <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] px-1 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-medium">
                       {trash.length}
                     </span>
-                  )}
-                </button>
-              </DialogTrigger>
+                  </button>
+                </DialogTrigger>
               <DialogContent className="max-w-xl">
                 <DialogHeader>
                   <DialogTitle>
@@ -662,6 +661,7 @@ const TraditionalArt: React.FC = () => {
                 </div>
               </DialogContent>
             </Dialog>
+            )}
 
             <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v || 'all')}>
               <SelectTrigger className="w-[140px] sm:w-[180px] h-10">
