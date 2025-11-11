@@ -565,20 +565,20 @@ const TraditionalArt: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8 animate-fade-in">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Pencil className="h-8 w-8 text-art-accent" />
-              <h1 className="text-4xl font-bold gradient-text">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <Pencil className="h-7 w-7 sm:h-8 sm:w-8 text-art-accent" />
+              <h1 className="text-2xl sm:text-4xl font-bold gradient-text leading-tight">
                 Artă Tradițională
               </h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="hidden sm:block text-xl text-muted-foreground max-w-2xl mx-auto">
               Desene, picturi și creații artistice realizate cu instrumente tradiționale
             </p>
           </div>
 
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative flex-1 min-w-[180px] max-w-[320px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Caută albume sau lucrări..."
@@ -587,6 +587,81 @@ const TraditionalArt: React.FC = () => {
                 className="pl-9 h-10"
               />
             </div>
+
+            {/* Trash Button */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <button
+                  className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
+                  title={`Coș (${trash.length})`}
+                >
+                  <Trash className="h-4 w-4" />
+                  {trash.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] px-1 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-medium">
+                      {trash.length}
+                    </span>
+                  )}
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>
+                    <div className="flex items-center gap-2">
+                      <Trash className="h-5 w-5" />
+                      Coș de gunoi ({trash.length})
+                    </div>
+                  </DialogTitle>
+                  <DialogDescription className="sr-only">Opere șterse (soft delete)</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                  {trash.map((art) => (
+                    <div key={art.id} className="p-3 border rounded-lg bg-muted/20">
+                      <div className="flex gap-3">
+                        <img src={art.image} alt={art.title} className="w-16 h-16 object-cover rounded" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm mb-1 truncate">{art.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">{art.medium}</p>
+                          <p className="text-xs text-muted-foreground">{art.category}</p>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={async () => {
+                            try {
+                              await restoreGalleryItem(art.id);
+                              toast({ title: 'Restaurat', description: `${art.title} a fost restaurat.` });
+                              await reloadArtworks();
+                            } catch (e) {
+                              console.error('[TraditionalArt] Restore error:', e);
+                              toast({ title: 'Eroare', description: 'Nu s-a putut restaura.', variant: 'destructive' });
+                            }
+                          }}>
+                            <Undo2 className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="destructive" className="h-7 w-7" onClick={async () => {
+                            if (!confirm(`Ștergi permanent "${art.title}"? Această acțiune nu poate fi anulată.`)) return;
+                            try {
+                              await deleteGalleryItem(art.id);
+                              toast({ title: 'Șters permanent', description: `${art.title} a fost șters definitiv.` });
+                              await reloadArtworks();
+                            } catch (e) {
+                              console.error('[TraditionalArt] Permanent delete error:', e);
+                              toast({ title: 'Eroare', description: 'Nu s-a putut șterge.', variant: 'destructive' });
+                            }
+                          }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {trash.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Trash className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>Coșul este gol</p>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
 
             <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v || 'all')}>
               <SelectTrigger className="w-[140px] sm:w-[180px] h-10">
@@ -739,7 +814,7 @@ const TraditionalArt: React.FC = () => {
                         border: dropTarget?.type === 'album' && dropTarget?.albumId === album.id ? '2px dashed rgba(99, 102, 241, 0.5)' : undefined
                       }}
                     >
-                      <div className="grid grid-cols-2 gap-3 pt-2 justify-center sm:justify-start sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      <div className="grid grid-cols-2 gap-4 sm:gap-3 pt-2 justify-center sm:justify-start sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                         {album.artworks.map((artwork, i) => (
                           <Card
                             key={artwork.id}
@@ -902,7 +977,7 @@ const TraditionalArt: React.FC = () => {
 
                 return (
                   <>
-                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 mb-6">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-4 sm:gap-3 mb-6">
                       {pageItems.map((it) => (
                         <div key={it.key}>{it.node}</div>
                       ))}
@@ -1018,7 +1093,7 @@ const TraditionalArt: React.FC = () => {
         <>
           {/* Add Artwork Modal */}
           <Dialog open={addingArtwork} onOpenChange={(o) => !o && setAddingArtwork(false)}>
-            <DialogContent className="max-w-lg sm:top-[12vh] sm:translate-y-0">
+            <DialogContent className="max-w-lg w-[min(100vw-1.5rem,28rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 sm:top-[12vh] sm:translate-y-0">
               <DialogHeader>
                 <DialogTitle>Adaugă Operă</DialogTitle>
                 <DialogDescription className="sr-only">Completează detaliile și imaginea operei</DialogDescription>
@@ -1030,10 +1105,10 @@ const TraditionalArt: React.FC = () => {
                     <TabsTrigger value="details">Detalii</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="info" className="space-y-3 min-h-[420px]">
-                    <div className="border-2 border-dashed rounded-md p-4 bg-muted/20">
+                  <TabsContent value="info" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
+                    <div className="border-2 border-dashed rounded-md p-3 sm:p-4 bg-muted/20">
                       {newArtworkFile ? (
-                        <img src={URL.createObjectURL(newArtworkFile)} alt="previzualizare" className="w-full h-56 object-contain rounded" />
+                        <img src={URL.createObjectURL(newArtworkFile)} alt="previzualizare" className="w-full h-44 sm:h-56 object-contain rounded" />
                       ) : (
                         <p className="text-sm text-muted-foreground">Selectează o imagine pentru operă</p>
                       )}
@@ -1059,7 +1134,7 @@ const TraditionalArt: React.FC = () => {
                     </Select>
                   </TabsContent>
 
-                  <TabsContent value="details" className="space-y-3 min-h-[420px]">
+                  <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                     <div className="space-y-1">
                       <Label>Data</Label>
                       <Popover>
@@ -1264,7 +1339,7 @@ const TraditionalArt: React.FC = () => {
 
           {/* Edit Artwork Modal */}
           <Dialog open={!!editingArtwork} onOpenChange={(o) => !o && setEditingArtwork(null)}>
-            <DialogContent className="max-w-lg sm:top-[12vh] sm:translate-y-0">
+            <DialogContent className="max-w-lg w-[min(100vw-1.5rem,28rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 sm:top-[12vh] sm:translate-y-0">
               <DialogHeader>
                 <DialogTitle>Editează Operă</DialogTitle>
                 <DialogDescription className="sr-only">Modifică detaliile și imaginea operei</DialogDescription>
@@ -1277,9 +1352,9 @@ const TraditionalArt: React.FC = () => {
                       <TabsTrigger value="details">Detalii</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="info" className="space-y-3 min-h-[420px]">
-                      <div className="border rounded p-3 flex flex-col items-center gap-3 bg-muted/30">
-                        <img src={editingArtwork.image} alt={editingArtwork.title} className="w-full h-48 object-contain rounded" />
+                    <TabsContent value="info" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
+                      <div className="border rounded p-2 sm:p-3 flex flex-col items-center gap-3 bg-muted/30">
+                        <img src={editingArtwork.image} alt={editingArtwork.title} className="w-full h-40 sm:h-48 object-contain rounded" />
                         <label className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border cursor-pointer bg-background hover:bg-muted transition-colors">
                           <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                             const file = e.target.files?.[0];
@@ -1353,7 +1428,7 @@ const TraditionalArt: React.FC = () => {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="details" className="space-y-3 min-h-[420px]">
+                    <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                       <div className="space-y-1">
                         <Label>Data</Label>
                         <Popover>
@@ -1684,112 +1759,6 @@ const TraditionalArt: React.FC = () => {
             <Plus className="h-6 w-6" />
           </Button>
 
-          {/* Trash Drawer */}
-          <div className="fixed bottom-5 left-5 z-50">
-            <Dialog>
-              <DialogTrigger asChild>
-                <button
-                  className="relative h-12 w-12 rounded-xl flex items-center justify-center bg-background/70 backdrop-blur border border-border hover:bg-background transition-colors shadow-sm"
-                  title={`Coș (${trash.length})`}
-                >
-                  <Trash className="h-5 w-5" />
-                  {trash.length > 0 && (
-                    <span className="absolute -top-2 -right-2 h-6 min-w-[1.5rem] px-1 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-medium">
-                      {trash.length}
-                    </span>
-                  )}
-                </button>
-              </DialogTrigger>
-              <DialogContent className="max-w-xl">
-                <DialogHeader>
-                  <DialogTitle>
-                    <div className="flex items-center gap-2">
-                      <Trash className="h-5 w-5" />
-                      Coș de gunoi ({trash.length})
-                    </div>
-                  </DialogTitle>
-                  <DialogDescription className="sr-only">Opere șterse (soft delete)</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                  {trash.map((art) => (
-                    <div key={art.id} className="p-3 border rounded-lg bg-muted/20">
-                      <div className="flex gap-3">
-                        <img src={art.image} alt={art.title} className="w-16 h-16 object-cover rounded" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm mb-1 truncate">{art.title}</p>
-                          <p className="text-xs text-muted-foreground truncate">{art.medium}</p>
-                          {art.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{art.description}</p>}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-muted-foreground">{art.date}</span>
-                        <div className="flex gap-2">
-                          <button
-                            className="p-1 hover:bg-background rounded"
-                            title="Restaurează"
-                            onClick={async () => {
-                              try {
-                                await restoreGalleryItem(art.id);
-                                toast({ title: 'Restaurat', description: 'Opera a fost restaurată.' });
-                                await reloadArtworks();
-                              } catch (err) {
-                                console.error(err);
-                                toast({ title: 'Eroare', description: 'Nu s-a putut restaura opera.', variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            <Undo2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            className="p-1 hover:bg-background rounded text-destructive"
-                            title="Șterge definitiv"
-                            onClick={async () => {
-                              const ok = window.confirm('Sigur vrei să ștergi definitiv această operă? Această acțiune nu poate fi anulată.');
-                              if (!ok) return;
-                              try {
-                                await deleteGalleryItem(art.id);
-                                toast({ title: 'Ștearsă definitiv', description: 'Opera a fost ștearsă definitiv din cloud.' });
-                                await reloadArtworks();
-                              } catch (e) {
-                                toast({ title: 'Eroare', description: 'Nu s-a putut șterge definitiv.', variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {trash.length === 0 && <p className="text-sm text-muted-foreground">Coș gol.</p>}
-                </div>
-                {trash.length > 0 && (
-                  <div className="border-t pt-3">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="w-full"
-                      onClick={async () => {
-                        const ok = window.confirm('Golești coșul de gunoi? Toate operele din coș vor fi șterse definitiv din cloud.');
-                        if (!ok) return;
-                        try {
-                          await Promise.all(trash.map(a => deleteGalleryItem(a.id)));
-                          toast({ title: 'Coș golit', description: 'Toate operele din coș au fost șterse definitiv.' });
-                          await reloadArtworks();
-                        } catch (err) {
-                          toast({ title: 'Eroare', description: 'Nu s-au putut șterge toate operele.', variant: 'destructive' });
-                        }
-                      }}
-                      disabled={trash.length === 0}
-                    >
-                      <Trash className="h-4 w-4 mr-2" />
-                      Golește coșul
-                    </Button>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
-          </div>
           {/* Album Cover Dialog */}
           {editingAlbum && editingAlbum.id !== -1 && (
             <AlbumCoverDialog

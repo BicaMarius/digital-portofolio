@@ -135,17 +135,20 @@ const Profile: React.FC = () => {
                     <FileText className="h-6 w-6 text-primary" />
                     <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold`}>Curriculum Vitae</h2>
                   </div>
-                  <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap justify-center' : ''}`}>
+                  <div className={`flex items-center gap-3 ${isMobile ? 'justify-center' : ''}`}>
                     {cvData && (
                       <Button
-                        variant="outline"
-                        className="hover:bg-primary/10"
-                        size={isMobile ? 'sm' : 'default'}
+                        variant={isMobile ? 'secondary' : 'outline'}
+                        className={isMobile 
+                          ? 'h-10 w-10 rounded-full bg-sky-500 text-white hover:bg-sky-500/90 focus-visible:ring-sky-400' 
+                          : 'hover:bg-primary/10'}
+                        size={isMobile ? 'icon' : 'default'}
                         asChild
+                        title={isMobile ? 'Descarcă PDF' : undefined}
                       >
-                        <a href={cvData.fileUrl} target="_blank" rel="noopener noreferrer" download={cvData.fileName}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Download PDF
+                        <a href={cvData.fileUrl} target="_blank" rel="noopener noreferrer" download={cvData.fileName} className="flex items-center justify-center">
+                          <Download className="h-4 w-4" />
+                          {!isMobile && <span className="ml-2">Download PDF</span>}
                         </a>
                       </Button>
                     )}
@@ -194,10 +197,19 @@ const Profile: React.FC = () => {
                           className="hidden"
                           id="cv-upload"
                         />
-                        <Button variant="outline" asChild disabled={isUploading}>
-                          <label htmlFor="cv-upload" className="cursor-pointer">
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload CV
+                        <Button
+                          variant={isMobile ? 'secondary' : 'outline'}
+                          className={isMobile 
+                            ? 'h-10 w-10 rounded-full bg-emerald-500 text-white hover:bg-emerald-500/90 focus-visible:ring-emerald-400' 
+                            : 'hover:bg-primary/10'}
+                          size={isMobile ? 'icon' : 'default'}
+                          asChild
+                          disabled={isUploading}
+                          title={isMobile ? 'Încarcă CV' : undefined}
+                        >
+                          <label htmlFor="cv-upload" className="cursor-pointer flex items-center justify-center">
+                            <Upload className="h-4 w-4" />
+                            {!isMobile && <span className="ml-2">Upload CV</span>}
                           </label>
                         </Button>
 
@@ -219,11 +231,14 @@ const Profile: React.FC = () => {
                         {cvData && (
                           <Button 
                             variant="destructive" 
-                            size="sm"
+                            size={isMobile ? 'icon' : 'sm'}
+                            className={isMobile ? 'h-10 w-10 rounded-full' : ''}
                             onClick={handleDeleteCV}
                             disabled={isDeleting}
+                            title={isMobile ? 'Șterge CV' : undefined}
                           >
                             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            {!isMobile && !isDeleting && <span className="ml-2">Delete</span>}
                           </Button>
                         )}
                       </>
