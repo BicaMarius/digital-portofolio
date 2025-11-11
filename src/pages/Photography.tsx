@@ -111,11 +111,11 @@ const Photography: React.FC = () => {
   const dbToPhoto = (item: GalleryItem): Photo => ({
     id: item.id,
     title: item.title,
-    device: item.device && item.device.trim() ? item.device : undefined,
+  device: item.device?.trim() ? item.device.trim() : undefined,
     category: (item.subcategory as any) || 'landscape',
     image: item.image,
     date: item.date || new Date().getFullYear().toString(),
-    location: item.location && item.location.trim() ? item.location : undefined,
+  location: item.location?.trim() ? item.location.trim() : undefined,
     isPrivate: item.isPrivate,
   });
 
@@ -265,6 +265,10 @@ const Photography: React.FC = () => {
 
     setNewPhotoUploading(true);
     try {
+      const trimmedTitle = newPhotoTitle.trim();
+      const trimmedDevice = newPhotoDevice.trim();
+      const trimmedLocation = newPhotoLocation.trim();
+
       const fd = new FormData();
       fd.append('file', newPhotoFile);
       fd.append('folder', 'photography');
@@ -276,14 +280,14 @@ const Photography: React.FC = () => {
       const { url } = await uploadRes.json();
 
       await createGalleryItem({
-        title: newPhotoTitle,
+        title: trimmedTitle,
         image: url,
         category: 'photo',
         subcategory: newPhotoCategory,
         isPrivate: false,
-        device: newPhotoDevice,
+        device: trimmedDevice || null,
         date: newPhotoDate,
-        location: newPhotoLocation || undefined,
+        location: trimmedLocation || null,
       } as any);
 
       toast({ title: 'Adăugat', description: 'Fotografia a fost adăugată în cloud.' });
@@ -306,11 +310,15 @@ const Photography: React.FC = () => {
     }
 
     try {
+      const trimmedTitle = newPhotoTitle.trim();
+      const trimmedDevice = newPhotoDevice.trim();
+      const trimmedLocation = newPhotoLocation.trim();
+
       const updates = {
-        title: newPhotoTitle,
-        device: newPhotoDevice,
+        title: trimmedTitle,
+        device: trimmedDevice || null,
         date: newPhotoDate,
-        location: newPhotoLocation || undefined,
+        location: trimmedLocation || null,
         subcategory: newPhotoCategory,
       };
       
