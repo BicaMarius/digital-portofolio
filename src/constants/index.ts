@@ -103,7 +103,7 @@ export const CONTACT_INFO = {
   phone: '+40 123 456 789',
   location: 'România',
   socialMedia: {
-    instagram: 'https://instagram.com/bicamarius',
+    instagram: 'https://instagram.com/bica.mariuss',
     facebook: 'https://www.facebook.com/bicamariusadrian',
     linkedin: 'https://www.linkedin.com/in/marius-adrian-bica-b089b1183',
     github: 'https://github.com/BicaMarius'

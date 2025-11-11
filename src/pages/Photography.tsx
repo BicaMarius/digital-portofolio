@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, X, Image as ImageIcon, MapPin, Calendar } from 'lucide-react';
+import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Calendar } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -131,32 +131,32 @@ const Photography: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8 animate-fade-in">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Camera className="h-8 w-8 text-art-accent" />
-              <h1 className="text-4xl font-bold gradient-text">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <Camera className="h-7 w-7 sm:h-8 sm:w-8 text-art-accent" />
+              <h1 className="text-2xl sm:text-4xl font-bold gradient-text leading-tight">
                 Fotografie
               </h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="hidden sm:block text-xl text-muted-foreground max-w-2xl mx-auto">
               Capturi artistice și momente memorabile prin obiectiv
             </p>
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-8">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Caută fotografii..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-9 h-10"
               />
             </div>
-            
+
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
+              <SelectTrigger className="w-[140px] sm:w-[180px] h-10">
+                <Filter className="h-4 w-4 mr-2 hidden sm:inline" />
                 <SelectValue placeholder="Categorie" />
               </SelectTrigger>
               <SelectContent>
@@ -169,10 +169,11 @@ const Photography: React.FC = () => {
               </SelectContent>
             </Select>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 ml-auto">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'outline'}
                 size="icon"
+                className="h-10 w-10"
                 onClick={() => setViewMode('grid')}
               >
                 <Grid3X3 className="h-4 w-4" />
@@ -180,6 +181,7 @@ const Photography: React.FC = () => {
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="icon"
+                className="h-10 w-10"
                 onClick={() => setViewMode('list')}
               >
                 <List className="h-4 w-4" />
@@ -187,9 +189,9 @@ const Photography: React.FC = () => {
             </div>
 
             {isAdmin && (
-              <Button className="bg-art-accent hover:bg-art-accent/80">
-                <Plus className="h-4 w-4 mr-2" />
-                Adaugă
+              <Button className="hidden sm:inline-flex h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md">
+                <Camera className="h-4 w-4 mr-2" />
+                Adaugă fotografie
               </Button>
             )}
           </div>
@@ -221,8 +223,8 @@ const Photography: React.FC = () => {
                       )}
                     </div>
                   ) : (
-                    <div className="flex gap-4 p-4">
-                      <div className="w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden">
+                    <div className="flex gap-4 p-4 sm:p-5">
+                      <div className="w-32 sm:w-48 h-24 sm:h-32 flex-shrink-0 rounded-lg overflow-hidden">
                         <img 
                           src={photo.image} 
                           alt={photo.title}
@@ -286,10 +288,10 @@ const Photography: React.FC = () => {
       </div>
 
       {/* Full Screen Modal */}
-      <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
+      <Dialog open={!!selectedPhoto} onOpenChange={(open) => !open && setSelectedPhoto(null)}>
         <DialogContent className="max-w-[100vw] w-full h-full max-h-screen p-0 bg-black/98 border-0 rounded-none">
           {selectedPhoto && (
-            <div className="relative w-full h-full flex flex-col">
+            <div className="relative w-full h-full bg-black">
               {/* Navigation Arrows */}
               <Button
                 variant="ghost"
@@ -315,42 +317,39 @@ const Photography: React.FC = () => {
                 <ChevronRight className="h-6 w-6" />
               </Button>
 
-              {/* Image Container */}
-              <div className="flex-1 flex items-center justify-center p-4 sm:p-8 pb-32 sm:pb-40">
-                <img 
-                  src={selectedPhoto.image} 
-                  alt={selectedPhoto.title}
-                  className="max-w-full max-h-full w-auto h-auto object-contain"
-                />
-              </div>
+              <div className="flex flex-col h-full">
+                <div className="flex-1 flex items-center justify-center px-3 sm:px-6 pt-6 pb-32 sm:pb-48">
+                  <img
+                    src={selectedPhoto.image}
+                    alt={selectedPhoto.title}
+                    className="w-auto h-auto max-w-full max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)] object-contain"
+                  />
+                </div>
 
-              {/* Info Panel */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 pb-6 px-6 sm:px-8">
-                <div className="max-w-4xl mx-auto">
-                  {/* Title */}
-                  <div className="flex items-start gap-3 mb-3">
-                    <ImageIcon className="h-6 w-6 text-art-accent flex-shrink-0 mt-1" />
-                    <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{selectedPhoto.title}</h3>
-                  </div>
-                  
-                  {/* Device */}
-                  <div className="flex items-center gap-2 mb-2 ml-9">
-                    <Camera className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                    <p className="text-lg text-gray-300">{selectedPhoto.device}</p>
-                  </div>
-                  
-                  {/* Date & Location */}
-                  <div className="flex items-center gap-4 ml-9 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-400">{selectedPhoto.date}</span>
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
+
+                <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
+                  <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-5 sm:p-6">
+                    <div className="flex items-start gap-3 mb-3">
+                      <ImageIcon className="h-6 w-6 text-art-accent flex-shrink-0 mt-1" />
+                      <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{selectedPhoto.title}</h3>
                     </div>
-                    {selectedPhoto.location && (
+                    <div className="flex items-center gap-2 mb-2 ml-9">
+                      <Camera className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                      <p className="text-base sm:text-lg text-gray-300">{selectedPhoto.device}</p>
+                    </div>
+                    <div className="flex items-center gap-4 ml-9 flex-wrap">
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-400">{selectedPhoto.location}</span>
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm text-gray-300">{selectedPhoto.date}</span>
                       </div>
-                    )}
+                      {selectedPhoto.location && (
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-300">{selectedPhoto.location}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -358,6 +357,18 @@ const Photography: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {isAdmin && (
+        <Button
+          size="icon"
+          className="sm:hidden fixed bottom-5 right-5 h-12 w-12 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg"
+          onClick={() => {
+            console.info('Add photo action');
+          }}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
     </div>
   );
 };
