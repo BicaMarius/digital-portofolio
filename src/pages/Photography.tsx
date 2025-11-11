@@ -388,7 +388,7 @@ const Photography: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3 mb-8">
             {selectionMode ? (
               <>
-                <div className="flex items-center gap-3 flex-1">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1">
                   <Button
                     variant="outline"
                     size="sm"
@@ -398,10 +398,10 @@ const Photography: React.FC = () => {
                     }}
                     className="h-10"
                   >
-                    <XIcon className="h-4 w-4 mr-2" />
-                    Anulează
+                    <XIcon className="h-4 w-4" />
+                    {!isMobile && <span className="ml-2">Anulează</span>}
                   </Button>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {selectedIds.size} selectate
                   </span>
                 </div>
@@ -412,8 +412,12 @@ const Photography: React.FC = () => {
                   disabled={selectedIds.size === 0}
                   className="h-10"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Șterge {selectedIds.size > 0 && `(${selectedIds.size})`}
+                  <Trash2 className="h-4 w-4" />
+                  {!isMobile && (
+                    <span className="ml-2">
+                      Șterge {selectedIds.size > 0 && `(${selectedIds.size})`}
+                    </span>
+                  )}
                 </Button>
               </>
             ) : (
@@ -591,6 +595,11 @@ const Photography: React.FC = () => {
                 onTouchStart={(e) => !selectionMode && isAdmin && handleTouchStart(e, photo.id)}
                 onTouchMove={(e) => !selectionMode && isAdmin && handleTouchMove(e)}
                 onTouchEnd={() => !selectionMode && isAdmin && handleTouchEnd()}
+                onContextMenu={(e) => {
+                  if (isMobile && !selectionMode) {
+                    e.preventDefault(); // Prevent context menu on long press
+                  }
+                }}
               >
                 <CardContent className="p-0 relative">
                   {viewMode === 'grid' ? (
@@ -857,26 +866,48 @@ const Photography: React.FC = () => {
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
 
                 <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
-                  <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-5 sm:p-6">
-                    <div className="flex items-start gap-3 mb-3">
-                      <ImageIcon className="h-6 w-6 text-art-accent flex-shrink-0 mt-1" />
-                      <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{selectedPhoto.title}</h3>
+                  <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-4 sm:p-6 relative">
+                    {/* Edit icon on mobile - top right */}
+                    {isAdmin && isMobile && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8 text-white hover:bg-white/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPhoto(selectedPhoto);
+                          setNewPhotoTitle(selectedPhoto.title);
+                          setNewPhotoDevice(selectedPhoto.device || '');
+                          setNewPhotoDate(selectedPhoto.date);
+                          setNewPhotoLocation(selectedPhoto.location || '');
+                          setNewPhotoCategory(selectedPhoto.category);
+                          setActiveTab('basic');
+                          setSelectedPhoto(null);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    
+                    <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+                      <ImageIcon className="h-5 w-5 sm:h-6 sm:w-6 text-art-accent flex-shrink-0 mt-0.5 sm:mt-1" />
+                      <h3 className="text-lg sm:text-3xl font-bold text-white leading-tight pr-8 sm:pr-0">{selectedPhoto.title}</h3>
                     </div>
                     {selectedPhoto.device && (
-                      <div className="flex items-center gap-2 mb-2 ml-9">
-                        <Camera className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                        <p className="text-base sm:text-lg text-gray-300">{selectedPhoto.device}</p>
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 ml-7 sm:ml-9">
+                        <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
+                        <p className="text-sm sm:text-lg text-gray-300">{selectedPhoto.device}</p>
                       </div>
                     )}
-                    <div className="flex items-center gap-4 ml-9 flex-wrap">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-300">{selectedPhoto.date}</span>
+                    <div className="flex items-center gap-3 sm:gap-4 ml-7 sm:ml-9 flex-wrap">
+                      <div className="flex items-center gap-1 sm:gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
+                        <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.date}</span>
                       </div>
                       {selectedPhoto.location && (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-300">{selectedPhoto.location}</span>
+                        <div className="flex items-center gap-1 sm:gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
+                          <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.location}</span>
                         </div>
                       )}
                     </div>
