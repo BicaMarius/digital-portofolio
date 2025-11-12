@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check } from 'lucide-react';
+import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -35,6 +35,22 @@ interface Photo {
   location?: string;
   isPrivate?: boolean;
 }
+
+type SortOption = 'none' | 'title' | 'device' | 'location' | 'date';
+
+const YEAR_REGEX = /\d{4}/;
+
+const getYearNumber = (value?: string) => {
+  if (!value) return 0;
+  const match = value.match(YEAR_REGEX);
+  return match ? parseInt(match[0], 10) : 0;
+};
+
+const getYearLabel = (value?: string) => {
+  if (!value) return 'Necunoscut';
+  const match = value.match(YEAR_REGEX);
+  return match ? match[0] : 'Necunoscut';
+};
 
 const mockPhotos: Photo[] = [
   {
@@ -74,6 +90,7 @@ const Photography: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('none');
   const [currentPage, setCurrentPage] = useState(0);
   const photosPerPage = viewMode === 'grid' ? 12 : 6;
 
@@ -93,6 +110,11 @@ const Photography: React.FC = () => {
   const [newPhotoCategory, setNewPhotoCategory] = useState<Photo['category']>('landscape');
   const [newPhotoUploading, setNewPhotoUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const newPhotoPreviewUrl = React.useMemo(() => {
+    if (!newPhotoFile) return null;
+    return URL.createObjectURL(newPhotoFile);
+  }, [newPhotoFile]);
 
   // Selection mode
   const [selectionMode, setSelectionMode] = useState(false);
@@ -108,16 +130,22 @@ const Photography: React.FC = () => {
   const touchStartPos = React.useRef<{ x: number; y: number } | null>(null);
 
   // DB to Photo transformation
-  const dbToPhoto = (item: GalleryItem): Photo => ({
-    id: item.id,
-    title: item.title,
-  device: item.device?.trim() ? item.device.trim() : undefined,
-    category: (item.subcategory as any) || 'landscape',
-    image: item.image,
-    date: item.date || new Date().getFullYear().toString(),
-  location: item.location?.trim() ? item.location.trim() : undefined,
-    isPrivate: item.isPrivate,
-  });
+  const dbToPhoto = (item: GalleryItem): Photo => {
+    const normalizedDevice = item.device?.trim();
+    const normalizedLocation = item.location?.trim();
+    const normalizedDate = item.date?.trim() || new Date().getFullYear().toString();
+
+    return {
+      id: item.id,
+      title: item.title,
+      device: normalizedDevice && normalizedDevice.length > 0 ? normalizedDevice : undefined,
+      category: (item.subcategory as any) || 'landscape',
+      image: item.image,
+      date: normalizedDate,
+      location: normalizedLocation && normalizedLocation.length > 0 ? normalizedLocation : undefined,
+      isPrivate: item.isPrivate,
+    };
+  };
 
   // Load from cloud
   const reloadPhotos = async () => {
@@ -145,37 +173,181 @@ const Photography: React.FC = () => {
     setNewPhotoLocation('');
     setNewPhotoCategory('landscape');
     setActiveTab('basic');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const triggerNativeFileDialog = () => {
+    fileInputRef.current?.click();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (newPhotoPreviewUrl) {
+        URL.revokeObjectURL(newPhotoPreviewUrl);
+      }
+    };
+  }, [newPhotoPreviewUrl]);
+
+  const handleCloudPicker = async () => {
+    const picker = (window as any)?.showOpenFilePicker;
+    if (picker) {
+      try {
+        const [handle] = await picker({
+          multiple: false,
+          types: [
+            {
+              description: 'Imagini',
+              accept: {
+                'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.gif']
+              }
+            }
+          ]
+        });
+        if (!handle) return;
+        const file = await handle.getFile();
+        setNewPhotoFile(file as File);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          return;
+        }
+        console.error('[Photography] Cloud picker error:', error);
+        toast({ title: 'Eroare', description: 'Nu am putut deschide selectorul de fișiere.', variant: 'destructive' });
+      }
+    } else {
+      triggerNativeFileDialog();
+    }
   };
 
   useEffect(() => {
     reloadPhotos();
   }, []);
 
-  const visiblePhotos = (isAdmin ? photos : photos.filter(photo => !photo.isPrivate))
-    .filter(photo => 
-      photo.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (filterCategory === 'all' || photo.category === filterCategory)
-    );
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchTerm, filterCategory, sortOption]);
 
-  const totalPages = Math.ceil(visiblePhotos.length / photosPerPage);
-  const currentPhotos = visiblePhotos.slice(
-    currentPage * photosPerPage,
-    (currentPage + 1) * photosPerPage
+  const filteredPhotos = React.useMemo(() => {
+    const base = isAdmin ? photos : photos.filter((photo) => !photo.isPrivate);
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return base.filter((photo) => {
+      const matchesSearch =
+        normalizedSearch === '' || photo.title.toLowerCase().includes(normalizedSearch);
+      const matchesCategory = filterCategory === 'all' || photo.category === filterCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [photos, isAdmin, searchTerm, filterCategory]);
+
+  const sortedPhotos = React.useMemo(() => {
+    const collator = new Intl.Collator('ro', { sensitivity: 'base' });
+    const arr = [...filteredPhotos];
+
+    switch (sortOption) {
+      case 'title':
+        arr.sort((a, b) => collator.compare(a.title, b.title));
+        break;
+      case 'device':
+        arr.sort((a, b) =>
+          collator.compare(a.device?.trim() || 'Fără dispozitiv', b.device?.trim() || 'Fără dispozitiv')
+        );
+        break;
+      case 'location':
+        arr.sort((a, b) =>
+          collator.compare(a.location?.trim() || 'Fără locație', b.location?.trim() || 'Fără locație')
+        );
+        break;
+      case 'date':
+        arr.sort((a, b) => {
+          const diff = getYearNumber(b.date) - getYearNumber(a.date);
+          if (diff !== 0) return diff;
+          return collator.compare(a.title, b.title);
+        });
+        break;
+      default:
+        arr.sort((a, b) => b.id - a.id);
+    }
+
+    return arr;
+  }, [filteredPhotos, sortOption]);
+
+  const totalPages = Math.ceil(sortedPhotos.length / photosPerPage);
+  const safePageIndex = totalPages === 0 ? 0 : Math.min(currentPage, totalPages - 1);
+  const currentPhotos = sortedPhotos.slice(
+    safePageIndex * photosPerPage,
+    (safePageIndex + 1) * photosPerPage
   );
+
+  const groupedCurrentPhotos = React.useMemo(() => {
+    if (sortOption === 'none') {
+      return [{ key: 'all', title: null as string | null, photos: currentPhotos }];
+    }
+
+    const groups: { key: string; title: string; photos: Photo[] }[] = [];
+
+    const getGroupKey = (photo: Photo): string => {
+      switch (sortOption) {
+        case 'title':
+          return photo.title?.trim()?.charAt(0)?.toUpperCase() || '#';
+        case 'device':
+          return photo.device?.trim() || 'Fără dispozitiv';
+        case 'location':
+          return photo.location?.trim() || 'Fără locație';
+        case 'date':
+          return getYearLabel(photo.date);
+        default:
+          return 'other';
+      }
+    };
+
+    const getGroupTitle = (key: string): string => {
+      switch (sortOption) {
+        case 'title':
+          return key === '#' ? 'Titluri diverse' : `Titluri – ${key}`;
+        case 'device':
+          return key === 'Fără dispozitiv' ? 'Dispozitiv necunoscut' : `Dispozitiv: ${key}`;
+        case 'location':
+          return key === 'Fără locație' ? 'Locație necunoscută' : `Locație: ${key}`;
+        case 'date':
+          return key === 'Necunoscut' ? 'An necunoscut' : `Anul ${key}`;
+        default:
+          return '';
+      }
+    };
+
+    currentPhotos.forEach((photo) => {
+      const key = getGroupKey(photo);
+      let group = groups.find((g) => g.key === key);
+      if (!group) {
+        group = { key, title: getGroupTitle(key), photos: [] };
+        groups.push(group);
+      }
+      group.photos.push(photo);
+    });
+
+    return groups;
+  }, [currentPhotos, sortOption]);
+
+  let animationIndex = 0;
 
   const nextPhoto = () => {
     if (selectedPhoto) {
-      const currentIndex = visiblePhotos.findIndex(p => p.id === selectedPhoto.id);
-      const nextIndex = (currentIndex + 1) % visiblePhotos.length;
-      setSelectedPhoto(visiblePhotos[nextIndex]);
+      const currentIndex = sortedPhotos.findIndex((p) => p.id === selectedPhoto.id);
+      if (currentIndex === -1) return;
+      const nextIndex = (currentIndex + 1) % sortedPhotos.length;
+      setSelectedPhoto(sortedPhotos[nextIndex]);
     }
   };
 
   const prevPhoto = () => {
     if (selectedPhoto) {
-      const currentIndex = visiblePhotos.findIndex(p => p.id === selectedPhoto.id);
-      const prevIndex = (currentIndex - 1 + visiblePhotos.length) % visiblePhotos.length;
-      setSelectedPhoto(visiblePhotos[prevIndex]);
+      const currentIndex = sortedPhotos.findIndex((p) => p.id === selectedPhoto.id);
+      if (currentIndex === -1) return;
+      const prevIndex = (currentIndex - 1 + sortedPhotos.length) % sortedPhotos.length;
+      setSelectedPhoto(sortedPhotos[prevIndex]);
     }
   };
 
@@ -195,7 +367,29 @@ const Photography: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedPhoto, visiblePhotos]);
+  }, [selectedPhoto, sortedPhotos]);
+
+  useEffect(() => {
+    if (!selectedPhoto) return;
+
+    const latest = sortedPhotos.find((p) => p.id === selectedPhoto.id);
+    if (!latest || latest === selectedPhoto) {
+      return;
+    }
+
+    const hasDifferences =
+      latest.title !== selectedPhoto.title ||
+      latest.image !== selectedPhoto.image ||
+      latest.date !== selectedPhoto.date ||
+      (latest.device ?? '') !== (selectedPhoto.device ?? '') ||
+      (latest.location ?? '') !== (selectedPhoto.location ?? '') ||
+      latest.category !== selectedPhoto.category ||
+      !!latest.isPrivate !== !!selectedPhoto.isPrivate;
+
+    if (hasDifferences) {
+      setSelectedPhoto(latest);
+    }
+  }, [selectedPhoto, sortedPhotos]);
 
   // Long press handlers
   const handleTouchStart = (e: React.TouchEvent, photoId: number) => {
@@ -385,7 +579,7 @@ const Photography: React.FC = () => {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-wrap items-center gap-3 mb-8">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-8">
             {selectionMode ? (
               <>
                 <div className="flex items-center gap-2 sm:gap-3 flex-1">
@@ -422,78 +616,31 @@ const Photography: React.FC = () => {
               </>
             ) : (
               <>
-                <div className="relative flex-1 min-w-[180px] max-w-[320px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Caută fotografii..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-10"
-                  />
-                </div>
-
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger className="w-[140px] sm:w-[180px] h-10">
-                    <Filter className="h-4 w-4 mr-2 hidden sm:inline" />
-                    <SelectValue placeholder="Categorie" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Toate</SelectItem>
-                    <SelectItem value="portrait">Portret</SelectItem>
-                    <SelectItem value="landscape">Peisaj</SelectItem>
-                    <SelectItem value="street">Stradă</SelectItem>
-                    <SelectItem value="macro">Macro</SelectItem>
-                    <SelectItem value="night">Noapte</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <div className="flex gap-2 ml-auto">
-                  <Button
-                    variant={viewMode === 'grid' ? 'default' : 'outline'}
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => setViewMode('grid')}
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'outline'}
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => setViewMode('list')}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {isAdmin && (
-                  <>
-                    <Button 
-                      className="hidden sm:inline-flex h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md"
-                      onClick={() => {
-                        resetForm();
-                        setAddingPhoto(true);
-                      }}
-                    >
-                      <Camera className="h-4 w-4 mr-2" />
-                      Adaugă fotografie
-                    </Button>
-                    
-                    {/* Trash Dialog - show only when there are items */}
-                    {trash.length > 0 && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <button
-                            className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
-                            title={`Coș (${trash.length})`}
-                          >
-                            <Trash className="h-4 w-4" />
-                            <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] px-1 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-medium">
-                              {trash.length}
-                            </span>
-                          </button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-xl">
+                {/* Mobile: First row - Search + Trash */}
+                <div className="flex sm:hidden items-center gap-2 w-full">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Caută fotografii..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9 h-10"
+                    />
+                  </div>
+                  {isAdmin && trash.length > 0 && (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button
+                          className="relative h-10 w-10 flex-shrink-0 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
+                          title={`Coș (${trash.length})`}
+                        >
+                          <Trash className="h-4 w-4" />
+                          <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] px-1 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-medium">
+                            {trash.length}
+                          </span>
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-xl">
                         <DialogHeader>
                           <DialogTitle>
                             <div className="flex items-center gap-2">
@@ -562,236 +709,477 @@ const Photography: React.FC = () => {
                         </div>
                       </DialogContent>
                     </Dialog>
-                    )}
-                  </>
-                )}
+                  )}
+                </div>
+
+                {/* Mobile: Second row - Filter, Sort, View toggles */}
+                <div className="flex sm:hidden items-center gap-2 w-full">
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger className="h-10 w-10 [&>span]:hidden">
+                      <Filter className="h-4 w-4" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toate</SelectItem>
+                      <SelectItem value="portrait">Portret</SelectItem>
+                      <SelectItem value="landscape">Peisaj</SelectItem>
+                      <SelectItem value="street">Stradă</SelectItem>
+                      <SelectItem value="macro">Macro</SelectItem>
+                      <SelectItem value="night">Noapte</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
+                    <SelectTrigger className="h-10 w-10 [&>span]:hidden">
+                      <ArrowUpDown className="h-4 w-4" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Fără sortare</SelectItem>
+                      <SelectItem value="date">După an</SelectItem>
+                      <SelectItem value="title">După nume</SelectItem>
+                      <SelectItem value="device">După dispozitiv</SelectItem>
+                      <SelectItem value="location">După locație</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <div className="flex gap-2 ml-auto">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'outline'}
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => setViewMode('grid')}
+                    >
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'outline'}
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => setViewMode('list')}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Desktop: Single row - all controls */}
+                <div className="hidden sm:flex items-center gap-3 w-full">
+                  <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Caută fotografii..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9 h-10"
+                    />
+                  </div>
+
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger className="w-[180px] h-10">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Categorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toate</SelectItem>
+                      <SelectItem value="portrait">Portret</SelectItem>
+                      <SelectItem value="landscape">Peisaj</SelectItem>
+                      <SelectItem value="street">Stradă</SelectItem>
+                      <SelectItem value="macro">Macro</SelectItem>
+                      <SelectItem value="night">Noapte</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
+                    <SelectTrigger className="w-[200px] h-10">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Sortare" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Fără sortare</SelectItem>
+                      <SelectItem value="date">După an</SelectItem>
+                      <SelectItem value="title">După nume</SelectItem>
+                      <SelectItem value="device">După dispozitiv</SelectItem>
+                      <SelectItem value="location">După locație</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'outline'}
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => setViewMode('grid')}
+                    >
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'outline'}
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => setViewMode('list')}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {isAdmin && (
+                    <>
+                      <Button 
+                        className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md ml-auto"
+                        onClick={() => {
+                          resetForm();
+                          setAddingPhoto(true);
+                        }}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Adaugă fotografie
+                      </Button>
+                      
+                      {trash.length > 0 && (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button
+                              className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
+                              title={`Coș (${trash.length})`}
+                            >
+                              <Trash className="h-4 w-4" />
+                              <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] px-1 rounded-full bg-destructive text-white text-xs flex items-center justify-center font-medium">
+                                {trash.length}
+                              </span>
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-xl">
+                            <DialogHeader>
+                              <DialogTitle>
+                                <div className="flex items-center gap-2">
+                                  <Trash className="h-5 w-5" />
+                                  Coș de gunoi ({trash.length})
+                                </div>
+                              </DialogTitle>
+                              <DialogDescription className="sr-only">Fotografii șterse (soft delete)</DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                              {trash.map((photo) => (
+                                <div key={photo.id} className="p-3 border rounded-lg bg-muted/20">
+                                  <div className="flex gap-3">
+                                    <img src={photo.image} alt={photo.title} className="w-16 h-16 object-cover rounded" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium text-sm mb-1 truncate">{photo.title}</p>
+                                      {photo.device && <p className="text-xs text-muted-foreground truncate">{photo.device}</p>}
+                                      <p className="text-xs text-muted-foreground">{photo.category}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Button 
+                                        size="icon" 
+                                        variant="outline" 
+                                        className="h-7 w-7" 
+                                        onClick={async () => {
+                                          try {
+                                            await restoreGalleryItem(photo.id);
+                                            toast({ title: 'Restaurat', description: `${photo.title} a fost restaurat.` });
+                                            await reloadPhotos();
+                                          } catch (e) {
+                                            console.error('[Photography] Restore error:', e);
+                                            toast({ title: 'Eroare', description: 'Nu s-a putut restaura.', variant: 'destructive' });
+                                          }
+                                        }}
+                                      >
+                                        <Undo2 className="h-4 w-4" />
+                                      </Button>
+                                      <Button 
+                                        size="icon" 
+                                        variant="destructive" 
+                                        className="h-7 w-7" 
+                                        onClick={async () => {
+                                          if (!confirm(`Ștergi permanent "${photo.title}"? Această acțiune nu poate fi anulată.`)) return;
+                                          try {
+                                            await deleteGalleryItem(photo.id);
+                                            toast({ title: 'Șters permanent', description: `${photo.title} a fost șters definitiv.` });
+                                            await reloadPhotos();
+                                          } catch (e) {
+                                            console.error('[Photography] Permanent delete error:', e);
+                                            toast({ title: 'Eroare', description: 'Nu s-a putut șterge.', variant: 'destructive' });
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {trash.length === 0 && (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  <Trash className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                  <p>Coșul este gol</p>
+                                </div>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>
+
+          {/* Add Photo Button - Mobile Only */}
+          {!selectionMode && isAdmin && (
+            <div className="sm:hidden mb-6">
+              <Button 
+                className="w-full h-12 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md"
+                onClick={() => {
+                  resetForm();
+                  setAddingPhoto(true);
+                }}
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                Adaugă fotografie
+              </Button>
+            </div>
+          )}
 
           {/* Photos Grid */}
           <div className={viewMode === 'grid' 
             ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8" 
             : "space-y-6 mb-8"
           }>
-            {currentPhotos.map((photo, index) => (
-              <Card 
-                key={photo.id}
-                className={`group cursor-pointer overflow-hidden transition-all duration-300 animate-scale-in ${
-                  selectionMode
-                    ? selectedIds.has(photo.id)
-                      ? 'ring-2 ring-art-accent scale-95'
-                      : 'hover:scale-95'
-                    : 'hover:shadow-xl hover:scale-105'
-                }`}
-                style={{ animationDelay: `${index * 50}ms` }}
-                onClick={() => {
-                  if (selectionMode) {
-                    toggleSelection(photo.id);
-                  } else {
-                    setSelectedPhoto(photo);
-                  }
-                }}
-                onTouchStart={(e) => !selectionMode && isAdmin && handleTouchStart(e, photo.id)}
-                onTouchMove={(e) => !selectionMode && isAdmin && handleTouchMove(e)}
-                onTouchEnd={() => !selectionMode && isAdmin && handleTouchEnd()}
-                onContextMenu={(e) => {
-                  if (isMobile && !selectionMode) {
-                    e.preventDefault(); // Prevent context menu on long press
-                  }
-                }}
-              >
-                <CardContent className="p-0 relative">
-                  {viewMode === 'grid' ? (
-                    <div className="aspect-square relative overflow-hidden">
-                      <img 
-                        src={photo.image} 
-                        alt={photo.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                      {photo.isPrivate && !isAdmin && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="text-white font-semibold">Private</span>
-                        </div>
-                      )}
-                      
-                      {/* Checkbox in top-left corner - shows on hover or when in selection mode */}
-                      {isAdmin && (
-                        <div 
-                          className={`absolute top-2 left-2 z-10 transition-opacity ${
-                            selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!selectionMode) {
-                              setSelectionMode(true);
-                            }
-                            toggleSelection(photo.id);
-                          }}
-                        >
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                            selectedIds.has(photo.id)
-                              ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg'
-                              : 'bg-white/20 backdrop-blur-md border-2 border-white/60 hover:bg-white/30'
-                          }`}>
-                            {selectedIds.has(photo.id) && <Check className="h-4 w-4" />}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Three-dot dropdown menu */}
-                      {isAdmin && !selectionMode && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="absolute top-2 right-2 z-10 h-8 w-8 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingPhoto(photo);
-                                setNewPhotoTitle(photo.title);
-                                setNewPhotoDevice(photo.device || '');
-                                setNewPhotoDate(photo.date);
-                                setNewPhotoLocation(photo.location || '');
-                                setNewPhotoCategory(photo.category);
-                              }}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Editează
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeletePhotoDialog({ 
-                                  open: true, 
-                                  photoId: photo.id, 
-                                  photoTitle: photo.title 
-                                });
-                              }}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Șterge
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+            {groupedCurrentPhotos.map((group) => (
+              <React.Fragment key={group.key}>
+                {sortOption !== 'none' && group.title && (
+                  <div className={viewMode === 'grid' ? 'col-span-full' : ''}>
+                    <div className="flex items-center gap-3 py-4">
+                      <div className="flex-shrink-0 w-1 h-8 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full" />
+                      <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{group.title}</span>
                     </div>
-                  ) : (
-                    <div className="flex gap-4 p-4 sm:p-5">
-                      {/* Selection checkbox for list view */}
-                      {isAdmin && (
-                        <div 
-                          className={`flex items-center justify-center transition-opacity ${
-                            selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!selectionMode) {
-                              setSelectionMode(true);
-                            }
-                            toggleSelection(photo.id);
-                          }}
-                        >
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                            selectedIds.has(photo.id)
-                              ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg'
-                              : 'bg-muted border-2 border-muted-foreground/20 hover:bg-muted/80'
-                          }`}>
-                            {selectedIds.has(photo.id) && <Check className="h-4 w-4" />}
+                  </div>
+                )}
+                {group.photos.map((photo) => {
+                  const delay = animationIndex * 50;
+                  animationIndex += 1;
+
+                  return (
+                    <Card 
+                      key={photo.id}
+                      className={`group cursor-pointer overflow-hidden transition-all duration-300 animate-scale-in ${
+                        selectionMode
+                          ? selectedIds.has(photo.id)
+                            ? 'ring-2 ring-art-accent scale-95'
+                            : 'hover:scale-95'
+                          : 'hover:shadow-xl hover:scale-105'
+                      }`}
+                      style={{ animationDelay: `${delay}ms` }}
+                      onClick={() => {
+                        if (selectionMode) {
+                          toggleSelection(photo.id);
+                        } else {
+                          setSelectedPhoto(photo);
+                        }
+                      }}
+                      onTouchStart={(e) => !selectionMode && isAdmin && handleTouchStart(e, photo.id)}
+                      onTouchMove={(e) => !selectionMode && isAdmin && handleTouchMove(e)}
+                      onTouchEnd={() => !selectionMode && isAdmin && handleTouchEnd()}
+                      onContextMenu={(e) => {
+                        if (isMobile && !selectionMode) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      <CardContent className="p-0 relative">
+                        {viewMode === 'grid' ? (
+                          <div className="aspect-square relative overflow-hidden">
+                            <img 
+                              src={photo.image} 
+                              alt={photo.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            />
+                            {photo.isPrivate && !isAdmin && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <span className="text-white font-semibold">Private</span>
+                              </div>
+                            )}
+                            
+                            {/* Checkbox in top-left corner - shows on hover or when in selection mode */}
+                            {isAdmin && (
+                              <div 
+                                className={`absolute top-2 left-2 z-10 transition-opacity ${
+                                  selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!selectionMode) {
+                                    setSelectionMode(true);
+                                  }
+                                  toggleSelection(photo.id);
+                                }}
+                              >
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                  selectedIds.has(photo.id)
+                                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg'
+                                    : 'bg-white/20 backdrop-blur-md border-2 border-white/60 hover:bg-white/30'
+                                }`}>
+                                  {selectedIds.has(photo.id) && <Check className="h-4 w-4" />}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Three-dot dropdown menu */}
+                            {isAdmin && !selectionMode && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute top-2 right-2 z-10 h-8 w-8 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-40">
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingPhoto(photo);
+                                      setNewPhotoTitle(photo.title);
+                                      setNewPhotoDevice(photo.device || '');
+                                      setNewPhotoDate(photo.date);
+                                      setNewPhotoLocation(photo.location || '');
+                                      setNewPhotoCategory(photo.category);
+                                    }}
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Editează
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeletePhotoDialog({ 
+                                        open: true, 
+                                        photoId: photo.id, 
+                                        photoTitle: photo.title 
+                                      });
+                                    }}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Șterge
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
-                        </div>
-                      )}
-                      
-                      <div className="w-32 sm:w-48 h-24 sm:h-32 flex-shrink-0 rounded-lg overflow-hidden">
-                        <img 
-                          src={photo.image} 
-                          alt={photo.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-2 mb-2">
-                          <ImageIcon className="h-5 w-5 text-art-accent flex-shrink-0 mt-0.5" />
-                          <h3 className="font-semibold text-lg leading-tight flex-1">{photo.title}</h3>
-                          
-                          {/* Three-dot dropdown menu for list view */}
-                          {isAdmin && !selectionMode && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-40">
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingPhoto(photo);
-                                    setNewPhotoTitle(photo.title);
-                                    setNewPhotoDevice(photo.device || '');
-                                    setNewPhotoDate(photo.date);
-                                    setNewPhotoLocation(photo.location || '');
-                                    setNewPhotoCategory(photo.category);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Editează
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeletePhotoDialog({ 
-                                      open: true, 
-                                      photoId: photo.id, 
-                                      photoTitle: photo.title 
-                                    });
-                                  }}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Șterge
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                        {photo.device && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <Camera className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <p className="text-muted-foreground text-sm">{photo.device}</p>
+                        ) : (
+                          <div className="flex gap-4 p-4 sm:p-5">
+                            {/* Selection checkbox for list view */}
+                            {isAdmin && (
+                              <div 
+                                className={`flex items-center justify-center transition-opacity ${
+                                  selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!selectionMode) {
+                                    setSelectionMode(true);
+                                  }
+                                  toggleSelection(photo.id);
+                                }}
+                              >
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                  selectedIds.has(photo.id)
+                                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg'
+                                    : 'bg-muted border-2 border-muted-foreground/20 hover:bg-muted/80'
+                                }`}>
+                                  {selectedIds.has(photo.id) && <Check className="h-4 w-4" />}
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="w-32 sm:w-48 h-24 sm:h-32 flex-shrink-0 rounded-lg overflow-hidden">
+                              <img 
+                                src={photo.image} 
+                                alt={photo.title}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start gap-2 mb-2">
+                                <ImageIcon className="h-5 w-5 text-art-accent flex-shrink-0 mt-0.5" />
+                                <h3 className="font-semibold text-lg leading-tight flex-1">{photo.title}</h3>
+                                
+                                {/* Three-dot dropdown menu for list view */}
+                                {isAdmin && !selectionMode && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-40">
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingPhoto(photo);
+                                          setNewPhotoTitle(photo.title);
+                                          setNewPhotoDevice(photo.device || '');
+                                          setNewPhotoDate(photo.date);
+                                          setNewPhotoLocation(photo.location || '');
+                                          setNewPhotoCategory(photo.category);
+                                        }}
+                                      >
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Editează
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeletePhotoDialog({ 
+                                            open: true, 
+                                            photoId: photo.id, 
+                                            photoTitle: photo.title 
+                                          });
+                                        }}
+                                        className="text-destructive focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Șterge
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
+                              {photo.device && (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Camera className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  <p className="text-muted-foreground text-sm">{photo.device}</p>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>{photo.date}</span>
+                                </div>
+                                {photo.location && (
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    <span>{photo.location}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>{photo.date}</span>
-                          </div>
-                          {photo.location && (
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              <span>{photo.location}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </React.Fragment>
             ))}
           </div>
 
@@ -800,20 +1188,20 @@ const Photography: React.FC = () => {
             <div className="flex items-center justify-center gap-4">
               <Button
                 variant="outline"
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
+                onClick={() => setCurrentPage(Math.max(0, safePageIndex - 1))}
+                disabled={safePageIndex === 0}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               
               <span className="text-muted-foreground">
-                {currentPage + 1} din {totalPages}
+                {safePageIndex + 1} din {totalPages}
               </span>
 
               <Button
                 variant="outline"
-                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                disabled={currentPage === totalPages - 1}
+                onClick={() => setCurrentPage(Math.min(Math.max(totalPages - 1, 0), safePageIndex + 1))}
+                disabled={safePageIndex === totalPages - 1}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -968,7 +1356,7 @@ const Photography: React.FC = () => {
                 <div className="border-2 border-dashed rounded-md p-3 sm:p-4 bg-muted/20">
                   {newPhotoFile ? (
                     <img 
-                      src={URL.createObjectURL(newPhotoFile)} 
+                      src={newPhotoPreviewUrl || ''} 
                       alt="previzualizare" 
                       className="w-full h-44 sm:h-56 object-contain rounded" 
                     />
@@ -978,16 +1366,42 @@ const Photography: React.FC = () => {
                       <p className="text-sm">Selectează o fotografie</p>
                     </div>
                   )}
-                  <label className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border cursor-pointer bg-background hover:bg-muted transition-colors">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      onChange={(e) => setNewPhotoFile(e.target.files?.[0] || null)} 
-                    />
-                    <Camera className="h-4 w-4" />
-                    Alege fotografia
-                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setNewPhotoFile(file);
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                      }
+                    }}
+                  />
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium"
+                      onClick={triggerNativeFileDialog}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                      Din dispozitiv
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium"
+                      onClick={handleCloudPicker}
+                    >
+                      <Cloud className="h-4 w-4" />
+                      Drive / Google Photos
+                    </Button>
+                  </div>
+                  {newPhotoFile && (
+                    <p className="mt-2 text-xs text-muted-foreground truncate">{newPhotoFile.name}</p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="photo-title">Titlu *</Label>

@@ -460,6 +460,8 @@ export class DbStorage implements IStorage {
       materials: item.materials ?? [],
       dimensions: item.dimensions ?? null,
       date: item.date ?? null,
+      device: item.device ?? null,
+      location: item.location ?? null,
       deletedAt: item.deletedAt ?? null,
     };
     const result = await db.insert(galleryItems).values(base).returning();
@@ -467,9 +469,19 @@ export class DbStorage implements IStorage {
   }
 
   async updateGalleryItem(id: number, updates: UpdateGalleryItem): Promise<GalleryItem | null> {
+    const sanitizedUpdates: UpdateGalleryItem = { ...updates };
+
+    if ("device" in sanitizedUpdates) {
+      sanitizedUpdates.device = sanitizedUpdates.device ?? null;
+    }
+
+    if ("location" in sanitizedUpdates) {
+      sanitizedUpdates.location = sanitizedUpdates.location ?? null;
+    }
+
     const result = await db
       .update(galleryItems)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...sanitizedUpdates, updatedAt: new Date() })
       .where(eq(galleryItems.id, id))
       .returning();
     return result[0] || null;
