@@ -1,5 +1,5 @@
 // API helper functions for Creative Writing, Projects, Albums, and Gallery Items
-import type { Writing, Album, Tag, Project, GalleryItem } from '@shared/schema';
+import type { Writing, Album, Tag, Project, GalleryItem, PhotoLocation, PhotoDevice } from '@shared/schema';
 
 const API_BASE = '/api';
 
@@ -207,5 +207,65 @@ export async function restoreGalleryItem(id: number): Promise<GalleryItem> {
   return apiCall<GalleryItem>(`/gallery/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ deletedAt: null }),
+  });
+}
+
+// ============ PHOTO LOCATIONS API ============
+
+export async function getPhotoLocations(): Promise<PhotoLocation[]> {
+  return apiCall<PhotoLocation[]>('/photo-locations');
+}
+
+export async function getPhotoLocation(id: number): Promise<PhotoLocation> {
+  return apiCall<PhotoLocation>(`/photo-locations/${id}`);
+}
+
+export async function createPhotoLocation(location: Omit<PhotoLocation, 'id'>): Promise<PhotoLocation> {
+  return apiCall<PhotoLocation>('/photo-locations', {
+    method: 'POST',
+    body: JSON.stringify(location),
+  });
+}
+
+export async function updatePhotoLocation(id: number, updates: Partial<PhotoLocation>): Promise<PhotoLocation> {
+  return apiCall<PhotoLocation>(`/photo-locations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deletePhotoLocation(id: number): Promise<void> {
+  return apiCall<void>(`/photo-locations/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============ PHOTO DEVICES API ============
+
+export async function getPhotoDevices(): Promise<PhotoDevice[]> {
+  return apiCall<PhotoDevice[]>('/photo-devices');
+}
+
+export async function getPhotoDevice(id: number): Promise<PhotoDevice> {
+  return apiCall<PhotoDevice>(`/photo-devices/${id}`);
+}
+
+export async function createPhotoDevice(device: Omit<PhotoDevice, 'id'>): Promise<PhotoDevice> {
+  return apiCall<PhotoDevice>('/photo-devices', {
+    method: 'POST',
+    body: JSON.stringify(device),
+  });
+}
+
+export async function updatePhotoDevice(id: number, updates: Partial<PhotoDevice>): Promise<PhotoDevice> {
+  return apiCall<PhotoDevice>(`/photo-devices/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deletePhotoDevice(id: number): Promise<void> {
+  return apiCall<void>(`/photo-devices/${id}`, {
+    method: 'DELETE',
   });
 }

@@ -12,6 +12,10 @@ import {
   updateAlbumSchema,
   insertTagSchema,
   updateTagSchema,
+  insertPhotoLocationSchema,
+  updatePhotoLocationSchema,
+  insertPhotoDeviceSchema,
+  updatePhotoDeviceSchema,
 } from "../shared/schema.js";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
@@ -556,6 +560,144 @@ export function registerRoutes(app: Express, storage: IStorage) {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete tag" });
+    }
+  });
+
+  // Photo Locations
+  app.get("/api/photo-locations", async (req, res) => {
+    try {
+      const locations = await storage.getPhotoLocations();
+      res.json(locations);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch photo locations" });
+    }
+  });
+
+  app.get("/api/photo-locations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const location = await storage.getPhotoLocationById(id);
+      if (!location) {
+        return res.status(404).json({ error: "Photo location not found" });
+      }
+      res.json(location);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch photo location" });
+    }
+  });
+
+  app.post("/api/photo-locations", async (req, res) => {
+    try {
+      const location = insertPhotoLocationSchema.parse(req.body) as any;
+      const newLocation = await storage.createPhotoLocation(location);
+      res.status(201).json(newLocation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create photo location" });
+    }
+  });
+
+  app.patch("/api/photo-locations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid photo location ID" });
+      }
+      const updates = updatePhotoLocationSchema.parse(req.body);
+      const updatedLocation = await storage.updatePhotoLocation(id, updates);
+      if (!updatedLocation) {
+        return res.status(404).json({ error: "Photo location not found" });
+      }
+      res.json(updatedLocation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update photo location" });
+    }
+  });
+
+  app.delete("/api/photo-locations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deletePhotoLocation(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Photo location not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete photo location" });
+    }
+  });
+
+  // Photo Devices
+  app.get("/api/photo-devices", async (req, res) => {
+    try {
+      const devices = await storage.getPhotoDevices();
+      res.json(devices);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch photo devices" });
+    }
+  });
+
+  app.get("/api/photo-devices/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const device = await storage.getPhotoDeviceById(id);
+      if (!device) {
+        return res.status(404).json({ error: "Photo device not found" });
+      }
+      res.json(device);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch photo device" });
+    }
+  });
+
+  app.post("/api/photo-devices", async (req, res) => {
+    try {
+      const device = insertPhotoDeviceSchema.parse(req.body) as any;
+      const newDevice = await storage.createPhotoDevice(device);
+      res.status(201).json(newDevice);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create photo device" });
+    }
+  });
+
+  app.patch("/api/photo-devices/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid photo device ID" });
+      }
+      const updates = updatePhotoDeviceSchema.parse(req.body);
+      const updatedDevice = await storage.updatePhotoDevice(id, updates);
+      if (!updatedDevice) {
+        return res.status(404).json({ error: "Photo device not found" });
+      }
+      res.json(updatedDevice);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update photo device" });
+    }
+  });
+
+  app.delete("/api/photo-devices/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deletePhotoDevice(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Photo device not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete photo device" });
     }
   });
 }

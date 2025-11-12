@@ -16,6 +16,12 @@ import type {
   Tag,
   InsertTag,
   UpdateTag,
+  PhotoLocation,
+  InsertPhotoLocation,
+  UpdatePhotoLocation,
+  PhotoDevice,
+  InsertPhotoDevice,
+  UpdatePhotoDevice,
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -62,6 +68,20 @@ export interface IStorage {
   createTag(tag: InsertTag): Promise<Tag>;
   updateTag(id: number, updates: UpdateTag): Promise<Tag | null>;
   deleteTag(id: number): Promise<boolean>;
+
+  // Photo Locations
+  getPhotoLocations(): Promise<PhotoLocation[]>;
+  getPhotoLocationById(id: number): Promise<PhotoLocation | null>;
+  createPhotoLocation(location: InsertPhotoLocation): Promise<PhotoLocation>;
+  updatePhotoLocation(id: number, updates: UpdatePhotoLocation): Promise<PhotoLocation | null>;
+  deletePhotoLocation(id: number): Promise<boolean>;
+
+  // Photo Devices
+  getPhotoDevices(): Promise<PhotoDevice[]>;
+  getPhotoDeviceById(id: number): Promise<PhotoDevice | null>;
+  createPhotoDevice(device: InsertPhotoDevice): Promise<PhotoDevice>;
+  updatePhotoDevice(id: number, updates: UpdatePhotoDevice): Promise<PhotoDevice | null>;
+  deletePhotoDevice(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -71,6 +91,8 @@ export class MemStorage implements IStorage {
   private writings: Map<number, Writing> = new Map();
   private albums: Map<number, Album> = new Map();
   private tags: Map<number, Tag> = new Map();
+  private photoLocations: Map<number, PhotoLocation> = new Map();
+  private photoDevices: Map<number, PhotoDevice> = new Map();
 
   private projectIdCounter = 1;
   private galleryIdCounter = 1;
@@ -78,6 +100,8 @@ export class MemStorage implements IStorage {
   private writingIdCounter = 1;
   private albumIdCounter = 1;
   private tagIdCounter = 1;
+  private photoLocationIdCounter = 1;
+  private photoDeviceIdCounter = 1;
 
   // Projects
   async getProjects(): Promise<Project[]> {
@@ -356,6 +380,74 @@ export class MemStorage implements IStorage {
   async deleteTag(id: number): Promise<boolean> {
     return this.tags.delete(id);
   }
+
+  // Photo Locations
+  async getPhotoLocations(): Promise<PhotoLocation[]> {
+    return Array.from(this.photoLocations.values());
+  }
+
+  async getPhotoLocationById(id: number): Promise<PhotoLocation | null> {
+    return this.photoLocations.get(id) || null;
+  }
+
+  async createPhotoLocation(location: InsertPhotoLocation): Promise<PhotoLocation> {
+    const newLocation: PhotoLocation = {
+      id: this.photoLocationIdCounter++,
+      name: location.name,
+    };
+    this.photoLocations.set(newLocation.id, newLocation);
+    return newLocation;
+  }
+
+  async updatePhotoLocation(id: number, updates: UpdatePhotoLocation): Promise<PhotoLocation | null> {
+    const location = this.photoLocations.get(id);
+    if (!location) return null;
+
+    const updatedLocation: PhotoLocation = {
+      ...location,
+      ...updates,
+    };
+    this.photoLocations.set(id, updatedLocation);
+    return updatedLocation;
+  }
+
+  async deletePhotoLocation(id: number): Promise<boolean> {
+    return this.photoLocations.delete(id);
+  }
+
+  // Photo Devices
+  async getPhotoDevices(): Promise<PhotoDevice[]> {
+    return Array.from(this.photoDevices.values());
+  }
+
+  async getPhotoDeviceById(id: number): Promise<PhotoDevice | null> {
+    return this.photoDevices.get(id) || null;
+  }
+
+  async createPhotoDevice(device: InsertPhotoDevice): Promise<PhotoDevice> {
+    const newDevice: PhotoDevice = {
+      id: this.photoDeviceIdCounter++,
+      name: device.name,
+    };
+    this.photoDevices.set(newDevice.id, newDevice);
+    return newDevice;
+  }
+
+  async updatePhotoDevice(id: number, updates: UpdatePhotoDevice): Promise<PhotoDevice | null> {
+    const device = this.photoDevices.get(id);
+    if (!device) return null;
+
+    const updatedDevice: PhotoDevice = {
+      ...device,
+      ...updates,
+    };
+    this.photoDevices.set(id, updatedDevice);
+    return updatedDevice;
+  }
+
+  async deletePhotoDevice(id: number): Promise<boolean> {
+    return this.photoDevices.delete(id);
+  }
 }
 
 // Database Storage implementation using Drizzle ORM
@@ -363,7 +455,7 @@ import { db } from "./db.js";
 import * as schema from "../shared/schema.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-const { projects, galleryItems, cvData, writings, albums, tags } = schema;
+const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices } = schema;
 
 export class DbStorage implements IStorage {
   // Projects
@@ -594,6 +686,64 @@ export class DbStorage implements IStorage {
 
   async deleteTag(id: number): Promise<boolean> {
     const result = await db.delete(tags).where(eq(tags.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Photo Locations
+  async getPhotoLocations(): Promise<PhotoLocation[]> {
+    return await db.select().from(photoLocations);
+  }
+
+  async getPhotoLocationById(id: number): Promise<PhotoLocation | null> {
+    const result = await db.select().from(photoLocations).where(eq(photoLocations.id, id));
+    return result[0] || null;
+  }
+
+  async createPhotoLocation(location: InsertPhotoLocation): Promise<PhotoLocation> {
+    const result = await db.insert(photoLocations).values(location).returning();
+    return result[0];
+  }
+
+  async updatePhotoLocation(id: number, updates: UpdatePhotoLocation): Promise<PhotoLocation | null> {
+    const result = await db
+      .update(photoLocations)
+      .set(updates)
+      .where(eq(photoLocations.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deletePhotoLocation(id: number): Promise<boolean> {
+    const result = await db.delete(photoLocations).where(eq(photoLocations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Photo Devices
+  async getPhotoDevices(): Promise<PhotoDevice[]> {
+    return await db.select().from(photoDevices);
+  }
+
+  async getPhotoDeviceById(id: number): Promise<PhotoDevice | null> {
+    const result = await db.select().from(photoDevices).where(eq(photoDevices.id, id));
+    return result[0] || null;
+  }
+
+  async createPhotoDevice(device: InsertPhotoDevice): Promise<PhotoDevice> {
+    const result = await db.insert(photoDevices).values(device).returning();
+    return result[0];
+  }
+
+  async updatePhotoDevice(id: number, updates: UpdatePhotoDevice): Promise<PhotoDevice | null> {
+    const result = await db
+      .update(photoDevices)
+      .set(updates)
+      .where(eq(photoDevices.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deletePhotoDevice(id: number): Promise<boolean> {
+    const result = await db.delete(photoDevices).where(eq(photoDevices.id, id)).returning();
     return result.length > 0;
   }
 }

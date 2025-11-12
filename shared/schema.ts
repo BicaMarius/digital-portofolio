@@ -144,3 +144,31 @@ export const updateTagSchema = insertTagSchema.partial();
 export type Tag = typeof tags.$inferSelect;
 export type InsertTag = typeof tags.$inferInsert;
 export type UpdateTag = Partial<InsertTag>;
+
+// Photo locations table
+export const photoLocations = pgTable("photo_locations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+});
+
+export const insertPhotoLocationSchema = createInsertSchema(photoLocations).omit({
+  id: true,
+});
+export const updatePhotoLocationSchema = insertPhotoLocationSchema.partial();
+export type PhotoLocation = typeof photoLocations.$inferSelect;
+export type InsertPhotoLocation = typeof photoLocations.$inferInsert;
+export type UpdatePhotoLocation = Partial<InsertPhotoLocation>;
+
+// Photo devices table
+export const photoDevices = pgTable("photo_devices", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+});
+
+export const insertPhotoDeviceSchema = createInsertSchema(photoDevices).omit({
+  id: true,
+});
+export const updatePhotoDeviceSchema = insertPhotoDeviceSchema.partial();
+export type PhotoDevice = typeof photoDevices.$inferSelect;
+export type InsertPhotoDevice = typeof photoDevices.$inferInsert;
+export type UpdatePhotoDevice = Partial<InsertPhotoDevice>;
