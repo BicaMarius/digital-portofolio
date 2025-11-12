@@ -96,6 +96,28 @@ const mockPhotos: Photo[] = [
 const Photography: React.FC = () => {
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+  useEffect(() => {
+    const checkFs = () => {
+      const inFsApi = !!(document as any).fullscreenElement || !!(document as any).webkitFullscreenElement || !!(document as any).mozFullScreenElement || !!(document as any).msFullscreenElement;
+      const inFsHeuristic = window.innerHeight >= (window.screen?.height || 0) - 1 && window.innerWidth >= (window.screen?.width || 0) - 1;
+      setIsBrowserFullscreen(inFsApi || inFsHeuristic);
+    };
+    const onResize = () => checkFs();
+    const onFsChange = () => checkFs();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') setTimeout(checkFs, 100);
+    };
+    checkFs();
+    window.addEventListener('resize', onResize);
+    document.addEventListener('fullscreenchange', onFsChange);
+    window.addEventListener('keydown', onKeyDown as any);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('fullscreenchange', onFsChange);
+      window.removeEventListener('keydown', onKeyDown as any);
+    };
+  }, []);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
@@ -1365,7 +1387,7 @@ const Photography: React.FC = () => {
           {selectedPhoto && (
             <div className="relative w-full h-full bg-black">
               <div className="flex flex-col h-full">
-                <div className="flex-1 flex items-center justify-center px-3 sm:px-6 pt-6 pb-32 sm:pb-48">
+                <div className={`flex-1 flex items-center justify-center px-3 sm:px-6 ${isBrowserFullscreen ? 'py-4' : 'pt-6 pb-32 sm:pb-48'}`}>
                   {/* Image wrapper with navigation arrows */}
                   <div className="relative">
                     <Button
@@ -1395,15 +1417,15 @@ const Photography: React.FC = () => {
                     <img
                       src={selectedPhoto.image}
                       alt={selectedPhoto.title}
-                      className="w-auto h-auto max-w-full max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)] object-contain"
+                      className={`w-auto h-auto max-w-full ${isBrowserFullscreen ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]'} object-contain`}
                     />
                   </div>
                 </div>
-
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
-
-                <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
-                  <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-4 sm:p-6 relative">
+                {!isBrowserFullscreen && (
+                  <>
+                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
+                      <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-4 sm:p-6 relative">
                     {/* Edit icon on mobile - top right */}
                     {isAdmin && isMobile && (
                       <Button
@@ -1448,8 +1470,10 @@ const Photography: React.FC = () => {
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

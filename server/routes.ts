@@ -240,6 +240,20 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // Alias endpoint specifically for album covers to match client usage
+  app.post("/api/upload/cover", upload.single("file"), async (req, res) => {
+    try {
+      const file = (req as Request & { file?: UploadedFile }).file;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+      // Default folder for covers; can be overridden via multipart 'folder'
+      const folder = (req.body?.folder as string) || 'portfolio-art-covers';
+      const { url, publicId } = await uploadImageToCloudinary(file.buffer, file.originalname, folder);
+      res.status(201).json({ url, publicId });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
   // CV Data - files stored in Cloudinary
   app.get("/api/cv", async (req, res) => {
     try {

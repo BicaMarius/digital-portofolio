@@ -1571,6 +1571,34 @@ const CreativeWriting: React.FC = () => {
     }
   };
 
+  const moveWritingToAlbum = async (fromAlbumId: string, toAlbumId: string, writingId: number) => {
+    // Remove from source album and add to target album
+    const updated = albums.map(a => {
+      if (a.id === fromAlbumId) {
+        return { ...a, itemIds: a.itemIds.filter(id => id !== writingId) };
+      } else if (a.id === toAlbumId) {
+        return { ...a, itemIds: Array.from(new Set([...a.itemIds, writingId])) };
+      }
+      return a;
+    });
+    setAlbums(updated);
+    
+    try {
+      const changed = updated.filter((a) => 
+        a.id === fromAlbumId || a.id === toAlbumId
+      );
+      await Promise.all(
+        changed.map(a => updateAlbumMutation.mutateAsync({ id: Number(a.id), updates: { itemIds: a.itemIds } }))
+      );
+      toast({ 
+        title: 'Mutat', 
+        description: `Scrierea a fost mutată în "${albums.find(a => a.id === toAlbumId)?.name}".` 
+      });
+    } catch (e) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut salva mutarea.', variant: 'destructive' });
+    }
+  };
+
   const deleteAlbumAndWritings = (albumId: string) => {
     const album = albums.find(a => a.id === albumId);
     if (!album) return;
@@ -2218,6 +2246,7 @@ const CreativeWriting: React.FC = () => {
                           album={album}
                           writings={writings.filter(w => album.itemIds.includes(w.id) && !w.deletedAt)}
                           allWritings={writings.filter(w => !w.deletedAt)}
+                          allAlbums={albums}
                           onDrop={onDropOnAlbum}
                           onWritingClick={setSelectedWriting}
                           onEditWriting={(writing) => {
@@ -2254,6 +2283,7 @@ const CreativeWriting: React.FC = () => {
                               setWritings(prev => prev.filter(w => w.id !== writingId));
                             }
                           }}
+                          onMoveWritingToAlbum={moveWritingToAlbum}
                           isAdmin={isAdmin}
                         />
                       </div>
@@ -3160,6 +3190,7 @@ const CreativeWriting: React.FC = () => {
                       album={album}
                       writings={writings}
                       allWritings={writings}
+                      allAlbums={albums}
                       onDrop={onDropOnAlbum}
                       onWritingClick={(writing: WritingPiece) => setSelectedWriting(writing)}
                       onEditWriting={(writing: WritingPiece) => { setEditing(writing); setIsEditorOpen(true); }}
@@ -3171,6 +3202,7 @@ const CreativeWriting: React.FC = () => {
                       onRemoveWritingFromAlbum={removeWritingFromAlbum}
                       onDeleteWritingFromAlbum={deleteWritingFromAlbum}
                       onUpdateAlbum={updateAlbum}
+                      onMoveWritingToAlbum={moveWritingToAlbum}
                     />
                   ))}
               </div>
@@ -3201,6 +3233,7 @@ const CreativeWriting: React.FC = () => {
                   album={album}
                   writings={writings}
                   allWritings={writings}
+                  allAlbums={albums}
                   onDrop={onDropOnAlbum}
                   onWritingClick={(writing: WritingPiece) => setSelectedWriting(writing)}
                   onEditWriting={(writing: WritingPiece) => { setEditing(writing); setIsEditorOpen(true); }}
@@ -3212,6 +3245,7 @@ const CreativeWriting: React.FC = () => {
                   onRemoveWritingFromAlbum={removeWritingFromAlbum}
                   onDeleteWritingFromAlbum={deleteWritingFromAlbum}
                   onUpdateAlbum={updateAlbum}
+                  onMoveWritingToAlbum={moveWritingToAlbum}
                 />
               ))}
             </div>

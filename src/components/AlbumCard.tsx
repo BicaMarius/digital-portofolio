@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2, X, Check, Plus, Minus, Palette, Type, GripVertical, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Edit, Trash2, Undo2, X, Check, Plus, Minus, Palette, Type, GripVertical, FileText, FolderPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,6 +36,7 @@ interface AlbumCardProps {
   album: Album;
   writings: WritingPiece[];
   allWritings: WritingPiece[]; // all available writings for adding to album
+  allAlbums?: Album[]; // toate albumele pentru mutare între albume
   onDrop: (e: React.DragEvent, albumId: string) => void;
   onWritingClick: (writing: WritingPiece) => void;
   onEditWriting?: (writing: WritingPiece) => void;
@@ -47,17 +48,19 @@ interface AlbumCardProps {
   onRemoveWritingFromAlbum?: (albumId: string, writingId: number) => void;
   onDeleteWritingFromAlbum?: (albumId: string, writingId: number) => void;
   onUpdateAlbum?: (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => void;
+  onMoveWritingToAlbum?: (fromAlbumId: string, toAlbumId: string, writingId: number) => void;
 }
 
 const albumColors = [
   '#7c3aed', '#f59e0b', '#10b981', '#f97316', 
-  '#ef4444', '#06b6d4', '#8b5cf6', '#f97316'
+  '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899'
 ];
 
 export const AlbumCard: React.FC<AlbumCardProps> = ({
   album,
   writings,
   allWritings,
+  allAlbums,
   onDrop,
   onWritingClick,
   onEditWriting,
@@ -68,7 +71,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   onAddWritingsToAlbum,
   onRemoveWritingFromAlbum,
   onDeleteWritingFromAlbum,
-  onUpdateAlbum
+  onUpdateAlbum,
+  onMoveWritingToAlbum
 }) => {
   const isMobile = useIsMobile();
   const [currentPage, setCurrentPage] = useState(0);
@@ -76,6 +80,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedWritingsToAdd, setSelectedWritingsToAdd] = useState<Set<number>>(new Set());
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number; writingId: number } | null>(null);
+  const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
   const [confirmDiscardDialog, setConfirmDiscardDialog] = useState(false);
@@ -311,9 +316,20 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
 
     if (!sourceId || sourceId === targetId) return;
 
-    // Reorder writings within album (no merge functionality in albums)
-    const direction = currentDragOverType === 'move-left' ? 'before' : 'after';
-    reorderWritings(sourceId, targetId, direction);
+    // Check if source writing is from this album or another album
+    const isFromThisAlbum = album.itemIds.includes(sourceId);
+    
+    if (isFromThisAlbum) {
+      // Reorder writings within album (no merge functionality in albums)
+      const direction = currentDragOverType === 'move-left' ? 'before' : 'after';
+      reorderWritings(sourceId, targetId, direction);
+    } else if (allAlbums && onMoveWritingToAlbum) {
+      // Move writing from another album to this album
+      const sourceAlbum = allAlbums.find(a => a.itemIds.includes(sourceId));
+      if (sourceAlbum) {
+        onMoveWritingToAlbum(sourceAlbum.id, album.id, sourceId);
+      }
+    }
   };
 
   const reorderWritings = (sourceId: number, targetId: number, direction: 'before' | 'after') => {
@@ -370,9 +386,20 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
 
     if (!sourceId || sourceId === targetId) return;
 
-    // Reorder writings within album (vertical logic: above/below)
-    const direction = currentDragOverType === 'move-left' ? 'before' : 'after'; // 'move-left' = above, 'move-right' = below
-    reorderWritings(sourceId, targetId, direction);
+    // Check if source writing is from this album or another album
+    const isFromThisAlbum = album.itemIds.includes(sourceId);
+    
+    if (isFromThisAlbum) {
+      // Reorder writings within album (vertical logic: above/below)
+      const direction = currentDragOverType === 'move-left' ? 'before' : 'after'; // 'move-left' = above, 'move-right' = below
+      reorderWritings(sourceId, targetId, direction);
+    } else if (allAlbums && onMoveWritingToAlbum) {
+      // Move writing from another album to this album
+      const sourceAlbum = allAlbums.find(a => a.itemIds.includes(sourceId));
+      if (sourceAlbum) {
+        onMoveWritingToAlbum(sourceAlbum.id, album.id, sourceId);
+      }
+    }
   };
 
   // Swipe handlers for mobile navigation
@@ -423,7 +450,11 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
         onDragOver={!isMobile ? (e) => e.preventDefault() : undefined}
         onDrop={!isMobile ? (e) => onDrop(e, album.id) : undefined}
       >
-        <CardContent className="p-4">
+        <CardContent 
+          className="p-4"
+          onDragOver={!isMobile ? (e) => e.preventDefault() : undefined}
+          onDrop={!isMobile ? (e) => onDrop(e, album.id) : undefined}
+        >
           <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between'} mb-3`}>
             <div className="flex items-center gap-3">
               <div 
@@ -510,6 +541,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                       userSelect: 'none',
                       WebkitUserSelect: 'none'
                     }}
+                    draggable={!isMobile && isAdmin}
+                    onDragStart={!isMobile && isAdmin ? (e) => handleDragStart(e, writing.id) : undefined}
                     {...(isMobile ? {
                       onTouchStart: (e) => handleTouchStart(e, writing.id),
                       onTouchMove: handleTouchMove,
@@ -538,67 +571,79 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     
                     {/* Mobile action bar pentru scrieri din albumuri */}
                     {mobileSelectedWritingId === writing.id && isMobile && isAdmin && (
-                      <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-7 w-7" 
-                          title="Scoate din album" 
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                          onTouchEnd={(e) => { 
-                            e.stopPropagation(); 
-                            e.preventDefault();
-                            onRemoveWritingFromAlbum?.(album.id, writing.id); 
-                            setMobileSelectedWritingId(null); 
+                      <>
+                        {/* Overlay pentru închidere la tap pe ecran */}
+                        <div 
+                          className="fixed inset-0 z-[5]" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMobileSelectedWritingId(null);
                           }}
-                        >
-                          <Undo2 className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-7 w-7" 
-                          title="Editează" 
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                          onTouchEnd={(e) => { 
-                            e.stopPropagation(); 
-                            e.preventDefault();
-                            onEditWriting?.(writing); 
-                            setMobileSelectedWritingId(null); 
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-7 w-7 text-destructive" 
-                          title="Șterge" 
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                          onTouchEnd={(e) => { 
-                            e.stopPropagation(); 
-                            e.preventDefault();
-                            onDeleteWritingFromAlbum?.(album.id, writing.id); 
-                            setMobileSelectedWritingId(null); 
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-7 w-7" 
-                          title="Închide" 
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                          onTouchEnd={(e) => { 
-                            e.stopPropagation(); 
-                            e.preventDefault();
-                            setMobileSelectedWritingId(null); 
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        />
+                        <div data-mobile-action-bar="true" className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-background/95 backdrop-blur px-2 py-1 rounded-full shadow border border-border animate-fade-in">
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-7 w-7" 
+                            title="Scoate din album" 
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onTouchEnd={(e) => { 
+                              e.stopPropagation(); 
+                              e.preventDefault();
+                              onRemoveWritingFromAlbum?.(album.id, writing.id); 
+                              setMobileSelectedWritingId(null); 
+                            }}
+                          >
+                            <Undo2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-7 w-7" 
+                            title="Editează" 
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onTouchEnd={(e) => { 
+                              e.stopPropagation(); 
+                              e.preventDefault();
+                              onEditWriting?.(writing); 
+                              setMobileSelectedWritingId(null); 
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-7 w-7 text-destructive" 
+                            title="Șterge" 
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onTouchEnd={(e) => { 
+                              e.stopPropagation(); 
+                              e.preventDefault();
+                              onDeleteWritingFromAlbum?.(album.id, writing.id); 
+                              setMobileSelectedWritingId(null); 
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-7 w-7" 
+                            title="Mută în alt album" 
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onTouchEnd={(e) => { 
+                              e.stopPropagation(); 
+                              e.preventDefault();
+                              // Deschide dialogul de mutare - va fi implementat în CreativeWriting
+                              setContextMenuPosition({ x: 0, y: 0, writingId: writing.id });
+                              setMobileSelectedWritingId(null); 
+                            }}
+                          >
+                            <FolderPlus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </>
                     )}
                     
                     {isAdmin && isExpanded && (
@@ -733,49 +778,113 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
 
       {/* Context Menu */}
       {contextMenuPosition && (
-        <div 
-          className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-50 backdrop-blur-sm"
-          style={{ 
-            left: contextMenuPosition.x, 
-            top: contextMenuPosition.y,
-            transform: 'translate(-50%, -10px)'
-          }}
-        >
-          <button 
-            onClick={handleDiscardFromContext}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
+        <>
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => {
+              setContextMenuPosition(null);
+              setShowMoveSubmenu(false);
+            }}
+          />
+          <div 
+            className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-50 backdrop-blur-sm"
+            style={{ 
+              left: contextMenuPosition.x, 
+              top: contextMenuPosition.y,
+              transform: 'translate(-50%, -10px)'
+            }}
           >
-            <Undo2 className="h-3 w-3" />
-            Scoate din album
-          </button>
-          {onEditWriting && (
+            <button 
+              onClick={handleDiscardFromContext}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
+            >
+              <Undo2 className="h-3 w-3" />
+              Scoate din album
+            </button>
+            
+            {/* Move to Album option */}
+            {allAlbums && allAlbums.length > 1 && onMoveWritingToAlbum && (
+              <div 
+                className="relative"
+                onMouseEnter={() => !isMobile && setShowMoveSubmenu(true)}
+                onMouseLeave={() => !isMobile && setShowMoveSubmenu(false)}
+              >
+                <button 
+                  onClick={() => isMobile && setShowMoveSubmenu(!showMoveSubmenu)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <FolderPlus className="h-3 w-3" />
+                    Mută în...
+                  </div>
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+                
+                {/* Submenu */}
+                {showMoveSubmenu && (
+                  <div 
+                    className={`absolute ${isMobile ? 'right-full top-0 mr-1 w-48 max-w-[85vw]' : 'left-full top-0 ml-1 w-48'} bg-popover border rounded shadow-lg py-1 backdrop-blur-sm z-50 max-h-60 overflow-y-auto`}
+                    onMouseEnter={() => !isMobile && setShowMoveSubmenu(true)}
+                    onMouseLeave={() => !isMobile && setShowMoveSubmenu(false)}
+                  >
+                    {allAlbums
+                      .filter(a => a.id !== album.id)
+                      .map(targetAlbum => (
+                        <button
+                          key={targetAlbum.id}
+                          onClick={() => {
+                            if (contextMenuPosition) {
+                              onMoveWritingToAlbum(album.id, targetAlbum.id, contextMenuPosition.writingId);
+                              setContextMenuPosition(null);
+                              setShowMoveSubmenu(false);
+                            }
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        >
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: targetAlbum.color || '#7c3aed' }}
+                          />
+                          <span className="truncate">{targetAlbum.name}</span>
+                        </button>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {onEditWriting && (
+              <button 
+                onClick={() => {
+                  if (contextMenuPosition) {
+                    const writing = writings.find(w => w.id === contextMenuPosition.writingId);
+                    if (writing) onEditWriting(writing);
+                    setContextMenuPosition(null);
+                    setShowMoveSubmenu(false);
+                  }
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
+              >
+                <Edit className="h-3 w-3" />
+                Editează
+              </button>
+            )}
             <button 
               onClick={() => {
                 if (contextMenuPosition) {
-                  const writing = writings.find(w => w.id === contextMenuPosition.writingId);
-                  if (writing) onEditWriting(writing);
+                  onDeleteWritingFromAlbum?.(album.id, contextMenuPosition.writingId);
                   setContextMenuPosition(null);
+                  setShowMoveSubmenu(false);
                 }
               }}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors text-red-600 hover:text-red-700 hover:bg-red-50"
             >
-              <Edit className="h-3 w-3" />
-              Editează
+              <Trash2 className="h-3 w-3" />
+              Șterge
             </button>
-          )}
-          <button 
-            onClick={() => {
-              if (contextMenuPosition) {
-                onDeleteWritingFromAlbum?.(album.id, contextMenuPosition.writingId);
-                setContextMenuPosition(null);
-              }
-            }}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            <Trash2 className="h-3 w-3" />
-            Șterge
-          </button>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Edit Album Dialog */}

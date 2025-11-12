@@ -85,14 +85,20 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
-                    const file = e.target.files?.[0];
+                    // Capture the input element immediately to avoid null after awaits
+                    const inputEl = e.currentTarget as HTMLInputElement | null;
+                    const file = inputEl?.files?.[0];
                     if (!file) return;
                     setError(null);
                     setUploading(true);
                     try {
                       const formData = new FormData();
                       formData.append('file', file);
-                      const resp = await fetch('/api/upload/cover', { method: 'POST', body: formData });
+                      // Try dedicated cover endpoint first; if missing, fall back to generic image endpoint
+                      let resp = await fetch('/api/upload/cover', { method: 'POST', body: formData });
+                      if (!resp.ok && resp.status === 404) {
+                        resp = await fetch('/api/upload/image', { method: 'POST', body: formData });
+                      }
                       if (!resp.ok) {
                         const text = await resp.text().catch(() => '');
                         throw new Error(`Upload failed: ${resp.status} ${resp.statusText} ${text}`);
@@ -106,7 +112,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                       setError(err instanceof Error ? err.message : 'Eroare la încărcarea imaginii');
                     } finally {
                       setUploading(false);
-                      e.currentTarget.value = '';
+                      if (inputEl) inputEl.value = '';
                     }
                   }}
                 />
@@ -122,7 +128,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                   </Button>
                   <span className="text-xs text-muted-foreground">sau alege din lucrările albumului (fila Conținut)</span>
                 </div>
-                <Button className="ml-auto bg-indigo-600 hover:bg-indigo-600/90 text-white" onClick={() => onSave({ title, cover: coverUrl, coverPos: pos, coverPosScale: zoom } as any)}>Salvează</Button>
+                <Button className="ml-auto bg-indigo-600 hover:bg-indigo-600/90 text-white" onClick={() => onSave({ title, cover: coverUrl, coverPos: pos, coverScale: zoom })}>Salvează</Button>
               </div>
 
               {coverUrl && (
@@ -150,7 +156,9 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                         onMouseUp={() => setDragging(false)}
                         onMouseLeave={() => setDragging(false)}
                         onWheel={(e) => {
-                          e.preventDefault();
+                          // Avoid warning in browsers that treat wheel as passive
+                          const ne = (e as unknown as { nativeEvent?: WheelEvent }).nativeEvent;
+                          if (ne?.cancelable) e.preventDefault();
                           const delta = -e.deltaY;
                           const step = delta > 0 ? 0.05 : -0.05;
                           setZoom(z => Math.max(0.8, Math.min(2.5, Number((z + step).toFixed(2)))));
@@ -200,7 +208,8 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                         onMouseUp={() => setDragging(false)}
                         onMouseLeave={() => setDragging(false)}
                         onWheel={(e) => {
-                          e.preventDefault();
+                          const ne = (e as unknown as { nativeEvent?: WheelEvent }).nativeEvent;
+                          if (ne?.cancelable) e.preventDefault();
                           const delta = -e.deltaY;
                           const step = delta > 0 ? 0.05 : -0.05;
                           setZoom(z => Math.max(0.8, Math.min(2.5, Number((z + step).toFixed(2)))));

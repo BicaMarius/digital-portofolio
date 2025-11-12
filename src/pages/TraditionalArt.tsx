@@ -119,6 +119,10 @@ const TraditionalArt: React.FC = () => {
     open: false,
     artworkId: null
   });
+  const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; artworkId: number | null }>({
+    open: false,
+    artworkId: null
+  });
   const isMobile = useIsMobile();
   const [editingArtwork, setEditingArtwork] = useState<TraditionalArtwork | null>(null);
   // Edit UI state (similar to add)
@@ -309,6 +313,35 @@ const TraditionalArt: React.FC = () => {
   };
 
   // Keyboard navigation for fullscreen viewer
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = React.useState(false);
+  React.useEffect(() => {
+    const checkFs = () => {
+      try {
+        const inFsApi = !!(document as any).fullscreenElement || !!(document as any).webkitFullscreenElement || !!(document as any).mozFullScreenElement || !!(document as any).msFullscreenElement;
+        const inFsHeuristic = window.innerHeight >= (window.screen?.height || 0) - 1 && window.innerWidth >= (window.screen?.width || 0) - 1;
+        setIsBrowserFullscreen(inFsApi || inFsHeuristic);
+      } catch {
+        // ignore
+      }
+    };
+    const onResize = () => checkFs();
+    const onFsChange = () => checkFs();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        // state will change after the browser toggles; defer a tick
+        setTimeout(checkFs, 100);
+      }
+    };
+    checkFs();
+    window.addEventListener('resize', onResize);
+    document.addEventListener('fullscreenchange', onFsChange);
+    window.addEventListener('keydown', onKeyDown as any);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('fullscreenchange', onFsChange);
+      window.removeEventListener('keydown', onKeyDown as any);
+    };
+  }, []);
   useEffect(() => {
     if (!selectedArtwork) return;
 
@@ -593,7 +626,7 @@ const TraditionalArt: React.FC = () => {
               <Dialog>
                 <DialogTrigger asChild>
                   <button
-                    className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors"
+                    className="relative h-10 w-10 rounded-lg flex items-center justify-center bg-background border border-border hover:bg-muted transition-colors sm:hidden"
                     title={`Coș (${trash.length})`}
                   >
                     <Trash className="h-4 w-4" />
@@ -659,6 +692,54 @@ const TraditionalArt: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Bulk Actions */}
+                {trash.length > 0 && (
+                  <div className="border-t pt-3 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (!confirm(`Restaurezi toate cele ${trash.length} opere din coș?`)) return;
+                        try {
+                          for (const art of trash) {
+                            await restoreGalleryItem(art.id);
+                          }
+                          toast({ title: 'Restaurat', description: 'Toate operele au fost restaurate.' });
+                          await reloadArtworks();
+                        } catch (e) {
+                          console.error('[TraditionalArt] Restore all error:', e);
+                          toast({ title: 'Eroare', description: 'Nu s-au putut restaura toate operele.', variant: 'destructive' });
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      <Undo2 className="h-4 w-4 mr-2" />
+                      Restaurează tot
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={async () => {
+                        if (!confirm(`Ștergi permanent toate cele ${trash.length} opere din coș? Această acțiune nu poate fi anulată!`)) return;
+                        try {
+                          for (const art of trash) {
+                            await deleteGalleryItem(art.id);
+                          }
+                          toast({ title: 'Coș golit', description: 'Toate operele au fost șterse definitiv.' });
+                          await reloadArtworks();
+                        } catch (e) {
+                          console.error('[TraditionalArt] Delete all error:', e);
+                          toast({ title: 'Eroare', description: 'Nu s-au putut șterge toate operele.', variant: 'destructive' });
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      <Trash className="h-4 w-4 mr-2" />
+                      Șterge tot
+                    </Button>
+                  </div>
+                )}
               </DialogContent>
             </Dialog>
             )}
@@ -708,11 +789,136 @@ const TraditionalArt: React.FC = () => {
             </div>
 
             {isAdmin && (
-              <Button onClick={() => setAddingArtwork(true)} className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md hidden sm:inline-flex">
-                <Brush className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Adaugă Operă</span>
-                <span className="sm:hidden">Adaugă</span>
-              </Button>
+              <>
+                <Button onClick={() => setAddingArtwork(true)} className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-95 shadow-md hidden sm:inline-flex">
+                  <Brush className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Adaugă Operă</span>
+                  <span className="sm:hidden">Adaugă</span>
+                </Button>
+                
+                {trash.length > 0 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline"
+                        className="h-10 hidden sm:inline-flex"
+                        title="Coșul de gunoi"
+                      >
+                        <Trash className="h-4 w-4" />
+                        <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
+                          {trash.length}
+                        </span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-xl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          <div className="flex items-center gap-2">
+                            <Trash className="h-5 w-5" />
+                            Coș de gunoi ({trash.length})
+                          </div>
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">Opere șterse (soft delete)</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                        {trash.map((art) => (
+                          <div key={art.id} className="p-3 border rounded-lg bg-muted/20">
+                            <div className="flex gap-3">
+                              <img src={art.image} alt={art.title} className="w-16 h-16 object-cover rounded" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm mb-1 truncate">{art.title}</p>
+                                <p className="text-xs text-muted-foreground truncate">{art.medium}</p>
+                                <p className="text-xs text-muted-foreground">{art.category}</p>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <Button size="icon" variant="outline" className="h-7 w-7" onClick={async () => {
+                                  try {
+                                    await restoreGalleryItem(art.id);
+                                    toast({ title: 'Restaurat', description: `${art.title} a fost restaurat.` });
+                                    await reloadArtworks();
+                                  } catch (e) {
+                                    console.error('[TraditionalArt] Restore error:', e);
+                                    toast({ title: 'Eroare', description: 'Nu s-a putut restaura.', variant: 'destructive' });
+                                  }
+                                }}>
+                                  <Undo2 className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" variant="destructive" className="h-7 w-7" onClick={async () => {
+                                  if (!confirm(`Ștergi permanent "${art.title}"? Această acțiune nu poate fi anulată.`)) return;
+                                  try {
+                                    await deleteGalleryItem(art.id);
+                                    toast({ title: 'Șters permanent', description: `${art.title} a fost șters definitiv.` });
+                                    await reloadArtworks();
+                                  } catch (e) {
+                                    console.error('[TraditionalArt] Permanent delete error:', e);
+                                    toast({ title: 'Eroare', description: 'Nu s-a putut șterge.', variant: 'destructive' });
+                                  }
+                                }}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {trash.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Trash className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                            <p>Coșul este gol</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bulk Actions */}
+                      {trash.length > 0 && (
+                        <div className="border-t pt-3 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              if (!confirm(`Restaurezi toate cele ${trash.length} opere din coș?`)) return;
+                              try {
+                                for (const art of trash) {
+                                  await restoreGalleryItem(art.id);
+                                }
+                                toast({ title: 'Restaurat', description: 'Toate operele au fost restaurate.' });
+                                await reloadArtworks();
+                              } catch (e) {
+                                console.error('[TraditionalArt] Restore all error:', e);
+                                toast({ title: 'Eroare', description: 'Nu s-au putut restaura toate operele.', variant: 'destructive' });
+                              }
+                            }}
+                            className="flex-1"
+                          >
+                            <Undo2 className="h-4 w-4 mr-2" />
+                            Restaurează tot
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (!confirm(`Ștergi permanent toate cele ${trash.length} opere din coș? Această acțiune nu poate fi anulată!`)) return;
+                              try {
+                                for (const art of trash) {
+                                  await deleteGalleryItem(art.id);
+                                }
+                                toast({ title: 'Coș golit', description: 'Toate operele au fost șterse definitiv.' });
+                                await reloadArtworks();
+                              } catch (e) {
+                                console.error('[TraditionalArt] Delete all error:', e);
+                                toast({ title: 'Eroare', description: 'Nu s-au putut șterge toate operele.', variant: 'destructive' });
+                              }
+                            }}
+                            className="flex-1"
+                          >
+                            <Trash className="h-4 w-4 mr-2" />
+                            Șterge tot
+                          </Button>
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </>
             )}
           </div>
 
@@ -814,11 +1020,13 @@ const TraditionalArt: React.FC = () => {
                         border: dropTarget?.type === 'album' && dropTarget?.albumId === album.id ? '2px dashed rgba(99, 102, 241, 0.5)' : undefined
                       }}
                     >
-                      <div className="grid grid-cols-2 gap-4 sm:gap-3 pt-2 justify-center sm:justify-start sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      <div className="grid grid-cols-2 gap-5 sm:gap-4 pt-2 justify-center sm:justify-start sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                         {album.artworks.map((artwork, i) => (
                           <Card
                             key={artwork.id}
-                            className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300"
+                            className={`group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 ${
+                              draggedArtworkId === artwork.id ? 'opacity-50 scale-95 ring-2 ring-art-accent' : ''
+                            }`}
                             style={{ transitionDelay: isExpanded ? `${i * 40}ms` : '0ms', opacity: isExpanded ? 1 : 0, transform: isExpanded ? 'translateX(0)' : 'translateX(-12px)' }}
                             onClick={() => setSelectedArtwork(artwork)}
                             onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, type: 'art', albumId: album.id, artworkId: artwork.id }); }}
@@ -951,7 +1159,9 @@ const TraditionalArt: React.FC = () => {
                         node: (
                           <Card
                             key={`art-${album.id}-${artwork.id}`}
-                            className="group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px]"
+                            className={`group cursor-pointer overflow-hidden border-art-accent/20 hover:border-art-accent/50 transition-all duration-300 min-w-[160px] ${
+                              draggedArtworkId === artwork.id ? 'opacity-50 scale-95 ring-2 ring-art-accent' : ''
+                            }`}
                             style={{ transitionDelay: `${i * 40}ms`, opacity: 1, transform: 'translateX(0)' }}
                             onClick={() => setSelectedArtwork(artwork)}
                             onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, type: 'art', albumId: album.id, artworkId: artwork.id }); }}
@@ -1003,85 +1213,84 @@ const TraditionalArt: React.FC = () => {
 
       {/* Full Screen Modal - artwork viewer */}
       <Dialog open={!!selectedArtwork} onOpenChange={() => setSelectedArtwork(null)}>
-        <DialogContent className="w-[96vw] sm:w-[92vw] lg:w-[88vw] max-w-none max-h-[94vh] p-0 bg-card overflow-hidden">
+        <DialogContent className={`${isBrowserFullscreen ? 'max-w-[100vw] w-full h-full max-h-screen p-0 bg-black border-0 rounded-none' : 'w-[96vw] sm:w-[92vw] lg:w-[88vw] max-w-none max-h-[94vh] p-0 bg-card'} overflow-hidden focus:outline-none focus-visible:outline-none`}>
           <DialogDescription className="sr-only">Vizualizare detalii operă</DialogDescription>
           {selectedArtwork && (
-            <div className="relative flex items-center justify-center h-full min-h-[80vh]">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 z-20 hidden sm:flex bg-background/80 hover:bg-background/90 backdrop-blur-sm shadow-lg"
-                onClick={prevArtwork}
-              >
-                <ChevronLeft className="h-6 w-6" />
-              </Button>
+            <div className={`relative ${isBrowserFullscreen ? 'w-full h-full bg-black' : 'flex items-center justify-center h-full min-h[80vh]'}`}>
+              <div className={`${isBrowserFullscreen ? 'absolute inset-0 flex items-center justify-center' : 'flex flex-col lg:flex-row items-center justify-center w-full gap-4 sm:gap-6 lg:gap-8 p-4 sm:p-6 lg:px-16 lg:py-8 max-w-[1400px] mx-auto'}`}>
+                <div className={`${isBrowserFullscreen ? 'relative w-full h-full' : 'relative flex-1 w-full flex items-center justify-center lg:max-w-[55%]'}`}>
+                  {/* Navigation Arrows - positioned relative to image */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 z-20 flex ${isBrowserFullscreen ? 'bg-black/20 hover:bg-black/60 text-white' : 'bg-background/20 hover:bg-background/90'} backdrop-blur-sm shadow-lg opacity-30 hover:opacity-100 transition-opacity duration-200 focus:outline-none focus-visible:outline-none active:opacity-30 h-8 w-8 sm:h-10 sm:w-10`}
+                    onClick={(e) => {
+                      prevArtwork();
+                      e.currentTarget.blur();
+                    }}
+                  >
+                    <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </Button>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 z-20 hidden sm:flex bg-background/80 hover:bg-background/90 backdrop-blur-sm shadow-lg"
-                onClick={nextArtwork}
-              >
-                <ChevronRight className="h-6 w-6" />
-              </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 z-20 flex ${isBrowserFullscreen ? 'bg-black/20 hover:bg-black/60 text-white' : 'bg-background/20 hover:bg-background/90'} backdrop-blur-sm shadow-lg opacity-30 hover:opacity-100 transition-opacity duration-200 focus:outline-none focus-visible:outline-none active:opacity-30 h-8 w-8 sm:h-10 sm:w-10`}
+                    onClick={(e) => {
+                      nextArtwork();
+                      e.currentTarget.blur();
+                    }}
+                  >
+                    <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </Button>
 
-              <div className="flex flex-col lg:flex-row items-center justify-center w-full gap-4 sm:gap-6 lg:gap-8 p-4 sm:p-6 lg:px-16 lg:py-8 max-w-[1400px] mx-auto">
-                <div className="flex-1 w-full flex items-center justify-center lg:max-w-[55%]">
                   <img 
                     src={selectedArtwork.image} 
                     alt={selectedArtwork.title}
-                    className="w-full max-h-[50vh] sm:max-h-[60vh] lg:max-h-[75vh] object-contain rounded-lg shadow-2xl"
+                    className={`${isBrowserFullscreen ? 'absolute inset-0 w-full h-full object-contain' : 'w-full max-h-[40vh] sm:max-h-[60vh] lg:max-h-[75vh] object-contain rounded-lg shadow-2xl'}`}
                   />
                 </div>
-
-                <div className="flex-1 w-full lg:max-w-[45%] flex flex-col justify-center">
-                  <div className="space-y-3 sm:space-y-4 max-w-md mx-auto lg:mx-0 w-full">
-                    <div>
-                      <h3 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">{selectedArtwork.title}</h3>
-                      <p className="text-base sm:text-xl text-muted-foreground mb-3 sm:mb-4">{selectedArtwork.medium}</p>
-                      {selectedArtwork.description && (
-                        <p className="text-sm sm:text-base text-muted-foreground">{selectedArtwork.description}</p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4 py-3 sm:py-4 border-y border-border">
+                {!isBrowserFullscreen && (
+                  <div className="flex-1 w-full lg:max-w-[45%] flex flex-col justify-center">
+                    <div className="space-y-1.5 sm:space-y-4 max-w-md mx-auto lg:mx-0 w-full">
                       <div>
-                        <span className="text-muted-foreground text-sm">Categoria:</span>
-                        <p className="font-medium capitalize">{selectedArtwork.category}</p>
+                        <h3 className="text-lg sm:text-3xl font-bold mb-0.5 sm:mb-2">{selectedArtwork.title}</h3>
+                        <p className="text-xs sm:text-xl text-muted-foreground mb-1 sm:mb-4">{selectedArtwork.medium}</p>
+                        {selectedArtwork.description && (
+                          <p className="text-xs sm:text-base text-muted-foreground line-clamp-2 sm:line-clamp-none">{selectedArtwork.description}</p>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-sm">Data:</span>
-                        <p className="font-medium">{selectedArtwork.date}</p>
-                      </div>
-                      {selectedArtwork.dimensions && (
-                        <div className="col-span-2">
-                          <span className="text-muted-foreground text-sm">Dimensiuni:</span>
-                          <p className="font-medium">{selectedArtwork.dimensions}</p>
+
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-4 py-1.5 sm:py-4 border-y border-border">
+                        <div>
+                          <span className="text-muted-foreground text-[10px] sm:text-sm">Categoria:</span>
+                          <p className="font-medium text-xs sm:text-base capitalize">{selectedArtwork.category}</p>
                         </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <span className="text-muted-foreground text-sm">Materiale folosite:</span>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {selectedArtwork.materials.map((material) => (
-                          <Badge key={material} variant="outline" className="bg-art-accent/10 border-art-accent/20">
-                            {material}
-                          </Badge>
-                        ))}
+                        <div>
+                          <span className="text-muted-foreground text-[10px] sm:text-sm">Data:</span>
+                          <p className="font-medium text-xs sm:text-base">{selectedArtwork.date}</p>
+                        </div>
+                        {selectedArtwork.dimensions && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground text-[10px] sm:text-sm">Dimensiuni:</span>
+                            <p className="font-medium text-xs sm:text-base">{selectedArtwork.dimensions}</p>
+                          </div>
+                        )}
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between sm:hidden pt-4">
-                      <Button variant="outline" size="icon" onClick={prevArtwork}>
-                        <ChevronLeft className="h-5 w-5" />
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={nextArtwork}>
-                        <ChevronRight className="h-5 w-5" />
-                      </Button>
+                      <div>
+                        <span className="text-muted-foreground text-[10px] sm:text-sm">Materiale folosite:</span>
+                        <div className="flex flex-wrap gap-1 sm:gap-2 mt-1 sm:mt-2">
+                          {selectedArtwork.materials.map((material) => (
+                            <Badge key={material} variant="outline" className="bg-art-accent/10 border-art-accent/20 text-[10px] sm:text-xs px-1.5 py-0 sm:px-2.5 sm:py-0.5">
+                              {material}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -1619,68 +1828,18 @@ const TraditionalArt: React.FC = () => {
                           Scoate din album
                         </button>
                       )}
-                      {/* Add to album submenu (hover to open) for individual artwork */}
-                      {contextMenu.albumId === -1 && (
-                        <div className="relative">
-                          <button
-                            className="w-full text-left p-2 hover:bg-muted/50 rounded flex items-center justify-between gap-2"
-                            onMouseEnter={() => setHoverAddMenu(true)}
-                          >
-                            <span>Adaugă în…</span>
-                            <PlusCircle className="h-4 w-4" />
-                          </button>
-                          {hoverAddMenu && (
-                            <div
-                              className="absolute top-0 left-[calc(100%+6px)] bg-popover border rounded-lg shadow-lg p-2 w-56 z-50 backdrop-blur-sm"
-                              onMouseEnter={() => setHoverAddMenu(true)}
-                              onMouseLeave={() => setHoverAddMenu(false)}
-                            >
-                              {albums.filter(a => a.id !== -1).length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-muted-foreground">Nu există albume</div>
-                              ) : (
-                                albums.filter(a => a.id !== -1).map(a => (
-                                  <button 
-                                    key={a.id} 
-                                    className="w-full text-left px-3 py-2 hover:bg-muted/50 rounded-md text-sm flex items-center gap-2 transition-colors group" 
-                                    onClick={async () => {
-                                    try {
-                                      const target = rawAlbums.find(r => r.id === a.id);
-                                      if (target && contextMenu.artworkId) {
-                                        await addItemToAlbum(target, contextMenu.artworkId);
-                                        toast({ title: 'Adăugat', description: `Opera a fost adăugată în "${a.title}".` });
-                                        await reloadArtworks();
-                                      }
-                                    } catch (err) {
-                                      toast({ title: 'Eroare', description: 'Nu s-a putut adăuga în album', variant: 'destructive' });
-                                    } finally {
-                                      setHoverAddMenu(false);
-                                      setContextMenu(null);
-                                    }
-                                  }}>
-                                    <div className="w-3 h-3 rounded-full bg-art-accent/70 group-hover:bg-art-accent" />
-                                    <span className="flex-1 truncate font-medium">{a.title}</span>
-                                    <span className="text-xs text-muted-foreground">({a.artworks.length})</span>
-                                  </button>
-                                ))
-                              )}
-                              <div className="border-t my-2" />
-                              <button 
-                                className="w-full text-left px-3 py-2 hover:bg-muted/50 rounded-md text-sm text-indigo-600 font-medium flex items-center gap-2 transition-colors" 
-                                onClick={() => {
-                                setCreateAlbumFromSubmenu({
-                                  open: true,
-                                  artworkId: contextMenu.artworkId || null
-                                });
-                                setHoverAddMenu(false);
-                                setContextMenu(null);
-                              }}>
-                                <PlusCircle className="h-4 w-4" />
-                                Creează album nou
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {/* Add to album - for all artworks */}
+                      <button
+                        className="w-full text-left p-2 hover:bg-muted/50 rounded flex items-center gap-2"
+                        onMouseEnter={() => setHoverAddMenu(false)}
+                        onClick={() => {
+                          setAddToAlbumDialog({ open: true, artworkId: contextMenu.artworkId || null });
+                          setContextMenu(null);
+                        }}
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                        Adaugă în album
+                      </button>
                       {/* Soft delete */}
                       <button 
                         className="w-full text-left p-2 hover:bg-destructive/10 text-destructive rounded flex items-center gap-2" 
@@ -1842,6 +2001,87 @@ const TraditionalArt: React.FC = () => {
             onOpenChange={(open) => setCreateAlbumFromSubmenu({ ...createAlbumFromSubmenu, open })}
             onConfirm={handleCreateAlbumFromSubmenu}
           />
+
+          {/* Add to Album Dialog */}
+          <Dialog open={addToAlbumDialog.open} onOpenChange={(open) => setAddToAlbumDialog({ open, artworkId: null })}>
+            <DialogContent className="sm:max-w-md max-w-[95vw]">
+              <DialogHeader>
+                <DialogTitle>Adaugă în album</DialogTitle>
+              </DialogHeader>
+              <div className="py-4">
+                {albums.filter(a => a.id !== -1).length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">Nu există albume create încă</p>
+                    <Button
+                      onClick={() => {
+                        setCreateAlbumFromSubmenu({ 
+                          open: true, 
+                          artworkId: addToAlbumDialog.artworkId 
+                        });
+                        setAddToAlbumDialog({ open: false, artworkId: null });
+                      }}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Creează primul album
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {albums.filter(a => a.id !== -1).map(album => (
+                      <Button
+                        key={album.id}
+                        variant="outline"
+                        onClick={async () => {
+                          if (!addToAlbumDialog.artworkId) return;
+                          try {
+                            const target = rawAlbums.find(r => r.id === album.id);
+                            if (target) {
+                              await addItemToAlbum(target, addToAlbumDialog.artworkId);
+                              toast({ title: 'Adăugat', description: `Opera a fost adăugată în "${album.title}".` });
+                              await reloadArtworks();
+                            }
+                          } catch (err) {
+                            toast({ title: 'Eroare', description: 'Nu s-a putut adăuga în album', variant: 'destructive' });
+                          }
+                          setAddToAlbumDialog({ open: false, artworkId: null });
+                        }}
+                        className="w-full justify-start gap-3 h-12"
+                      >
+                        <div className="w-4 h-4 rounded-full bg-art-accent/70 flex-shrink-0" />
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{album.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {album.artworks.length} {album.artworks.length === 1 ? 'operă' : 'opere'}
+                          </div>
+                        </div>
+                      </Button>
+                    ))}
+                    
+                    <hr className="my-3" />
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCreateAlbumFromSubmenu({ 
+                          open: true, 
+                          artworkId: addToAlbumDialog.artworkId 
+                        });
+                        setAddToAlbumDialog({ open: false, artworkId: null });
+                      }}
+                      className="w-full justify-start gap-3 h-12 text-green-600 border-green-200 hover:bg-green-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <div className="text-left">
+                        <div className="font-medium">Creează album nou</div>
+                        <div className="text-xs text-muted-foreground">Cu această operă</div>
+                      </div>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
