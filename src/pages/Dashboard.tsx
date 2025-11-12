@@ -166,7 +166,7 @@ const Dashboard: React.FC = () => {
       {/* Footer - Compact */}
       <footer className="relative bg-gradient-to-br from-background via-background/95 to-card/50 border-t border-border/50 py-6 md:py-8 px-4 md:px-6 overflow-hidden">
         {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
+        <div className="absolute inset-0 opacity-5 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10"></div>
         </div>
         

@@ -1218,7 +1218,7 @@ const Photography: React.FC = () => {
                             )}
                           </div>
                         ) : (
-                          <div className="flex gap-4 p-4 sm:p-5">
+                          <div className="flex gap-3 sm:gap-4 p-3 sm:p-5">
                             {/* Selection checkbox for list view */}
                             {isAdmin && (
                               <div 
@@ -1243,7 +1243,7 @@ const Photography: React.FC = () => {
                               </div>
                             )}
                             
-                            <div className="w-32 sm:w-48 h-24 sm:h-32 flex-shrink-0 rounded-lg overflow-hidden">
+                            <div className="w-24 sm:w-48 h-20 sm:h-32 flex-shrink-0 rounded-lg overflow-hidden">
                               <img 
                                 src={photo.image} 
                                 alt={photo.title}
@@ -1251,9 +1251,9 @@ const Photography: React.FC = () => {
                               />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-start gap-2 mb-2">
-                                <ImageIcon className="h-5 w-5 text-art-accent flex-shrink-0 mt-0.5" />
-                                <h3 className="font-semibold text-lg leading-tight flex-1">{photo.title}</h3>
+                              <div className="flex items-start gap-2 mb-1 sm:mb-2">
+                                <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 text-art-accent flex-shrink-0 mt-0.5" />
+                                <h3 className="font-semibold text-base sm:text-lg leading-tight flex-1 truncate">{photo.title}</h3>
                                 
                                 {/* Three-dot dropdown menu for list view */}
                                 {isAdmin && !selectionMode && (
@@ -1262,7 +1262,7 @@ const Photography: React.FC = () => {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         <MoreVertical className="h-4 w-4" />
@@ -1302,20 +1302,20 @@ const Photography: React.FC = () => {
                                 )}
                               </div>
                               {photo.device && (
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Camera className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                  <p className="text-muted-foreground text-sm">{photo.device}</p>
+                                <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
+                                  <Camera className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                                  <p className="text-muted-foreground text-xs sm:text-sm truncate">{photo.device}</p>
                                 </div>
                               )}
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <Calendar className="h-3 w-3 flex-shrink-0" />
                                   <span>{photo.date}</span>
                                 </div>
                                 {photo.location && (
-                                  <div className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    <span>{photo.location}</span>
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    <MapPin className="h-3 w-3 flex-shrink-0" />
+                                    <span className="truncate">{photo.location}</span>
                                   </div>
                                 )}
                               </div>
@@ -1364,38 +1364,40 @@ const Photography: React.FC = () => {
           <DialogDescription className="sr-only">Vizualizare fullscreen fotografie</DialogDescription>
           {selectedPhoto && (
             <div className="relative w-full h-full bg-black">
-              {/* Navigation Arrows */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  prevPhoto();
-                }}
-              >
-                <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nextPhoto();
-                }}
-              >
-                <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
-
               <div className="flex flex-col h-full">
                 <div className="flex-1 flex items-center justify-center px-3 sm:px-6 pt-6 pb-32 sm:pb-48">
-                  <img
-                    src={selectedPhoto.image}
-                    alt={selectedPhoto.title}
-                    className="w-auto h-auto max-w-full max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)] object-contain"
-                  />
+                  {/* Image wrapper with navigation arrows */}
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        prevPhoto();
+                      }}
+                    >
+                      <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        nextPhoto();
+                      }}
+                    >
+                      <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+                    </Button>
+
+                    <img
+                      src={selectedPhoto.image}
+                      alt={selectedPhoto.title}
+                      className="w-auto h-auto max-w-full max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)] object-contain"
+                    />
+                  </div>
                 </div>
 
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
