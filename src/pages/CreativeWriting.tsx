@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogPortal, DialogOverlay, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Toggle } from '@/components/ui/toggle';
 import { Switch } from '@/components/ui/switch';
@@ -2181,7 +2181,7 @@ const CreativeWriting: React.FC = () => {
                           {/* Bottom meta: date | wordcount */}
                           <div className="flex items-center justify-between">
                             <div className="text-xs text-muted-foreground">
-                              {writing.lastModified} | {writing.wordCount} cuvinte
+                              {new Date(writing.lastModified).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' })} | {writing.wordCount} cuvinte
                             </div>
                             <div className="flex items-center gap-1">
                               {/* Priority indicator */}
@@ -2411,7 +2411,7 @@ const CreativeWriting: React.FC = () => {
                               </span>
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {writing.lastModified}
+                                {new Date(writing.lastModified).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                               </span>
                             </div>
                           </div>
@@ -2498,7 +2498,7 @@ const CreativeWriting: React.FC = () => {
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {writing.lastModified}
+                              {new Date(writing.lastModified).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                             </span>
                           </div>
                           <Badge 
@@ -2582,7 +2582,7 @@ const CreativeWriting: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {selectedWriting.dateWritten}
+                        {new Date(selectedWriting.dateWritten).toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </div>
                       <div className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
@@ -3545,84 +3545,97 @@ const CreativeWriting: React.FC = () => {
 
       {/* Add to Album Dialog */}
       <Dialog open={addToAlbumDialog.open} onOpenChange={(open) => setAddToAlbumDialog({ open, writingId: null })}>
-        <DialogContent className="sm:max-w-md max-w-[95vw]">
-          <DialogHeader>
-            <DialogTitle>Adaugă în album</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            {albums.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">Nu există albume create încă</p>
-                <Button
-                  onClick={() => {
-                    setAlbumNameDialog({ 
-                      open: true, 
-                      sourceId: addToAlbumDialog.writingId, 
-                      targetId: null 
-                    });
-                    setAddToAlbumDialog({ open: false, writingId: null });
-                  }}
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Creează primul album
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {albums.filter(a => a.name !== 'Pinned').map(album => (
-                  <Button
-                    key={album.id}
-                    variant="outline"
-                    onClick={() => {
-                      if (!addToAlbumDialog.writingId) return;
-                      setAlbums(albs => albs.map(al => 
-                        al.id === album.id 
-                          ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), addToAlbumDialog.writingId!])) } 
-                          : al
-                      ));
-                      setAddToAlbumDialog({ open: false, writingId: null });
-                      toast({ title: 'Adăugat', description: `Scrierea a fost adăugată în "${album.name}".` });
-                    }}
-                    className="w-full justify-start gap-3 h-12"
-                  >
-                    <div 
-                      className="w-4 h-4 rounded-full flex-shrink-0" 
-                      style={{ backgroundColor: album.color || '#7c3aed' }}
-                    />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium">{album.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {album.itemIds.length} {album.itemIds.length === 1 ? 'scriere' : 'scrieri'}
-                      </div>
-                    </div>
-                  </Button>
-                ))}
-                
-                <hr className="my-3" />
-                
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setAlbumNameDialog({ 
-                      open: true, 
-                      sourceId: addToAlbumDialog.writingId, 
-                      targetId: null 
-                    });
-                    setAddToAlbumDialog({ open: false, writingId: null });
-                  }}
-                  className="w-full justify-start gap-3 h-12 text-green-600 border-green-200 hover:bg-green-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  <div className="text-left">
-                    <div className="font-medium">Creează album nou</div>
-                    <div className="text-xs text-muted-foreground">Cu această scriere</div>
+        <DialogPortal>
+          <DialogOverlay className="fixed inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+            <div className="relative w-full max-w-[95vw] sm:max-w-md rounded-xl border border-border bg-background shadow-2xl">
+              <DialogHeader className="px-6 pt-6">
+                <DialogTitle className="text-lg font-semibold">Adaugă în album</DialogTitle>
+              </DialogHeader>
+              <div className="px-6 pb-6 pt-4">
+                {albums.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">Nu există albume create încă</p>
+                    <Button
+                      onClick={() => {
+                        setAlbumNameDialog({ 
+                          open: true, 
+                          sourceId: addToAlbumDialog.writingId, 
+                          targetId: null 
+                        });
+                        setAddToAlbumDialog({ open: false, writingId: null });
+                      }}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Creează primul album
+                    </Button>
                   </div>
-                </Button>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1 theme-scrollbar">
+                    {albums.filter(a => a.name !== 'Pinned').map(album => (
+                      <Button
+                        key={album.id}
+                        variant="outline"
+                        onClick={() => {
+                          if (!addToAlbumDialog.writingId) return;
+                          setAlbums(albs => albs.map(al => 
+                            al.id === album.id 
+                              ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), addToAlbumDialog.writingId!])) } 
+                              : al
+                          ));
+                          setAddToAlbumDialog({ open: false, writingId: null });
+                          toast({ title: 'Adăugat', description: `Scrierea a fost adăugată în "${album.name}".` });
+                        }}
+                        className="w-full justify-start gap-3 h-12"
+                      >
+                        <div 
+                          className="w-4 h-4 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: album.color || '#7c3aed' }}
+                        />
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{album.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {album.itemIds.length} {album.itemIds.length === 1 ? 'scriere' : 'scrieri'}
+                          </div>
+                        </div>
+                      </Button>
+                    ))}
+                    
+                    <hr className="my-3" />
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAlbumNameDialog({ 
+                          open: true, 
+                          sourceId: addToAlbumDialog.writingId, 
+                          targetId: null 
+                        });
+                        setAddToAlbumDialog({ open: false, writingId: null });
+                      }}
+                      className="w-full justify-start gap-3 h-12 text-green-600 border-green-200 hover:bg-green-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <div className="text-left">
+                        <div className="font-medium">Creează album nou</div>
+                        <div className="text-xs text-muted-foreground">Cu această scriere</div>
+                      </div>
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
+
+              <DialogClose
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground shadow-sm transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                onClick={() => setAddToAlbumDialog({ open: false, writingId: null })}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Închide</span>
+              </DialogClose>
+            </div>
           </div>
-        </DialogContent>
+        </DialogPortal>
       </Dialog>
 
       {/* Fixed floating album navigation arrows for mobile */}

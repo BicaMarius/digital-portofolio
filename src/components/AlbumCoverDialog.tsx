@@ -48,6 +48,10 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
   const [pos, setPos] = useState<{ x: number; y: number }>(album?.coverPos || { x: 50, y: 50 });
   const [dragging, setDragging] = useState(false);
   const [zoom, setZoom] = useState<number>(1);
+  
+  // Mobile pinch-to-zoom state
+  const [touchDistance, setTouchDistance] = useState<number | null>(null);
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
 
   React.useEffect(() => {
     setTitle(album?.title || '');
@@ -55,6 +59,25 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
     setPos(album?.coverPos || { x: 50, y: 50 });
     setZoom((album as any)?.coverScale || 1);
   }, [album?.id]);
+
+  // Helper to calculate distance between two touch points
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return null;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Helper to get center point between two touches
+  const getTouchCenter = (touches: React.TouchList, rect: DOMRect) => {
+    if (touches.length < 2) return null;
+    const centerX = (touches[0].clientX + touches[1].clientX) / 2;
+    const centerY = (touches[0].clientY + touches[1].clientY) / 2;
+    // Convert to percentage relative to container
+    const x = ((centerX - rect.left) / rect.width) * 100;
+    const y = ((centerY - rect.top) / rect.height) * 100;
+    return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
+  };
 
   if (!album) return null;
 
@@ -138,7 +161,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                   <div className="sm:hidden">
                     <AspectRatio ratio={1}>
                       <div
-                        className="relative w-full h-full rounded border border-border overflow-hidden select-none"
+                        className="relative w-full h-full rounded border border-border overflow-hidden select-none touch-none"
                         onMouseDown={(e) => { setDragging(true); (e.currentTarget as HTMLDivElement).dataset.dragStartX = String(e.clientX); (e.currentTarget as HTMLDivElement).dataset.dragStartY = String(e.clientY); (e.currentTarget as HTMLDivElement).dataset.startX = String(pos.x); (e.currentTarget as HTMLDivElement).dataset.startY = String(pos.y); }}
                         onMouseMove={(e) => {
                           if (!dragging) return;
@@ -155,6 +178,49 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                         }}
                         onMouseUp={() => setDragging(false)}
                         onMouseLeave={() => setDragging(false)}
+                        onTouchStart={(e) => {
+                          const touches = e.touches;
+                          if (touches.length === 1) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const touchX = ((touches[0].clientX - rect.left) / rect.width) * 100;
+                            const touchY = ((touches[0].clientY - rect.top) / rect.height) * 100;
+                            setTouchStartPos({ x: touchX - pos.x, y: touchY - pos.y });
+                            setTouchDistance(null);
+                          } else if (touches.length === 2) {
+                            const dist = getTouchDistance(touches);
+                            setTouchDistance(dist);
+                            setTouchStartPos(null);
+                          }
+                        }}
+                        onTouchMove={(e) => {
+                          const touches = e.touches;
+                          if (touches.length === 1 && touchStartPos) {
+                            // Single touch: pan
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const touchX = ((touches[0].clientX - rect.left) / rect.width) * 100;
+                            const touchY = ((touches[0].clientY - rect.top) / rect.height) * 100;
+                            const nx = Math.max(0, Math.min(100, touchX - touchStartPos.x));
+                            const ny = Math.max(0, Math.min(100, touchY - touchStartPos.y));
+                            setPos({ x: nx, y: ny });
+                          } else if (touches.length === 2 && touchDistance !== null) {
+                            // Two touches: pinch to zoom
+                            const newDist = getTouchDistance(touches);
+                            if (newDist) {
+                              const scale = newDist / touchDistance;
+                              const newZoom = Math.max(0.8, Math.min(2.5, zoom * scale));
+                              setZoom(Number(newZoom.toFixed(2)));
+                              setTouchDistance(newDist);
+                            }
+                          }
+                        }}
+                        onTouchEnd={(e) => {
+                          if (e.touches.length === 0) {
+                            setTouchStartPos(null);
+                            setTouchDistance(null);
+                          } else if (e.touches.length === 1) {
+                            setTouchDistance(null);
+                          }
+                        }}
                         onWheel={(e) => {
                           // Avoid warning in browsers that treat wheel as passive
                           const ne = (e as unknown as { nativeEvent?: WheelEvent }).nativeEvent;
@@ -163,7 +229,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                           const step = delta > 0 ? 0.05 : -0.05;
                           setZoom(z => Math.max(0.8, Math.min(2.5, Number((z + step).toFixed(2)))));
                         }}
-                        title="Trage pentru a repoziționa"
+                        title="Pinch pentru zoom, trage pentru a repoziționa"
                       >
                         <div
                           className="absolute inset-0 pointer-events-none"
@@ -238,7 +304,8 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                    <span>Centrare: X {Math.round(pos.x)}% · Y {Math.round(pos.y)}% (zoom cu rotița mouse-ului)</span>
+                    <span className="hidden sm:inline">Centrare: X {Math.round(pos.x)}% · Y {Math.round(pos.y)}% (zoom cu rotița mouse-ului)</span>
+                    <span className="sm:hidden">Pinch pentru zoom · Trage pentru poziție · Zoom: {zoom.toFixed(1)}x</span>
                   </div>
                 </div>
               )}
