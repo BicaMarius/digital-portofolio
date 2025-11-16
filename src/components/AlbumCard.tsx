@@ -48,6 +48,7 @@ interface AlbumCardProps {
   onRemoveWritingFromAlbum?: (albumId: string, writingId: number) => void;
   onDeleteWritingFromAlbum?: (albumId: string, writingId: number) => void;
   onUpdateAlbum?: (albumId: string, updates: { name?: string; color?: string; itemIds?: number[] }) => void;
+  onOpenAddToAlbumDialog?: (writingId: number, sourceAlbumId: string) => void;
   onMoveWritingToAlbum?: (fromAlbumId: string, toAlbumId: string, writingId: number) => void;
 }
 
@@ -72,7 +73,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   onRemoveWritingFromAlbum,
   onDeleteWritingFromAlbum,
   onUpdateAlbum,
-  onMoveWritingToAlbum
+  onMoveWritingToAlbum,
+  onOpenAddToAlbumDialog
 }) => {
   const isMobile = useIsMobile();
   const [currentPage, setCurrentPage] = useState(0);
@@ -80,7 +82,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedWritingsToAdd, setSelectedWritingsToAdd] = useState<Set<number>>(new Set());
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number; writingId: number } | null>(null);
-  const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [albumName, setAlbumName] = useState(album.name);
   const [albumColor, setAlbumColor] = useState(album.color || '#7c3aed');
   const [confirmDiscardDialog, setConfirmDiscardDialog] = useState(false);
@@ -95,6 +96,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const [longPressActive, setLongPressActive] = useState(false);
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
+  const [hoveredMoveSubmenu, setHoveredMoveSubmenu] = useState(false);
 
   // Long press handlers for mobile
   const handleTouchStart = (e: React.TouchEvent, writingId: number) => {
@@ -611,6 +613,22 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          {allAlbums && allAlbums.length > 1 && (
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-7 w-7" 
+                              title="Mută în alt album" 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                e.preventDefault();
+                                onOpenAddToAlbumDialog?.(writing.id, album.id);
+                                setMobileSelectedWritingId(null); 
+                              }}
+                            >
+                              <FolderPlus className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button 
                             size="icon" 
                             variant="ghost" 
@@ -625,22 +643,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="h-7 w-7" 
-                            title="Mută în alt album" 
-                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                            onTouchEnd={(e) => { 
-                              e.stopPropagation(); 
-                              e.preventDefault();
-                              // Deschide dialogul de mutare - va fi implementat în CreativeWriting
-                              setContextMenuPosition({ x: 0, y: 0, writingId: writing.id });
-                              setMobileSelectedWritingId(null); 
-                            }}
-                          >
-                            <FolderPlus className="h-4 w-4" />
                           </Button>
                         </div>
                       </>
@@ -783,7 +785,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
             className="fixed inset-0 z-40" 
             onClick={() => {
               setContextMenuPosition(null);
-              setShowMoveSubmenu(false);
             }}
           />
           <div 
@@ -802,30 +803,34 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
               Scoate din album
             </button>
             
-            {/* Move to Album option */}
-            {allAlbums && allAlbums.length > 1 && onMoveWritingToAlbum && (
-              <div 
-                className="relative"
-                onMouseEnter={() => !isMobile && setShowMoveSubmenu(true)}
-                onMouseLeave={() => !isMobile && setShowMoveSubmenu(false)}
-              >
+            {onOpenAddToAlbumDialog && allAlbums && allAlbums.length > 1 && (
+              <div className="relative">
                 <button 
-                  onClick={() => isMobile && setShowMoveSubmenu(!showMoveSubmenu)}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 justify-between transition-colors"
+                  onClick={() => {
+                    if (isMobile && contextMenuPosition) {
+                      onOpenAddToAlbumDialog(contextMenuPosition.writingId, album.id);
+                      setContextMenuPosition(null);
+                    } else {
+                      setHoveredMoveSubmenu(!hoveredMoveSubmenu);
+                    }
+                  }}
+                  onMouseEnter={() => !isMobile && setHoveredMoveSubmenu(true)}
+                  onMouseLeave={() => !isMobile && setHoveredMoveSubmenu(false)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center justify-between transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <FolderPlus className="h-3 w-3" />
-                    Mută în...
+                    Mută în alt album
                   </div>
-                  <ChevronRight className="h-3 w-3" />
+                  {!isMobile && <ChevronRight className="h-3 w-3" />}
                 </button>
                 
-                {/* Submenu */}
-                {showMoveSubmenu && (
+                {/* Submenu pentru desktop */}
+                {hoveredMoveSubmenu && !isMobile && (
                   <div 
-                    className={`absolute ${isMobile ? 'right-full top-0 mr-1 w-48 max-w-[85vw]' : 'left-full top-0 ml-1 w-48'} bg-popover border rounded shadow-lg py-1 backdrop-blur-sm z-50 max-h-60 overflow-y-auto`}
-                    onMouseEnter={() => !isMobile && setShowMoveSubmenu(true)}
-                    onMouseLeave={() => !isMobile && setShowMoveSubmenu(false)}
+                    className="absolute left-full top-0 ml-1 w-48 bg-popover border rounded shadow-lg p-1 backdrop-blur-sm z-70"
+                    onMouseEnter={() => setHoveredMoveSubmenu(true)}
+                    onMouseLeave={() => setHoveredMoveSubmenu(false)}
                   >
                     {allAlbums
                       .filter(a => a.id !== album.id)
@@ -833,22 +838,23 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                         <button
                           key={targetAlbum.id}
                           onClick={() => {
-                            if (contextMenuPosition) {
-                              onMoveWritingToAlbum(album.id, targetAlbum.id, contextMenuPosition.writingId);
-                              setContextMenuPosition(null);
-                              setShowMoveSubmenu(false);
-                            }
+                            if (!contextMenuPosition) return;
+                            onMoveWritingToAlbum?.(album.id, targetAlbum.id, contextMenuPosition.writingId);
+                            setContextMenuPosition(null);
+                            setHoveredMoveSubmenu(false);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          className="w-full text-left p-2 hover:bg-muted/50 text-sm transition-colors flex items-center gap-2"
                         >
                           <div 
                             className="w-3 h-3 rounded-full" 
                             style={{ backgroundColor: targetAlbum.color || '#7c3aed' }}
                           />
-                          <span className="truncate">{targetAlbum.name}</span>
+                          {targetAlbum.name}
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            ({targetAlbum.itemIds.length})
+                          </span>
                         </button>
-                      ))
-                    }
+                      ))}
                   </div>
                 )}
               </div>
@@ -861,7 +867,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                     const writing = writings.find(w => w.id === contextMenuPosition.writingId);
                     if (writing) onEditWriting(writing);
                     setContextMenuPosition(null);
-                    setShowMoveSubmenu(false);
                   }
                 }}
                 className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors"
@@ -875,7 +880,6 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
                 if (contextMenuPosition) {
                   onDeleteWritingFromAlbum?.(album.id, contextMenuPosition.writingId);
                   setContextMenuPosition(null);
-                  setShowMoveSubmenu(false);
                 }
               }}
               className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 transition-colors text-red-600 hover:text-red-700 hover:bg-red-50"

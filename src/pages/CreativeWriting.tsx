@@ -1070,16 +1070,27 @@ const CreativeWriting: React.FC = () => {
     open: boolean;
     sourceId: number | null;
     targetId: number | null;
+    sourceAlbumId: string | null;
   }>({
     open: false,
     sourceId: null,
-    targetId: null
+    targetId: null,
+    sourceAlbumId: null
   });
   // Context menu for right-click on a writing
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; writingId: number | null }>({ open: false, x: 0, y: 0, writingId: null });
   const [contextTargetWriting, setContextTargetWriting] = useState<WritingPiece | null>(null);
   const [hoveredAlbumSubmenu, setHoveredAlbumSubmenu] = useState(false);
-  const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; writingId: number | null }>({ open: false, writingId: null });
+  const [addToAlbumDialog, setAddToAlbumDialog] = useState<{ open: boolean; writingId: number | null; sourceAlbumId: string | null }>({ open: false, writingId: null, sourceAlbumId: null });
+
+  const openAddToAlbumDialog = (writingId: number | null, sourceAlbumId: string | null = null) => {
+    if (writingId == null) return;
+    setAddToAlbumDialog({ open: true, writingId, sourceAlbumId });
+  };
+
+  const closeAddToAlbumDialog = () => {
+    setAddToAlbumDialog({ open: false, writingId: null, sourceAlbumId: null });
+  };
   // Mobile action bar selection
   const [mobileSelectedWritingId, setMobileSelectedWritingId] = useState<number | null>(null);
   
@@ -1363,7 +1374,8 @@ const CreativeWriting: React.FC = () => {
       setAlbumNameDialog({
         open: true,
         sourceId,
-        targetId
+        targetId,
+        sourceAlbumId: null
       });
     } else {
       // Reorder writings manually
@@ -1429,7 +1441,7 @@ const CreativeWriting: React.FC = () => {
   };
 
   const createAlbumFromWritings = async (name: string, color: string) => {
-    const { sourceId, targetId } = albumNameDialog;
+    const { sourceId, targetId, sourceAlbumId } = albumNameDialog;
     
     // Create album with available IDs (can be empty, single item, or pair)
     const itemIds = [sourceId, targetId].filter(id => id !== null) as number[];
@@ -1443,7 +1455,30 @@ const CreativeWriting: React.FC = () => {
         contentType: 'writings'
       });
 
-      setAlbumNameDialog({ open: false, sourceId: null, targetId: null });
+      if (sourceAlbumId && sourceId != null) {
+        const sourceAlbum = albums.find(a => a.id === sourceAlbumId);
+        if (sourceAlbum) {
+          const updatedItemIds = sourceAlbum.itemIds.filter(id => id !== sourceId);
+          setAlbums(prev => prev.map(album =>
+            album.id === sourceAlbumId
+              ? { ...album, itemIds: updatedItemIds }
+              : album
+          ));
+
+          try {
+            await updateAlbumMutation.mutateAsync({ id: Number(sourceAlbumId), updates: { itemIds: updatedItemIds } });
+          } catch (err) {
+            console.error('Failed to remove writing from source album:', err);
+            toast({
+              title: 'Avertizare',
+              description: 'Scrierea nu a putut fi eliminată din albumul original.',
+              variant: 'destructive'
+            });
+          }
+        }
+      }
+
+      setAlbumNameDialog({ open: false, sourceId: null, targetId: null, sourceAlbumId: null });
       toast({ 
         title: 'Album creat', 
         description: `Albumul "${name}" a fost creat cu succes.` 
@@ -1519,7 +1554,7 @@ const CreativeWriting: React.FC = () => {
                 }
               });
             }
-            
+
             toast({ 
               title: 'Mutat în coș', 
               description: 'Scrierea a fost mutată în coșul de gunoi.' 
@@ -2121,7 +2156,7 @@ const CreativeWriting: React.FC = () => {
                                     e.stopPropagation(); 
                                     e.preventDefault();
                                     actionButtonClicked.current = true;
-                                    setAddToAlbumDialog({ open: true, writingId: writing.id });
+                                    openAddToAlbumDialog(writing.id);
                                     setMobileSelectedWritingId(null);
                                   }}
                                 >
@@ -2228,7 +2263,7 @@ const CreativeWriting: React.FC = () => {
                   {isAdmin && (
                     <div className="mb-6">
                       <Button 
-                        onClick={() => setAlbumNameDialog({ open: true, sourceId: null, targetId: null })}
+                        onClick={() => setAlbumNameDialog({ open: true, sourceId: null, targetId: null, sourceAlbumId: null })}
                         className="bg-art-accent hover:bg-art-accent/80 w-full"
                         size="lg"
                       >
@@ -2284,6 +2319,7 @@ const CreativeWriting: React.FC = () => {
                             }
                           }}
                           onMoveWritingToAlbum={moveWritingToAlbum}
+                          onOpenAddToAlbumDialog={(writingId, sourceAlbumId) => openAddToAlbumDialog(writingId, sourceAlbumId)}
                           isAdmin={isAdmin}
                         />
                       </div>
@@ -3168,7 +3204,7 @@ const CreativeWriting: React.FC = () => {
             <h2 className="text-2xl font-bold gradient-text">Albume</h2>
             {isAdmin && (
               <Button 
-                onClick={() => setAlbumNameDialog({ open: true, sourceId: null, targetId: null })}
+                onClick={() => setAlbumNameDialog({ open: true, sourceId: null, targetId: null, sourceAlbumId: null })}
                 className="bg-art-accent hover:bg-art-accent/80"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -3203,6 +3239,7 @@ const CreativeWriting: React.FC = () => {
                       onDeleteWritingFromAlbum={deleteWritingFromAlbum}
                       onUpdateAlbum={updateAlbum}
                       onMoveWritingToAlbum={moveWritingToAlbum}
+                      onOpenAddToAlbumDialog={(writingId, sourceAlbumId) => openAddToAlbumDialog(writingId, sourceAlbumId)}
                     />
                   ))}
               </div>
@@ -3246,6 +3283,7 @@ const CreativeWriting: React.FC = () => {
                   onDeleteWritingFromAlbum={deleteWritingFromAlbum}
                   onUpdateAlbum={updateAlbum}
                   onMoveWritingToAlbum={moveWritingToAlbum}
+                  onOpenAddToAlbumDialog={(writingId, sourceAlbumId) => openAddToAlbumDialog(writingId, sourceAlbumId)}
                 />
               ))}
             </div>
@@ -3422,7 +3460,7 @@ const CreativeWriting: React.FC = () => {
                 className="w-full text-left p-2 hover:bg-muted/50 flex items-center justify-between transition-colors"
                 onClick={() => {
                   if (isMobile) {
-                    setAddToAlbumDialog({ open: true, writingId: contextTargetWriting?.id || null });
+                    openAddToAlbumDialog(contextTargetWriting?.id ?? null);
                     setContextMenu({ open: false, x: 0, y: 0, writingId: null });
                   } else {
                     setHoveredAlbumSubmenu(!hoveredAlbumSubmenu);
@@ -3476,7 +3514,8 @@ const CreativeWriting: React.FC = () => {
                       setAlbumNameDialog({ 
                         open: true, 
                         sourceId: contextTargetWriting.id, 
-                        targetId: null 
+                        targetId: null,
+                        sourceAlbumId: null 
                       });
                       setContextMenu({ open: false, x: 0, y: 0, writingId: null });
                     }}
@@ -3544,11 +3583,12 @@ const CreativeWriting: React.FC = () => {
       />
 
       {/* Add to Album Dialog */}
-      <Dialog open={addToAlbumDialog.open} onOpenChange={(open) => setAddToAlbumDialog({ open, writingId: null })}>
+      <Dialog open={addToAlbumDialog.open} onOpenChange={(open) => { if (!open) closeAddToAlbumDialog(); }}>
         <DialogPortal>
-          <DialogOverlay className="fixed inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-            <div className="relative w-full max-w-[95vw] sm:max-w-md rounded-xl border border-border bg-background shadow-2xl">
+          <DialogOverlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
+          <DialogContent
+            className="fixed left-[50%] top-[50%] z-50 w-full max-w-[95vw] sm:max-w-md translate-x-[-50%] translate-y-[-50%] rounded-xl border border-border bg-background p-0 shadow-2xl focus-visible:outline-none"
+          >
               <DialogHeader className="px-6 pt-6">
                 <DialogTitle className="text-lg font-semibold">Adaugă în album</DialogTitle>
               </DialogHeader>
@@ -3557,13 +3597,16 @@ const CreativeWriting: React.FC = () => {
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">Nu există albume create încă</p>
                     <Button
-                      onClick={() => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setAlbumNameDialog({ 
                           open: true, 
                           sourceId: addToAlbumDialog.writingId, 
-                          targetId: null 
+                          targetId: null,
+                          sourceAlbumId: addToAlbumDialog.sourceAlbumId 
                         });
-                        setAddToAlbumDialog({ open: false, writingId: null });
+                        closeAddToAlbumDialog();
                       }}
                       className="gap-2"
                     >
@@ -3573,46 +3616,61 @@ const CreativeWriting: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1 theme-scrollbar">
-                    {albums.filter(a => a.name !== 'Pinned').map(album => (
-                      <Button
-                        key={album.id}
-                        variant="outline"
-                        onClick={() => {
-                          if (!addToAlbumDialog.writingId) return;
-                          setAlbums(albs => albs.map(al => 
-                            al.id === album.id 
-                              ? { ...al, itemIds: Array.from(new Set([...(al.itemIds||[]), addToAlbumDialog.writingId!])) } 
-                              : al
-                          ));
-                          setAddToAlbumDialog({ open: false, writingId: null });
-                          toast({ title: 'Adăugat', description: `Scrierea a fost adăugată în "${album.name}".` });
-                        }}
-                        className="w-full justify-start gap-3 h-12"
-                      >
-                        <div 
-                          className="w-4 h-4 rounded-full flex-shrink-0" 
-                          style={{ backgroundColor: album.color || '#7c3aed' }}
-                        />
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">{album.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {album.itemIds.length} {album.itemIds.length === 1 ? 'scriere' : 'scrieri'}
+                    {albums
+                      .filter(a => a.name !== 'Pinned' && a.id !== addToAlbumDialog.sourceAlbumId)
+                      .map(album => (
+                        <Button
+                          key={album.id}
+                          variant="outline"
+                          onPointerDown={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const writingId = addToAlbumDialog.writingId;
+                            if (!writingId) return;
+
+                            if (addToAlbumDialog.sourceAlbumId && addToAlbumDialog.sourceAlbumId !== album.id) {
+                              await moveWritingToAlbum(addToAlbumDialog.sourceAlbumId, album.id, writingId);
+                              closeAddToAlbumDialog();
+                              return;
+                            }
+
+                            setAlbums(albs => albs.map(al => 
+                              al.id === album.id 
+                                ? { ...al, itemIds: Array.from(new Set([...(al.itemIds || []), writingId])) } 
+                                : al
+                            ));
+                            closeAddToAlbumDialog();
+                            toast({ title: 'Adăugat', description: `Scrierea a fost adăugată în "${album.name}".` });
+                          }}
+                          className="w-full justify-start gap-3 h-12"
+                        >
+                          <div 
+                            className="w-4 h-4 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: album.color || '#7c3aed' }}
+                          />
+                          <div className="flex-1 text-left">
+                            <div className="font-medium">{album.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {album.itemIds.length} {album.itemIds.length === 1 ? 'scriere' : 'scrieri'}
+                            </div>
                           </div>
-                        </div>
-                      </Button>
-                    ))}
+                        </Button>
+                      ))}
                     
                     <hr className="my-3" />
                     
                     <Button
                       variant="outline"
-                      onClick={() => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setAlbumNameDialog({ 
                           open: true, 
                           sourceId: addToAlbumDialog.writingId, 
-                          targetId: null 
+                          targetId: null,
+                          sourceAlbumId: addToAlbumDialog.sourceAlbumId 
                         });
-                        setAddToAlbumDialog({ open: false, writingId: null });
+                        closeAddToAlbumDialog();
                       }}
                       className="w-full justify-start gap-3 h-12 text-green-600 border-green-200 hover:bg-green-50"
                     >
@@ -3625,16 +3683,7 @@ const CreativeWriting: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              <DialogClose
-                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground shadow-sm transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                onClick={() => setAddToAlbumDialog({ open: false, writingId: null })}
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Închide</span>
-              </DialogClose>
-            </div>
-          </div>
+          </DialogContent>
         </DialogPortal>
       </Dialog>
 
