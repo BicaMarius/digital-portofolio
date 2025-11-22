@@ -135,6 +135,179 @@
 }
 
 @layer components {
+  /* Fluid spacing scale using clamp for aspect-ratio adaptation */
+  .hero-section {
+    /* Dynamic padding based on viewport - accounts for Navigation */
+    padding-top: clamp(4.5rem, 4.5rem + 0.5vh, 5.5rem);
+    padding-bottom: clamp(0.5rem, 1vh, 1rem);
+    /* horizontal responsive padding */
+    padding-left: clamp(1rem, 3vw, 3rem);
+    padding-right: clamp(1rem, 3vw, 3rem);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Dynamic min-height based on available viewport */
+    min-height: clamp(9rem, calc(100vh * 0.30), 18rem);
+  }
+
+  .dashboard-grid-section {
+    /* Ultra-compact, viewport-based spacing */
+    padding-top: clamp(0.5rem, 1vh, 1rem);
+    padding-bottom: clamp(1.25rem, 3vh, 2.5rem);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    /* Minimum space for grid to breathe */
+    min-height: clamp(18rem, calc(100vh * 0.42), 32rem);
+  }
+
+  .footer-section {
+    /* Compact footer with minimal padding */
+    padding-top: clamp(1rem, 2.5vh, 2rem);
+    padding-bottom: clamp(1.25rem, 2.5vh, 2rem);
+    padding-left: clamp(1rem, 3vw, 3rem);
+    padding-right: clamp(1rem, 3vw, 3rem);
+    flex-shrink: 0;
+  }
+
+  /* Utility: fluid container with max width and adaptive horizontal padding */
+  .fluid-container {
+    width: 100%;
+    max-width: min(1400px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: clamp(1rem, 3vw, 3rem);
+    padding-right: clamp(1rem, 3vw, 3rem);
+  }
+
+  /* Adjust hero/grid spacing on very short viewports to avoid tiny scroll */
+  @media (max-height: 750px) {
+    .hero-section { 
+      padding-top: 4.5rem; 
+      padding-bottom: 0.5rem;
+      min-height: clamp(8rem, calc(100vh * 0.28), 15rem); 
+    }
+    .dashboard-grid-section { 
+      padding-top: 0.5rem; 
+      padding-bottom: 1rem; 
+      min-height: clamp(16rem, calc(100vh * 0.44), 28rem);
+    }
+    .footer-section {
+      padding-top: 0.75rem;
+      padding-bottom: 1rem;
+    }
+  }
+
+  @media (max-height: 600px) {
+    .hero-section { 
+      min-height: clamp(7rem, calc(100vh * 0.26), 13rem); 
+      padding-bottom: 0.5rem;
+    }
+    .dashboard-grid-section {
+      min-height: clamp(14rem, calc(100vh * 0.46), 24rem);
+      padding-bottom: 0.75rem;
+    }
+    .footer-section {
+      padding-top: 0.5rem;
+      padding-bottom: 0.75rem;
+    }
+  }
+
+  /* Use safe viewport units to mitigate mobile browser UI changes */
+  @supports (height: 100svh) {
+    .hero-section { min-height: clamp(9rem, calc(100svh * 0.30), 18rem); }
+    .dashboard-grid-section { min-height: clamp(18rem, calc(100svh * 0.42), 32rem); }
+  }
+
+  /* Ensure footer sticks visually without excess gap */
+  footer.footer-section { flex-shrink: 0; }
+
+  /* Fluid page layouts for secondary pages (Photography, Writing, etc) */
+  .page-hero-section {
+    /* Fixed padding-top to account for Navigation bar */
+    padding-top: clamp(5.5rem, 5.5rem + 1vh, 6.5rem);
+    padding-bottom: clamp(0.5rem, 1.5vh, 1.5rem);
+    padding-left: clamp(1rem, 3vw, 3rem);
+    padding-right: clamp(1rem, 3vw, 3rem);
+  }
+
+  .page-content-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-top: clamp(0.5rem, 1vh, 1rem);
+    padding-bottom: clamp(1rem, 2vh, 1.75rem);
+    padding-left: clamp(1rem, 3vw, 3rem);
+    padding-right: clamp(1rem, 3vw, 3rem);
+  }
+
+  /* Responsive max-width container with fluid edges */
+  .page-container {
+    width: 100%;
+    max-width: min(1600px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: clamp(1rem, 3vw, 3rem);
+    padding-right: clamp(1rem, 3vw, 3rem);
+  }
+
+  /* Adjust spacing on very short viewports (16:10 laptops, tablets landscape) */
+  @media (max-height: 800px) {
+    .page-hero-section { padding-top: 5rem; }
+    .page-content-section { padding-top: clamp(0.25rem, 0.5vh, 0.75rem); }
+  }
+
+  @media (max-height: 650px) {
+    .page-hero-section { padding-top: 4.5rem; padding-bottom: clamp(0.5rem, 1vh, 1rem); }
+    .page-content-section { padding-top: clamp(0.25rem, 0.5vh, 0.5rem); padding-bottom: clamp(0.5rem, 1vh, 1.25rem); }
+  }
+
+  /* Utilities for grid/flex spacing that adapts to viewport */
+  .fluid-gap {
+    gap: clamp(0.75rem, 1.5vh + 0.5vw, 1.25rem);
+  }
+
+  .fluid-gap-lg {
+    gap: clamp(1rem, 2vh + 0.75vw, 1.75rem);
+  }
+
+  .fluid-padding-section {
+    padding-top: clamp(0.25rem, 1vh, 1rem);
+    padding-bottom: clamp(0.5rem, 1.5vh, 1.25rem);
+  }
+
+  /* Dynamic typography scale */
+  .fluid-text-xs {
+    font-size: clamp(0.75rem, 0.875vw + 0.25rem, 0.875rem);
+  }
+
+  .fluid-text-sm {
+    font-size: clamp(0.875rem, 1vw + 0.25rem, 1rem);
+  }
+
+  .fluid-text-base {
+    font-size: clamp(0.875rem, 1.5vw + 0.25rem, 1.125rem);
+  }
+
+  .fluid-text-lg {
+    font-size: clamp(1rem, 2vw + 0.5rem, 1.5rem);
+  }
+
+  .fluid-text-xl {
+    font-size: clamp(1.25rem, 2.5vw + 0.5rem, 1.875rem);
+  }
+
+  .fluid-text-2xl {
+    font-size: clamp(1.5rem, 3vw + 0.5rem, 2.25rem);
+  }
+
+  .fluid-text-3xl {
+    font-size: clamp(1.75rem, 4vw + 0.5rem, 3rem);
+  }
+
+  .fluid-text-4xl {
+    font-size: clamp(2rem, 5vw + 0.5rem, 3.75rem);
+  }
   /* Portfolio Card Animations */
   .portfolio-card {
     @apply relative overflow-hidden rounded-xl bg-card border border-border/50;

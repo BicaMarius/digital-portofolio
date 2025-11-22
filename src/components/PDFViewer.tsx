@@ -23,7 +23,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [scale, setScale] = useState(1);
   const [baseScale, setBaseScale] = useState(1); // Base scale to fit container
-  const [zoomLevel, setZoomLevel] = useState(1); // User zoom multiplier
+  const [zoomLevel, setZoomLevel] = useState(0.8); // User zoom multiplier - start at 80%
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -126,7 +126,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
   useEffect(() => {
     // Reset zoom and rotation on file change
-    setZoomLevel(1);
+    setZoomLevel(0.8);
     setRotation(0);
     setCurrentPage(1);
     setRenderError(null);
@@ -176,9 +176,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
     };
   }, [fileUrl]);
 
-  // Calculate base scale to fit container width (maintain aspect ratio)
+  // Calculate base scale using width-only sizing with safe fallbacks
   useEffect(() => {
-    if (!pdfDocument || !contentRef.current) {
+    if (!pdfDocument) {
       return;
     }
 
@@ -189,18 +189,24 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         const page = await pdfDocument.getPage(1);
         if (cancelled) return;
 
-        const containerWidth = contentRef.current?.clientWidth || window.innerWidth;
-        const pageViewport = page.getViewport({ scale: 1, rotation });
-        
-        // Calculate scale to fit container width with padding
+        const containerWidth = contentRef.current?.clientWidth ?? window.innerWidth;
         const padding = isMobile ? 16 : 32;
-        const availableWidth = containerWidth - padding;
-        
-        // Base scale maintains aspect ratio - fits to width
-        const calculatedScale = availableWidth / pageViewport.width;
-        
-        setBaseScale(calculatedScale);
-        
+        const availableWidth = Math.max(containerWidth - padding, 320);
+        const pageViewport = page.getViewport({ scale: 1, rotation });
+
+        let rawScale = availableWidth / pageViewport.width;
+        rawScale = Math.min(rawScale, 1.6);
+
+        const minDesktopScale = 0.95;
+        const safeScale = Math.min(
+          Math.max(rawScale, isMobile ? rawScale : minDesktopScale),
+          1.6
+        );
+
+        if (!cancelled) {
+          setBaseScale(safeScale > 0 ? safeScale : (isMobile ? 0.75 : 0.95));
+        }
+
         page.cleanup();
       } catch (error) {
         console.error('Failed to calculate base scale', error);
@@ -209,7 +215,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
     void calculateBaseScale();
 
-    // Recalculate on container resize
     const resizeObserver = new ResizeObserver(() => {
       void calculateBaseScale();
     });
@@ -353,9 +358,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
                 isMobile ? <Maximize2 className="h-3 w-3" /> : <Maximize2 className="h-4 w-4" />
               )}
             </Button>
-            <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={handleDownload} className={isMobile ? 'h-8 w-8' : ''}>
-              {isMobile ? <Download className="h-3 w-3" /> : <><Download className="h-4 w-4 mr-2" />Download</>}
-            </Button>
           </div>
         </div>
 
@@ -381,8 +383,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="inline-flex items-start min-w-full min-h-full justify-center">
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden inline-block">
+        <div className="flex items-center justify-center min-w-full min-h-full">
+          <div className="bg-white shadow-2xl rounded-lg overflow-hidden" style={{ margin: 'auto' }}>
             <canvas 
               ref={canvasRef} 
               className="block"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navigation } from '@/components/Navigation';
+import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
@@ -713,21 +713,18 @@ const Photography: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navigation />
-        <div className="flex items-center justify-center h-screen">
+      <PageLayout>
+        <div className="flex items-center justify-center flex-1">
           <p className="text-muted-foreground">Se încarcă...</p>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <div className="pt-24 pb-12 px-6">
-        <div className="max-w-7xl mx-auto">
+    <PageLayout>
+      <section className="page-hero-section">
+        <div className="page-container">
           {/* Header */}
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -741,6 +738,11 @@ const Photography: React.FC = () => {
             </p>
           </div>
 
+        </div>
+      </section>
+
+      <section className="page-content-section flex-1">
+        <div className="page-container">
           {/* Controls */}
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-8">
             {selectionMode ? (
@@ -1377,7 +1379,7 @@ const Photography: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Full Screen Modal */}
       <Dialog open={!!selectedPhoto} onOpenChange={(open) => !open && setSelectedPhoto(null)}>
@@ -2464,7 +2466,7 @@ const Photography: React.FC = () => {
           <Plus className="h-6 w-6" />
         </Button>
       )}
-    </div>
+    </PageLayout>
   );
 };
 

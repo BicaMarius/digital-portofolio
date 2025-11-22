@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Navigation } from '@/components/Navigation';
+import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine, Check } from 'lucide-react';
@@ -1774,11 +1774,9 @@ const CreativeWriting: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <div className="pt-24 pb-12 px-6">
-  <div className="mx-auto w-full max-w-[1600px]">
+    <PageLayout>
+      <section className="page-hero-section">
+        <div className="page-container">
           {/* Header */}
           <div className="text-center mb-6 animate-fade-in">
             {isMobile ? (
@@ -1801,7 +1799,11 @@ const CreativeWriting: React.FC = () => {
               </>
             )}
           </div>
+        </div>
+      </section>
 
+      <section className="page-content-section flex-1">
+        <div className="page-container">
           {/* Controls - responsive: expandable on mobile, normal on desktop */}
           <div className="mb-2">
             {isMobile ? (
@@ -2600,7 +2602,7 @@ const CreativeWriting: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Reading Modal */}
       <Dialog open={!!selectedWriting} onOpenChange={() => setSelectedWriting(null)}>
@@ -3719,7 +3721,7 @@ const CreativeWriting: React.FC = () => {
           </button>
         </>
       )}
-    </div>
+    </PageLayout>
   );
 };
 

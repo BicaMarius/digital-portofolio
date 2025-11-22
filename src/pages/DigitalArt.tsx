@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigation } from '@/components/Navigation';
+import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Palette, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
@@ -76,11 +76,9 @@ const DigitalArt: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <div className="pt-24 pb-12 px-6">
-        <div className="max-w-7xl mx-auto">
+    <PageLayout>
+      <section className="page-hero-section">
+        <div className="page-container">
           {/* Header */}
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-3 mb-4">
@@ -94,6 +92,11 @@ const DigitalArt: React.FC = () => {
             </p>
           </div>
 
+        </div>
+      </section>
+
+      <section className="page-content-section flex-1">
+        <div className="page-container">
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-8">
             <div className="relative flex-1">
@@ -211,7 +214,7 @@ const DigitalArt: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Full Screen Modal */}
       <Dialog open={!!selectedProject} onOpenChange={() => setSelectedProject(null)}>
@@ -270,7 +273,7 @@ const DigitalArt: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 };
 

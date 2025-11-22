@@ -43,9 +43,10 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navigation />
-      
-      {/* Hero Section - Compact */}
-      <section className="relative pt-20 sm:pt-24 md:pt-28 pb-4 sm:pb-6 md:pb-8 responsive-padding overflow-hidden">
+      {/* Main flexible area: hero + grid should adapt to viewport height */}
+      <div className="flex-1 flex flex-col">
+      {/* Hero Section - Compact & Fluid */}
+      <section className="hero-section relative overflow-hidden">
         {/* Background Image */}
         <div 
           className="absolute inset-0 z-0 opacity-20"
@@ -60,13 +61,13 @@ const Dashboard: React.FC = () => {
         
         <div className="relative z-10 responsive-container text-center">
           <div className="space-y-2 sm:space-y-3 animate-fade-in">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold gradient-text">
+            <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.25rem, 3vw + 0.4rem, 2.5rem)', lineHeight: '1.2' }}>
               Bica Marius Adrian Digital Portfolio
             </h1>
-            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-muted-foreground max-w-3xl mx-auto" style={{ fontSize: 'clamp(0.8rem, 1.2vw + 0.2rem, 1rem)' }}>
               Step into my digital universe, where technology and art forge a seamless synergy.
             </p>
-            <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-muted-foreground pt-1">
+            <div className="flex items-center justify-center gap-2 text-muted-foreground pt-1" style={{ fontSize: 'clamp(0.75rem, 1vw + 0.25rem, 0.875rem)' }}>
               <Star className="h-3 w-3 sm:h-4 sm:w-4 text-gaming-accent" />
               <span>Digital Portfolio</span>
               <div className="hidden sm:block h-4 border-l border-border mx-2"></div>
@@ -77,10 +78,10 @@ const Dashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* Portfolio Grid - Compact */}
-      <section className="py-4 sm:py-6 md:py-8 responsive-padding flex-1">
+      {/* Portfolio Grid - Compact & Fluid height */}
+      <section className="dashboard-grid-section flex-1 flex flex-col responsive-padding">
         <div className="responsive-container">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 'clamp(0.75rem, 2vh + 0.5vw, 1.5rem)' }}>
             {portfolioCategories.map((category, index) => {
               const projectCount = isAdmin 
                 ? getTotalProjectCountByCategory(category.id)
@@ -164,25 +165,22 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Footer - Compact */}
-      <footer className="relative bg-gradient-to-br from-background via-background/95 to-card/50 border-t border-border/50 py-6 md:py-8 px-4 md:px-6 overflow-hidden">
+      <footer className="relative bg-gradient-to-br from-background via-background/95 to-card/50 border-t border-border/50 footer-section overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10"></div>
         </div>
         
         <div className="responsive-container">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
             {/* Brand Section */}
             <div className="text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center">
                   <span className="text-white font-bold text-sm">MB</span>
                 </div>
                 <h3 className="text-base font-bold gradient-text">{CONTACT_INFO.name}</h3>
               </div>
-              <p className="text-muted-foreground text-xs leading-relaxed mb-2">
-                {CONTACT_INFO.title}
-              </p>
               <p className="text-xs text-muted-foreground/80">
                 © 2024 {CONTACT_INFO.name}. Toate drepturile rezervate.
               </p>
@@ -190,7 +188,6 @@ const Dashboard: React.FC = () => {
 
             {/* Social Media */}
             <div className="text-center md:text-left">
-              <h4 className="font-semibold text-sm mb-2 text-foreground">Social Media</h4>
               <div className="flex justify-center md:justify-start gap-3">
                 <a
                   href={CONTACT_INFO.socialMedia.instagram}
@@ -243,6 +240,7 @@ const Dashboard: React.FC = () => {
       </footer>
 
       <AdminLogin open={showAdminLogin} onOpenChange={setShowAdminLogin} />
+      </div>
     </div>
   );
 };

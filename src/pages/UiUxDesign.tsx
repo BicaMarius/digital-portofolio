@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigation } from '@/components/Navigation';
+import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Smartphone, Plus, Search, Filter, Monitor, Tablet, Eye, ExternalLink } from 'lucide-react';
@@ -97,11 +97,9 @@ const UiUxDesign: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <div className="pt-24 pb-12 px-6">
-        <div className="max-w-7xl mx-auto">
+    <PageLayout>
+      <section className="page-hero-section">
+        <div className="page-container">
           {/* Header */}
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-3 mb-4">
@@ -115,6 +113,11 @@ const UiUxDesign: React.FC = () => {
             </p>
           </div>
 
+        </div>
+      </section>
+
+      <section className="page-content-section flex-1">
+        <div className="page-container">
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-8">
             <div className="relative flex-1">
@@ -259,8 +262,8 @@ const UiUxDesign: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </section>
+    </PageLayout>
   );
 };
 
