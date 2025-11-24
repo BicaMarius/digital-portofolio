@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bot, Plus, Search, Filter, Brain, Code, BarChart3, Zap } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
+import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -67,9 +68,12 @@ const mockProjects: AiMlProject[] = [
 
 const AiMl: React.FC = () => {
   const { isAdmin } = useAdmin();
+  const { getCount, isLoading } = usePortfolioStats();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  const projectCount = getCount('ai-ml-projects');
 
   const visibleProjects = (isAdmin ? mockProjects : mockProjects.filter(project => !project.isPrivate))
     .filter(project => 
@@ -115,11 +119,11 @@ const AiMl: React.FC = () => {
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-3 mb-4">
               <Bot className="h-8 w-8 text-tech-accent" />
-              <h1 className="text-4xl font-bold gradient-text">
+              <h1 className="text-2xl font-bold gradient-text">
                 AI & Machine Learning
               </h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
               Modele de inteligență artificială și soluții de machine learning
             </p>
           </div>
@@ -129,6 +133,13 @@ const AiMl: React.FC = () => {
 
       <section className="page-content-section flex-1">
         <div className="page-container">
+          {/* Header with count */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Proiecte AI/ML</h2>
+            <span className="text-sm text-muted-foreground">
+              Total: {isLoading ? '…' : projectCount}
+            </span>
+          </div>
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-8">
             <div className="relative flex-1">

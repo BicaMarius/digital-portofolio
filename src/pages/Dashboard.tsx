@@ -17,7 +17,7 @@ import { PortfolioCard } from '@/components/PortfolioCard';
 import { Navigation } from '@/components/Navigation';
 import { AdminLogin } from '@/components/AdminLogin';
 import { useAdmin } from '@/contexts/AdminContext';
-import { useData } from '@/contexts/DataContext';
+import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { PORTFOLIO_CATEGORIES, CONTACT_INFO } from '@/constants';
 import heroWorkspace from '@/assets/hero-workspace.jpg';
 
@@ -37,7 +37,7 @@ const portfolioCategories = PORTFOLIO_CATEGORIES.map(category => ({
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isAdmin, logout } = useAdmin();
-  const { getProjectCountByCategory, getTotalProjectCountByCategory } = useData();
+  const { getCount, isLoading } = usePortfolioStats();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
 
   return (
@@ -62,12 +62,12 @@ const Dashboard: React.FC = () => {
         <div className="relative z-10 responsive-container text-center">
           <div className="space-y-2 sm:space-y-3 animate-fade-in">
             <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.25rem, 3vw + 0.4rem, 2.5rem)', lineHeight: '1.2' }}>
-              Bica Marius Adrian Digital Portfolio
+              My Digital Portfolio
             </h1>
-            <p className="text-muted-foreground max-w-3xl mx-auto" style={{ fontSize: 'clamp(0.8rem, 1.2vw + 0.2rem, 1rem)' }}>
+            <p className="hidden sm:block text-muted-foreground max-w-3xl mx-auto" style={{ fontSize: 'clamp(0.8rem, 1.2vw + 0.2rem, 1rem)' }}>
               Step into my digital universe, where technology and art forge a seamless synergy.
             </p>
-            <div className="flex items-center justify-center gap-2 text-muted-foreground pt-1" style={{ fontSize: 'clamp(0.75rem, 1vw + 0.25rem, 0.875rem)' }}>
+            <div className="hidden sm:flex items-center justify-center gap-2 text-muted-foreground pt-1" style={{ fontSize: 'clamp(0.75rem, 1vw + 0.25rem, 0.875rem)' }}>
               <Star className="h-3 w-3 sm:h-4 sm:w-4 text-gaming-accent" />
               <span>Digital Portfolio</span>
               <div className="hidden sm:block h-4 border-l border-border mx-2"></div>
@@ -83,10 +83,7 @@ const Dashboard: React.FC = () => {
         <div className="responsive-container">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 'clamp(0.75rem, 2vh + 0.5vw, 1.5rem)' }}>
             {portfolioCategories.map((category, index) => {
-              const projectCount = isAdmin 
-                ? getTotalProjectCountByCategory(category.id)
-                : getProjectCountByCategory(category.id);
-              
+              const itemCount = getCount(category.id);
               return (
                 <div 
                   key={category.id}
@@ -98,7 +95,7 @@ const Dashboard: React.FC = () => {
                     description={category.description}
                     icon={category.icon}
                     category={category.category}
-                    projectCount={projectCount}
+                    projectCount={isLoading ? 0 : itemCount}
                     onClick={() => navigate(category.route)}
                   />
                 </div>

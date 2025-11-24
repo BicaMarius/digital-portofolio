@@ -471,6 +471,7 @@ const CreativeWriting: React.FC = () => {
   // Removed legacy touch/long-press/swipe state (moved to tap interaction model)
   
   const writingsGridRef = useRef<HTMLDivElement | null>(null);
+  const [currentWordCount, setCurrentWordCount] = useState(0);
 
   // Convert API writings to local format with ordering
   const [writings, setWritings] = useState<OrderedWriting[]>([]);
@@ -1325,6 +1326,29 @@ const CreativeWriting: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isEditorOpen, editing]);
 
+  // Update word count in real-time
+  useEffect(() => {
+    if (isEditorOpen && editorRef.current) {
+      const updateWordCount = () => {
+        const content = editorRef.current?.innerHTML || '';
+        setCurrentWordCount(countWords(content));
+      };
+      
+      // Initial count
+      updateWordCount();
+      
+      // Listen for input events
+      const editor = editorRef.current;
+      editor.addEventListener('input', updateWordCount);
+      
+      return () => {
+        editor.removeEventListener('input', updateWordCount);
+      };
+    } else {
+      setCurrentWordCount(0);
+    }
+  }, [isEditorOpen, editing]);
+
   // editor undo/redo via execCommand
   const exec = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
@@ -1779,25 +1803,15 @@ const CreativeWriting: React.FC = () => {
         <div className="page-container">
           {/* Header */}
           <div className="text-center mb-6 animate-fade-in">
-            {isMobile ? (
-              /* Mobile: Simplified header */
-              <h1 className="text-xl font-bold gradient-text">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <PenTool className="h-6 w-6 text-art-accent" />
+              <h1 className="text-2xl font-bold gradient-text">
                 Scriere Creativă
               </h1>
-            ) : (
-              /* Desktop: Full header */
-              <>
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <PenTool className="h-6 w-6 text-art-accent" />
-                  <h1 className="text-2xl font-bold gradient-text">
-                    Scriere Creativă
-                  </h1>
-                </div>
-                <p className="text-base text-muted-foreground max-w-2xl mx-auto">
-                  Poezii, povestiri și texte creative din sufletul unui visător
-                </p>
-              </>
-            )}
+            </div>
+            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
+              Poezii, povestiri și texte creative din sufletul unui visător
+            </p>
           </div>
         </div>
       </section>
@@ -2750,7 +2764,7 @@ const CreativeWriting: React.FC = () => {
                       </Button>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {countWords(editorRef.current?.innerHTML || editing?.content || '')} cuvinte
+                      {currentWordCount} cuvinte
                     </div>
                   </div>
                 </div>
@@ -2815,7 +2829,7 @@ const CreativeWriting: React.FC = () => {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-muted-foreground">Cuvinte: {countWords(editorRef.current?.innerHTML || editing?.content || '')}</div>
+                    <div className="text-sm text-muted-foreground">Cuvinte: {currentWordCount}</div>
                     <Button variant="outline" onClick={() => { setIsEditorOpen(false); /* autosave handled */ }}>Back</Button>
                     <Button onClick={saveEditing}>Save</Button>
                   </div>
@@ -3201,7 +3215,7 @@ const CreativeWriting: React.FC = () => {
 
       {/* Albums Section - desktop only */}
       {albums.length > 0 && !isMobile && (
-        <div className="mt-1 mx-auto w-full max-w-[1600px] pb-12">
+        <div className="page-container mt-8 pb-12">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold gradient-text">Albume</h2>
             {isAdmin && (

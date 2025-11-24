@@ -312,9 +312,14 @@ const Profile: React.FC = () => {
                     variant="outline"
                     onClick={() => setShowPrivateAchievements(!showPrivateAchievements)}
                     className="hover:bg-primary/10"
+                    size={isMobile ? 'icon' : 'default'}
                   >
-                    {showPrivateAchievements ? <Unlock className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
-                    {showPrivateAchievements ? 'Ascunde Private' : 'Arată Private'}
+                    {showPrivateAchievements ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                    {!isMobile && (
+                      <span className="ml-2">
+                        {showPrivateAchievements ? 'Ascunde Private' : 'Arată Private'}
+                      </span>
+                    )}
                   </Button>
                 </div>
 

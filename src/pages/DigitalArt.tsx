@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Palette, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
+import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -56,6 +57,7 @@ const mockProjects: DigitalArtProject[] = [
 
 const DigitalArt: React.FC = () => {
   const { isAdmin } = useAdmin();
+  const { getCount, isLoading } = usePortfolioStats();
   const [selectedProject, setSelectedProject] = useState<DigitalArtProject | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,11 +85,11 @@ const DigitalArt: React.FC = () => {
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-3 mb-4">
               <Palette className="h-8 w-8 text-art-accent" />
-              <h1 className="text-4xl font-bold gradient-text">
+              <h1 className="text-2xl font-bold gradient-text">
                 Artă Digitală
               </h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
               Postere, ilustrații și designuri creative realizate digital
             </p>
           </div>
@@ -97,6 +99,13 @@ const DigitalArt: React.FC = () => {
 
       <section className="page-content-section flex-1">
         <div className="page-container">
+          {/* Header with count */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Lucrări Digitale</h2>
+            <span className="text-sm text-muted-foreground">
+              Total: {isLoading ? '…' : (getCount('digital-art') || visibleProjects.length)}
+            </span>
+          </div>
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-8">
             <div className="relative flex-1">

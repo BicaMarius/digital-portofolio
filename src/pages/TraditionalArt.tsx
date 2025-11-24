@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, Images, Grid3X3, List, ChevronsUpDown, Edit, Trash2, FolderMinus, Trash, Undo2, Calendar as CalendarIcon, PlusCircle } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
+import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import AlbumCoverDialog from '@/components/AlbumCoverDialog';
 import { AlbumNameDialog } from '@/components/AlbumNameDialog';
@@ -61,6 +62,7 @@ interface TraditionalAlbum {
 
 const TraditionalArt: React.FC = () => {
   const { isAdmin } = useAdmin();
+  const { getCount, isLoading } = usePortfolioStats();
   const [selectedArtwork, setSelectedArtwork] = useState<TraditionalArtwork | null>(null);
   
   // Cloud-only state: albums built from DB
@@ -597,11 +599,11 @@ const TraditionalArt: React.FC = () => {
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
               <Pencil className="h-7 w-7 sm:h-8 sm:w-8 text-art-accent" />
-              <h1 className="text-2xl sm:text-4xl font-bold gradient-text leading-tight">
+              <h1 className="text-2xl font-bold gradient-text leading-tight">
                 Artă Tradițională
               </h1>
             </div>
-            <p className="hidden sm:block text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
               Desene, picturi și creații artistice realizate cu instrumente tradiționale
             </p>
           </div>
@@ -611,6 +613,13 @@ const TraditionalArt: React.FC = () => {
 
       <section className="page-content-section flex-1">
         <div className="page-container">
+          {/* Header with count */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Lucrări</h2>
+            <span className="text-sm text-muted-foreground">
+              Total: {isLoading ? '…' : (getCount('traditional-art') || (flatVisibleArtworks.length + individualArtworks.filter(a => isAdmin || !a.isPrivate).length))}
+            </span>
+          </div>
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
             <div className="relative flex-1 min-w-[180px] max-w-[320px]">

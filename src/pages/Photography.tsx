@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
+import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -95,6 +96,7 @@ const mockPhotos: Photo[] = [
 
 const Photography: React.FC = () => {
   const { isAdmin } = useAdmin();
+  const { getCount, isLoading } = usePortfolioStats();
   const isMobile = useIsMobile();
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
   useEffect(() => {
@@ -729,11 +731,11 @@ const Photography: React.FC = () => {
           <div className="text-center mb-8 animate-fade-in">
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
               <Camera className="h-7 w-7 sm:h-8 sm:w-8 text-art-accent" />
-              <h1 className="text-2xl sm:text-4xl font-bold gradient-text leading-tight">
+              <h1 className="text-2xl font-bold gradient-text leading-tight">
                 Fotografie
               </h1>
             </div>
-            <p className="hidden sm:block text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
               Capturi artistice și momente memorabile prin obiectiv
             </p>
           </div>
@@ -743,6 +745,13 @@ const Photography: React.FC = () => {
 
       <section className="page-content-section flex-1">
         <div className="page-container">
+          {/* Header with count */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Fotografii</h2>
+            <span className="text-sm text-muted-foreground">
+              Total: {isLoading ? '…' : (getCount('photography') || photos.length)}
+            </span>
+          </div>
           {/* Controls */}
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-8">
             {selectionMode ? (
@@ -979,7 +988,7 @@ const Photography: React.FC = () => {
                     </SelectContent>
                   </Select>
 
-                  <div className="flex gap-2">
+                  <div className={`flex gap-2 ${!isAdmin ? 'ml-auto' : ''}`}>
                     <Button
                       variant={viewMode === 'grid' ? 'default' : 'outline'}
                       size="icon"
