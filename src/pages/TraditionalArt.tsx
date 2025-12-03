@@ -239,8 +239,12 @@ const TraditionalArt: React.FC = () => {
           getTrashedGalleryItemsByCategory('art'),
           getAlbums('art'),
         ]);
-        const artworks = liveItems.map(dbToArtwork);
-        const trashedArtworks = trashedItems.map(dbToArtwork);
+        // Filter out digital art items (exclude subcategory='digital-art')
+        const filteredLive = liveItems.filter(item => item.subcategory !== 'digital-art');
+        const filteredTrashed = trashedItems.filter(item => item.subcategory !== 'digital-art');
+        
+        const artworks = filteredLive.map(dbToArtwork);
+        const trashedArtworks = filteredTrashed.map(dbToArtwork);
         const { displayAlbums, individuals } = hydrateAlbums(artworks, dbAlbums);
         setRawAlbums(dbAlbums);
         setAlbums(displayAlbums);
