@@ -155,6 +155,18 @@ export async function deleteProject(id: number): Promise<void> {
   return apiCall<void>(`/projects/${id}`, { method: 'DELETE' });
 }
 
+export async function softDeleteProject(id: number): Promise<void> {
+  return apiCall<void>(`/projects/${id}/soft-delete`, { method: 'POST' });
+}
+
+export async function restoreProject(id: number): Promise<void> {
+  return apiCall<void>(`/projects/${id}/restore`, { method: 'POST' });
+}
+
+export async function permanentDeleteProject(id: number): Promise<void> {
+  return apiCall<void>(`/projects/${id}/permanent`, { method: 'DELETE' });
+}
+
 // ============ GALLERY ITEMS API ============
 
 export async function getGalleryItems(): Promise<GalleryItem[]> {

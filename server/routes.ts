@@ -45,6 +45,58 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  app.get("/api/projects/category/:category", async (req, res) => {
+    try {
+      const { category } = req.params;
+      const projects = await storage.getProjectsByCategory(category);
+      res.json(projects);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  app.post("/api/projects/:id/soft-delete", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const project = await storage.getProjectById(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      await storage.updateProject(id, { deletedAt: new Date() } as any);
+      res.status(204).send();
+    } catch (error) {
+      console.error('[Routes] Soft delete error:', error);
+      res.status(500).json({ error: "Failed to soft delete project" });
+    }
+  });
+
+  app.post("/api/projects/:id/restore", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const project = await storage.getProjectById(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      await storage.updateProject(id, { deletedAt: null });
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to restore project" });
+    }
+  });
+
+  app.delete("/api/projects/:id/permanent", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteProject(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to permanently delete project" });
+    }
+  });
+
   app.get("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -55,16 +107,6 @@ export function registerRoutes(app: Express, storage: IStorage) {
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch project" });
-    }
-  });
-
-  app.get("/api/projects/category/:category", async (req, res) => {
-    try {
-      const { category } = req.params;
-      const projects = await storage.getProjectsByCategory(category);
-      res.json(projects);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch projects" });
     }
   });
 

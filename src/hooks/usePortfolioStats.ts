@@ -62,8 +62,10 @@ export function usePortfolioStats(): PortfolioStatsResult {
   const galleryItems: GalleryItem[] = query.data?.galleryItems || [];
   const writings: Writing[] = query.data?.writings || [];
 
-  // Visibility filtering (exclude private if not admin)
-  const visibleProjects = isAdmin ? projects : projects.filter(p => !p.isPrivate);
+  // Visibility filtering (exclude private if not admin, exclude deleted items)
+  const visibleProjects = isAdmin 
+    ? projects.filter(p => !p.deletedAt)
+    : projects.filter(p => !p.isPrivate && !p.deletedAt);
   const visibleGallery = isAdmin ? galleryItems : galleryItems.filter(g => !g.isPrivate);
   const visibleWritings = isAdmin ? writings : writings.filter(w => !w.isPrivate);
 

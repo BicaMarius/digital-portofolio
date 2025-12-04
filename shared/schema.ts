@@ -25,6 +25,7 @@ export const projects = pgTable("projects", {
   projectUrl: text("project_url"), // Live project URL or access path
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at"), // Soft delete timestamp
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
