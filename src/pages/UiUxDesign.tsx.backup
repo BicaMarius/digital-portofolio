@@ -1,0 +1,595 @@
+import React, { useState, useEffect } from 'react';
+import { PageLayout } from '@/components/PageLayout';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Smartphone, Plus, Search, Filter, Monitor, Tablet, Eye, ExternalLink, Edit, Trash2, Trash, Undo2, EyeOff, Figma, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useAdmin } from '@/contexts/AdminContext';
+import { usePortfolioStats } from '@/hooks/usePortfolioStats';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { toast } from '@/hooks/use-toast';
+import {
+  getGalleryItemsByCategory,
+  createGalleryItem,
+  updateGalleryItem,
+  deleteGalleryItem,
+  softDeleteGalleryItem,
+  restoreGalleryItem,
+  getTrashedGalleryItemsByCategory
+} from '@/lib/api';
+import type { GalleryItem } from '@shared/schema';
+
+type UiUxProject = GalleryItem;
+
+
+const UiUxDesign: React.FC = () => {
+  const { isAdmin } = useAdmin();
+  const isMobile = useIsMobile();
+  const { getCount } = usePortfolioStats();
+  
+  // State
+  const [projects, setProjects] = useState<UiUxProject[]>([]);
+  const [trashedProjects, setTrashedProjects] = useState<UiUxProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterPlatform, setFilterPlatform] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<UiUxProject | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    type: 'mobile-app',
+    platform: 'web',
+    status: 'concept',
+    tools: '',
+    screens: '',
+    interactive: false,
+    prototypeUrl: '',
+    isPrivate: false
+  });
+  
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Load projects from cloud
+  const reloadProjects = async () => {
+    try {
+      setLoading(true);
+      const items = await getGalleryItemsByCategory('ui-ux');
+      
+      if (!isAdmin) {
+        setProjects(items.filter(p => !p.isPrivate) as UiUxProject[]);
+      } else {
+        setProjects(items as UiUxProject[]);
+      }
+    } catch (error) {
+      console.error('Error loading UI/UX projects:', error);
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-au putut încărca proiectele.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load trashed items
+  const reloadTrash = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      const items = await getTrashedGalleryItemsByCategory('ui-ux');
+      setTrashedProjects(items as UiUxProject[]);
+    } catch (error) {
+      console.error('Error loading trash:', error);
+    }
+  };
+
+  useEffect(() => {
+    reloadProjects();
+    if (isAdmin) {
+      reloadTrash();
+    }
+  }, [isAdmin]);
+
+  // Filtered projects
+  const visibleProjects = projects.filter(project => {
+    const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          project.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || project.subcategory === filterType;
+    const matchesPlatform = filterPlatform === 'all' || (project as any).device === filterPlatform;
+    return matchesSearch && matchesType && matchesPlatform;
+  });
+
+  const projectCount = getCount('ui-ux-design') ?? visibleProjects.length;
+
+  // Handle add project
+  const handleAddProject = async () => {
+    if (!formData.title || !imageFile) {
+      toast({
+        title: 'Eroare',
+        description: 'Titlul și imaginea sunt obligatorii.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      // Upload image first
+      const fd = new FormData();
+      fd.append('file', imageFile);
+      fd.append('folder', 'ui-ux');
+      const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
+      if (!uploadRes.ok) {
+        const errorData = await uploadRes.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+      const { url } = await uploadRes.json();
+
+      await createGalleryItem({
+        category: 'ui-ux',
+        subcategory: formData.type,
+        title: formData.title,
+        image: url,
+        description: formData.description,
+        device: formData.platform,
+        materials: formData.tools.split(',').map(t => t.trim()).filter(Boolean),
+        dimensions: formData.screens,
+        location: formData.prototypeUrl,
+        medium: formData.status,
+        isPrivate: formData.isPrivate
+      } as any);
+
+      toast({
+        title: 'Succes',
+        description: 'Proiectul a fost adăugat cu succes.'
+      });
+
+      setShowAddDialog(false);
+      resetForm();
+      await reloadProjects();
+    } catch (error) {
+      console.error('Error adding project:', error);
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut adăuga proiectul.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle edit project
+  const handleEditProject = async () => {
+    if (!selectedProject || !formData.title) {
+      toast({
+        title: 'Eroare',
+        description: 'Titlul este obligatoriu.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      let imageUrl = selectedProject.image;
+      
+      // Upload new image if selected
+      if (imageFile) {
+        const fd = new FormData();
+        fd.append('file', imageFile);
+        fd.append('folder', 'ui-ux');
+        const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json();
+          throw new Error(errorData.error || 'Upload failed');
+        }
+        const { url } = await uploadRes.json();
+        imageUrl = url;
+      }
+
+      await updateGalleryItem(selectedProject.id!, {
+        subcategory: formData.type,
+        title: formData.title,
+        image: imageUrl,
+        description: formData.description,
+        device: formData.platform,
+        materials: formData.tools.split(',').map(t => t.trim()).filter(Boolean),
+        dimensions: formData.screens,
+        location: formData.prototypeUrl,
+        medium: formData.status,
+        isPrivate: formData.isPrivate
+      } as any);
+
+      toast({
+        title: 'Succes',
+        description: 'Proiectul a fost actualizat cu succes.'
+      });
+
+      setShowEditDialog(false);
+      setSelectedProject(null);
+      resetForm();
+      await reloadProjects();
+    } catch (error) {
+      console.error('Error editing project:', error);
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut actualiza proiectul.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle delete project
+  const handleDeleteProject = async () => {
+    if (!selectedProject) return;
+
+    try {
+      await softDeleteGalleryItem(selectedProject.id!);
+
+      toast({
+        title: 'Succes',
+        description: 'Proiectul a fost mutat în coș.'
+      });
+
+      setShowDeleteDialog(false);
+      setSelectedProject(null);
+      await reloadProjects();
+      await reloadTrash();
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut șterge proiectul.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Handle restore project
+  const handleRestoreProject = async (project: UiUxProject) => {
+    try {
+      await restoreGalleryItem(project.id!);
+
+      toast({
+        title: 'Succes',
+        description: 'Proiectul a fost restaurat.'
+      });
+
+      await reloadProjects();
+      await reloadTrash();
+    } catch (error) {
+      console.error('Error restoring project:', error);
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut restaura proiectul.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Handle permanent delete
+  const handlePermanentDelete = async (project: UiUxProject) => {
+    try {
+      await deleteGalleryItem(project.id!);
+
+      toast({
+        title: 'Succes',
+        description: 'Proiectul a fost șters permanent.'
+      });
+
+      await reloadTrash();
+    } catch (error) {
+      console.error('Error permanently deleting project:', error);
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut șterge proiectul.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      type: 'mobile-app',
+      platform: 'web',
+      status: 'concept',
+      tools: '',
+      screens: '',
+      interactive: false,
+      prototypeUrl: '',
+      isPrivate: false
+    });
+    setImageFile(null);
+    setImagePreview('');
+  };
+
+  // Open edit dialog
+  const openEditDialog = (project: UiUxProject) => {
+    setSelectedProject(project);
+    setFormData({
+      title: project.title,
+      description: project.description || '',
+      type: project.subcategory || 'mobile-app',
+      platform: (project as any).device || 'web',
+      status: (project as any).medium || 'concept',
+      tools: (project as any).materials?.join(', ') || '',
+      screens: (project as any).dimensions || '',
+      interactive: !!(project as any).location,
+      prototypeUrl: (project as any).location || '',
+      isPrivate: project.isPrivate || false
+    });
+    setImageFile(null);
+    setImagePreview(project.image);
+    setShowEditDialog(true);
+  };
+
+  // Handle image file selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'implemented': return 'bg-green-500/20 text-green-400';
+      case 'final': return 'bg-blue-500/20 text-blue-400';
+      case 'prototype': return 'bg-yellow-500/20 text-yellow-400';
+      case 'concept': return 'bg-purple-500/20 text-purple-400';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    switch (platform) {
+      case 'ios':
+      case 'android': return <Smartphone className="h-4 w-4" />;
+      case 'web': return <Monitor className="h-4 w-4" />;
+      case 'desktop': return <Monitor className="h-4 w-4" />;
+      case 'cross-platform': return <Tablet className="h-4 w-4" />;
+      default: return <Monitor className="h-4 w-4" />;
+    }
+  };
+
+  return (
+    <PageLayout>
+      <section className="page-hero-section">
+        <div className="page-container">
+          <div className="text-center mb-8 animate-fade-in">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <Figma className="h-7 w-7 sm:h-8 sm:w-8 text-art-accent" />
+              <h1 className="text-2xl font-bold gradient-text leading-tight">
+                Design UI/UX
+              </h1>
+            </div>
+            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
+              Interfețe moderne și experiențe utilizator intuitive
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="page-content-section flex-1">
+        <div className="page-container">
+          {/* Header with count */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Proiecte UI/UX</h2>
+            <span className="text-sm text-muted-foreground">
+              Total: {loading ? '...' : projectCount}
+            </span>
+          </div>
+
+          {/* Toolbar */}
+          <div className="space-y-3 md:space-y-0">
+            {/* Search bar - full width on mobile */}
+            <div className="relative md:hidden">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                type="search"
+                placeholder="Caută proiecte..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full"
+              />
+            </div>
+
+            {/* Controls row */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search bar for desktop */}
+              <div className="relative hidden md:block flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  type="search"
+                  placeholder="Caută proiecte UI/UX..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full"
+                />
+              </div>
+
+              {/* Filters */}
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[140px] sm:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2 hidden sm:inline" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate tipurile</SelectItem>
+                  <SelectItem value="mobile-app">Mobile App</SelectItem>
+                  <SelectItem value="web-app">Web App</SelectItem>
+                  <SelectItem value="dashboard">Dashboard</SelectItem>
+                  <SelectItem value="landing-page">Landing Page</SelectItem>
+                  <SelectItem value="prototype">Prototype</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={filterPlatform} onValueChange={setFilterPlatform}>
+                <SelectTrigger className="w-[120px] sm:w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate</SelectItem>
+                  <SelectItem value="ios">iOS</SelectItem>
+                  <SelectItem value="android">Android</SelectItem>
+                  <SelectItem value="web">Web</SelectItem>
+                  <SelectItem value="desktop">Desktop</SelectItem>
+                  <SelectItem value="cross-platform">Cross-platform</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Trash button (admin only, desktop) */}
+              {isAdmin && !isMobile && trashedProjects.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTrashDialog(true)}
+                >
+                  <Trash className="w-4 h-4" />
+                  <span className="ml-2">{trashedProjects.length}</span>
+                </Button>
+              )}
+              
+              {/* Add button (admin only, desktop) */}
+              {isAdmin && !isMobile && (
+                <Button onClick={() => setShowAddDialog(true)} className="ml-auto">
+                  <Figma className="w-4 h-4 mr-2" />
+                  Adaugă Design
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Spacing */}
+          <div className="h-6 md:h-8" />
+
+          {/* Projects Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {visibleProjects.map((project, index) => (
+              <Card 
+                key={project.id}
+                className="group cursor-pointer overflow-hidden hover-scale animate-scale-in border-art-accent/20 hover:border-art-accent/50"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <CardContent className="p-0">
+                  <div className="aspect-[4/3] bg-muted overflow-hidden">
+                    <img 
+                      src={project.image} 
+                      alt={project.title}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    {project.isPrivate && !isAdmin && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="text-white font-semibold">Private</span>
+                      </div>
+                    )}
+                    <div className="absolute top-4 left-4 flex gap-2">
+                      {project.interactive && (
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/20">
+                          <Eye className="h-3 w-3 mr-1" />
+                          Interactiv
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <h3 className="font-semibold text-lg mb-2">{project.title}</h3>
+                      <p className="text-muted-foreground text-sm">{project.description}</p>
+                    </div>
+
+                    {/* Tools */}
+                    <div className="flex flex-wrap gap-2">
+                      {project.tools.map((tool) => (
+                        <span 
+                          key={tool}
+                          className="px-2 py-1 bg-art-accent/20 text-art-accent rounded-md text-xs"
+                        >
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Platform & Status */}
+                    <div className="flex gap-2">
+                      <Badge className="bg-blue-500/20 text-blue-400" variant="outline">
+                        <span className="flex items-center gap-1">
+                          {getPlatformIcon(project.platform)}
+                          {project.platform.charAt(0).toUpperCase() + project.platform.slice(1)}
+                        </span>
+                      </Badge>
+                      <Badge className={getStatusColor(project.status)} variant="outline">
+                        {project.status === 'implemented' ? 'Implementat' : 
+                         project.status === 'final' ? 'Finalizat' :
+                         project.status === 'prototype' ? 'Prototip' : 'Concept'}
+                      </Badge>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                      <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Ecrane</p>
+                        <p className="font-semibold text-sm">{project.screens || 'N/A'}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Tip</p>
+                        <p className="font-semibold text-sm capitalize">
+                          {project.type.replace('-', ' ')}
+                        </p>
+                      </div>
+                      {project.interactive && (
+                        <Button size="sm" variant="outline" className="border-art-accent/20 hover:border-art-accent">
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Vezi
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {visibleProjects.length === 0 && (
+            <div className="text-center py-12">
+              <Smartphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Nu au fost găsite proiecte UI/UX</p>
+            </div>
+          )}
+        </div>
+      </section>
+    </PageLayout>
+  );
+};
+
+export default UiUxDesign;

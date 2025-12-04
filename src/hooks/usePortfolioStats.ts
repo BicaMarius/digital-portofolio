@@ -27,10 +27,11 @@ const CATEGORY_ID_TO_SOURCE: Record<string, SourceRule> = {
   'web-development': { type: 'project', subcategory: 'web-development' },
   'database-projects': { type: 'project', subcategory: 'database' },
   'ai-ml-projects': { type: 'project', subcategory: 'ai-ml' },
-  'ui-ux-design': { type: 'project', subcategory: 'ui-ux-design' },
+  'ui-ux-design': { type: 'gallery', category: 'ui-ux' },
   // Gallery based categories
   // digital-art: if actual data uses gallery category 'art' and subcategory 'digital-art', keep subcategory rule
   'digital-art': { type: 'gallery', subcategory: 'digital-art' },
+  'ui-ux': { type: 'gallery', category: 'ui-ux' },
   // photography items are stored with category === 'photo' and various subcategories (portrait, landscape, etc)
   'photography': { type: 'gallery', category: 'photo' },
   // traditional-art items are stored with category === 'art' and diverse subcategories (drawing, painting, etc)

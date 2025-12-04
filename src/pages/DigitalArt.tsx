@@ -535,9 +535,12 @@ export default function DigitalArt() {
               <Button
                 variant="outline"
                 onClick={() => setShowTrashDialog(true)}
+                className="relative"
               >
                 <Trash className="w-4 h-4" />
-                <span className="ml-2">{trashedArtworks.length}</span>
+                <span className="ml-2 flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-semibold rounded-full">
+                  {trashedArtworks.length}
+                </span>
               </Button>
             )}
             
@@ -652,7 +655,7 @@ export default function DigitalArt() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                          className="h-8 w-8 bg-black/50 hover:bg-blue-500/90 text-white transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditDialog(artwork);
@@ -663,7 +666,7 @@ export default function DigitalArt() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                          className="h-8 w-8 bg-black/50 hover:bg-red-500/90 text-white transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             openDeleteDialog(artwork);
@@ -714,10 +717,13 @@ export default function DigitalArt() {
             <Button
               size="icon"
               variant="outline"
-              className="h-12 w-12 rounded-full shadow-lg bg-background"
+              className="h-12 w-12 rounded-full shadow-lg bg-background relative"
               onClick={() => setShowTrashDialog(true)}
             >
               <Trash className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-semibold rounded-full">
+                {trashedArtworks.length}
+              </span>
             </Button>
           )}
           <Button
