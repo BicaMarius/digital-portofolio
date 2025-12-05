@@ -61,10 +61,10 @@ const Dashboard: React.FC = () => {
         
         <div className="relative z-10 responsive-container text-center">
           <div className="space-y-2 sm:space-y-3 animate-fade-in">
-            <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.25rem, 3vw + 0.4rem, 2.5rem)', lineHeight: '1.2' }}>
+            <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.1rem, 2.4vw + 0.35rem, 2.1rem)', lineHeight: '1.15' }}>
               My Digital Portfolio
             </h1>
-            <p className="hidden sm:block text-muted-foreground max-w-3xl mx-auto" style={{ fontSize: 'clamp(0.8rem, 1.2vw + 0.2rem, 1rem)' }}>
+            <p className="hidden sm:block text-muted-foreground max-w-3xl mx-auto" style={{ fontSize: 'clamp(0.78rem, 1.05vw + 0.18rem, 0.95rem)' }}>
               Step into my digital universe, where technology and art forge a seamless synergy.
             </p>
             <div className="hidden sm:flex items-center justify-center gap-2 text-muted-foreground pt-1" style={{ fontSize: 'clamp(0.75rem, 1vw + 0.25rem, 0.875rem)' }}>

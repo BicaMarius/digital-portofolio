@@ -12,7 +12,7 @@ interface PageLayoutProps {
  */
 export const PageLayout: React.FC<PageLayoutProps> = ({ children, fullHeight = true }) => {
   return (
-    <div className={`${fullHeight ? 'min-h-screen' : ''} flex flex-col bg-background`}>
+    <div className={`${fullHeight ? 'min-h-[100svh] min-h-screen' : ''} flex flex-col bg-background`}>
       <Navigation />
       <div className="flex-1 flex flex-col">
         {children}

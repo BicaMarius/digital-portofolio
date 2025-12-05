@@ -131,15 +131,18 @@
 
   body {
     @apply bg-background text-foreground font-inter;
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow-x: hidden;
   }
 }
 
 @layer components {
   /* Fluid spacing scale using clamp for aspect-ratio adaptation */
   .hero-section {
-    /* Dynamic padding based on viewport - accounts for Navigation */
-    padding-top: clamp(4.5rem, 4.5rem + 0.5vh, 5.5rem);
-    padding-bottom: clamp(0.5rem, 1vh, 1rem);
+    /* Extra top space to clear taller navigation */
+    padding-top: clamp(4.5rem, 4.5rem + 0.4vh, 5.5rem);
+    padding-bottom: clamp(0.5rem, 0.85vh, 1rem);
     /* horizontal responsive padding */
     padding-left: clamp(1rem, 3vw, 3rem);
     padding-right: clamp(1rem, 3vw, 3rem);
@@ -147,18 +150,18 @@
     flex-direction: column;
     justify-content: center;
     /* Dynamic min-height based on available viewport */
-    min-height: clamp(9rem, calc(100vh * 0.30), 18rem);
+    min-height: clamp(9rem, calc(100vh * 0.24), 15rem);
   }
 
   .dashboard-grid-section {
     /* Ultra-compact, viewport-based spacing */
-    padding-top: clamp(0.5rem, 1vh, 1rem);
-    padding-bottom: clamp(1.25rem, 3vh, 2.5rem);
+    padding-top: clamp(0.35rem, 0.8vh, 0.9rem);
+    padding-bottom: clamp(0.9rem, 2vh, 1.8rem);
     flex: 1;
     display: flex;
     flex-direction: column;
     /* Minimum space for grid to breathe */
-    min-height: clamp(18rem, calc(100vh * 0.42), 32rem);
+    min-height: clamp(15rem, calc(100vh * 0.36), 28rem);
   }
 
   .footer-section {
@@ -180,12 +183,24 @@
     padding-right: clamp(1rem, 3vw, 3rem);
   }
 
+  /* Extra breathing room for large desktops */
+  @media (min-width: 1280px) {
+    .hero-section {
+      padding-top: clamp(5.5rem, 4.5vw, 7rem);
+      padding-bottom: clamp(0.85rem, 1.3vh, 1.35rem);
+    }
+    .page-hero-section {
+      padding-top: clamp(6.25rem, 5vw, 8rem);
+      padding-bottom: clamp(0.9rem, 1.5vh, 1.7rem);
+    }
+  }
+
   /* Adjust hero/grid spacing on very short viewports to avoid tiny scroll */
   @media (max-height: 750px) {
     .hero-section { 
-      padding-top: 4.5rem; 
-      padding-bottom: 0.5rem;
-      min-height: clamp(8rem, calc(100vh * 0.28), 15rem); 
+      padding-top: 5rem;
+      padding-bottom: 0.75rem;
+      min-height: clamp(9rem, calc(100vh * 0.30), 16rem); 
     }
     .dashboard-grid-section { 
       padding-top: 0.5rem; 
@@ -200,8 +215,8 @@
 
   @media (max-height: 600px) {
     .hero-section { 
-      min-height: clamp(7rem, calc(100vh * 0.26), 13rem); 
-      padding-bottom: 0.5rem;
+      min-height: clamp(8rem, calc(100vh * 0.28), 14rem); 
+      padding-bottom: 0.75rem;
     }
     .dashboard-grid-section {
       min-height: clamp(14rem, calc(100vh * 0.46), 24rem);
@@ -215,7 +230,7 @@
 
   /* Use safe viewport units to mitigate mobile browser UI changes */
   @supports (height: 100svh) {
-    .hero-section { min-height: clamp(9rem, calc(100svh * 0.30), 18rem); }
+    .hero-section { min-height: clamp(11rem, calc(100svh * 0.32), 19rem); }
     .dashboard-grid-section { min-height: clamp(18rem, calc(100svh * 0.42), 32rem); }
   }
 
@@ -225,8 +240,8 @@
   /* Fluid page layouts for secondary pages (Photography, Writing, etc) */
   .page-hero-section {
     /* Fixed padding-top to account for Navigation bar */
-    padding-top: clamp(5.5rem, 5.5rem + 1vh, 6.5rem);
-    padding-bottom: clamp(0.5rem, 1.5vh, 1.5rem);
+    padding-top: clamp(6.5rem, 6.75rem + 1vh, 8.25rem);
+    padding-bottom: clamp(0.9rem, 1.6vh, 1.9rem);
     padding-left: clamp(1rem, 3vw, 3rem);
     padding-right: clamp(1rem, 3vw, 3rem);
   }
@@ -253,12 +268,12 @@
 
   /* Adjust spacing on very short viewports (16:10 laptops, tablets landscape) */
   @media (max-height: 800px) {
-    .page-hero-section { padding-top: 5rem; }
+    .page-hero-section { padding-top: 5.5rem; }
     .page-content-section { padding-top: clamp(0.25rem, 0.5vh, 0.75rem); }
   }
 
   @media (max-height: 650px) {
-    .page-hero-section { padding-top: 4.5rem; padding-bottom: clamp(0.5rem, 1vh, 1rem); }
+    .page-hero-section { padding-top: 5rem; padding-bottom: clamp(0.75rem, 1.25vh, 1.25rem); }
     .page-content-section { padding-top: clamp(0.25rem, 0.5vh, 0.5rem); padding-bottom: clamp(0.5rem, 1vh, 1.25rem); }
   }
 
