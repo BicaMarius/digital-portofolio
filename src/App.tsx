@@ -16,6 +16,9 @@ import AiMl from "./pages/AiMl";
 import UiUxDesign from "./pages/UiUxDesign";
 import TraditionalArt from "./pages/TraditionalArt";
 import CreativeWriting from "./pages/CreativeWriting";
+import Films from "./pages/Films";
+import Music from "./pages/Music";
+import Notes from "./pages/Notes";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as api from "@/lib/api";
@@ -94,6 +97,9 @@ const App = () => (
               <Route path="/ui-ux" element={<UiUxDesign />} />
               <Route path="/traditional-art" element={<TraditionalArt />} />
               <Route path="/writing" element={<CreativeWriting />} />
+              <Route path="/films" element={<Films />} />
+              <Route path="/music" element={<Music />} />
+              <Route path="/notes" element={<Notes />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

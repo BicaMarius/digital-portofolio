@@ -10,21 +10,21 @@ export const Navigation: React.FC = () => {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
-      <div className="responsive-container responsive-nav flex items-center justify-between gap-4">
+      {/* Desktop layout */}
+      <div className="hidden sm:flex responsive-container responsive-nav items-center justify-between gap-4">
         {/* Logo */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-4">
           <h1
-            className="text-lg sm:text-xl font-bold gradient-text cursor-pointer"
+            className="text-xl font-bold gradient-text cursor-pointer"
             onClick={() => navigate('/')}
           >
-            <span className="hidden sm:inline">Creative Portfolio</span>
-            <span className="sm:hidden">CP</span>
+            Creative Portfolio
           </h1>
         </div>
 
         {/* Quick selectors */}
         <div className="flex-1 flex justify-center min-w-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm overflow-x-auto whitespace-nowrap max-w-full sm:max-w-2xl scrollbar-thin">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm max-w-2xl">
             <Button
               variant={location.pathname === '/films' ? 'default' : 'ghost'}
               size="sm"
@@ -56,25 +56,84 @@ export const Navigation: React.FC = () => {
         </div>
 
         {/* Navigation Buttons */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-2">
           <Button
-            variant={isHomePage ? "default" : "ghost"}
+            variant={isHomePage ? 'default' : 'ghost'}
             size="sm"
             onClick={() => navigate('/')}
             className="hover:bg-primary/10"
           >
-            <Home className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Dashboard</span>
+            <Home className="h-4 w-4 mr-2" />
+            Dashboard
           </Button>
-          
+
           <Button
-            variant={location.pathname === '/profile' ? "default" : "ghost"}
+            variant={location.pathname === '/profile' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => navigate('/profile')}
             className="hover:bg-secondary/10"
           >
-            <User className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Profil</span>
+            <User className="h-4 w-4 mr-2" />
+            Profil
+          </Button>
+        </div>
+      </div>
+
+      {/* Mobile layout: single row with logo, centered icons, right icons */}
+      <div className="flex sm:hidden items-center justify-between px-3 py-2">
+        {/* Logo */}
+        <h1
+          className="text-lg font-bold gradient-text cursor-pointer"
+          onClick={() => navigate('/')}
+        >
+          CP
+        </h1>
+
+        {/* Centered quick selectors (icons only) */}
+        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 border border-border/50">
+          <Button
+            variant={location.pathname === '/films' ? 'default' : 'ghost'}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate('/films')}
+          >
+            <Clapperboard className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={location.pathname === '/music' ? 'default' : 'ghost'}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate('/music')}
+          >
+            <Music className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={location.pathname === '/notes' ? 'default' : 'ghost'}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate('/notes')}
+          >
+            <StickyNote className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Right nav icons */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant={isHomePage ? 'default' : 'ghost'}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate('/')}
+          >
+            <Home className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={location.pathname === '/profile' ? 'default' : 'ghost'}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate('/profile')}
+          >
+            <User className="h-4 w-4" />
           </Button>
         </div>
       </div>

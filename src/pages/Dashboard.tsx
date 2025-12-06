@@ -46,7 +46,7 @@ const Dashboard: React.FC = () => {
       {/* Main flexible area: hero + grid should adapt to viewport height */}
       <div className="flex-1 flex flex-col">
       {/* Hero Section - Compact & Fluid */}
-      <section className="hero-section relative overflow-hidden">
+      <section className="hero-section pb-2 sm:pb-4 relative overflow-hidden">
         {/* Background Image */}
         <div 
           className="absolute inset-0 z-0 opacity-20"
@@ -61,7 +61,7 @@ const Dashboard: React.FC = () => {
         
         <div className="relative z-10 responsive-container text-center">
           <div className="space-y-2 sm:space-y-3 animate-fade-in">
-            <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.1rem, 2.4vw + 0.35rem, 2.1rem)', lineHeight: '1.15' }}>
+            <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.5rem, 2.4vw + 0.35rem, 2.1rem)', lineHeight: '1.15' }}>
               My Digital Portfolio
             </h1>
             <p className="hidden sm:block text-muted-foreground max-w-3xl mx-auto" style={{ fontSize: 'clamp(0.78rem, 1.05vw + 0.18rem, 0.95rem)' }}>

@@ -195,6 +195,14 @@
     }
   }
 
+  /* Mobile-first tightening for hero spacing */
+  @media (max-width: 640px) {
+    .hero-section {
+      padding-top: clamp(3.25rem, 8vw + 1.5rem, 4rem);
+      padding-bottom: clamp(0.15rem, 1vh, 0.5rem);
+    }
+  }
+
   /* Adjust hero/grid spacing on very short viewports to avoid tiny scroll */
   @media (max-height: 750px) {
     .hero-section { 
@@ -637,4 +645,25 @@
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
   }
+}
+
+/* Swipe feedback for film cards on touch */
+.swipe-action-left {
+  animation: swipeLeft 0.22s ease;
+  background: linear-gradient(90deg, hsl(var(--destructive) / 0.12), transparent);
+}
+
+.swipe-action-right {
+  animation: swipeRight 0.22s ease;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.14));
+}
+
+@keyframes swipeLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-6%); }
+}
+
+@keyframes swipeRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(6%); }
 }
