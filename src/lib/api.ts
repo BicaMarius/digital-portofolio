@@ -1,5 +1,5 @@
 // API helper functions for Creative Writing, Projects, Albums, and Gallery Items
-import type { Writing, Album, Tag, Project, GalleryItem, PhotoLocation, PhotoDevice } from '@shared/schema';
+import type { Writing, Album, Tag, Project, GalleryItem, PhotoLocation, PhotoDevice, MusicTrack, SpotifyFavorite, FilmItem, NoteItem } from '@shared/schema';
 
 const API_BASE = '/api';
 
@@ -279,5 +279,201 @@ export async function updatePhotoDevice(id: number, updates: Partial<PhotoDevice
 export async function deletePhotoDevice(id: number): Promise<void> {
   return apiCall<void>(`/photo-devices/${id}`, {
     method: 'DELETE',
+  });
+}
+
+// ============ MUSIC TRACKS API ============
+
+export async function getMusicTracks(): Promise<MusicTrack[]> {
+  return apiCall<MusicTrack[]>('/music-tracks');
+}
+
+export async function getMusicTrack(id: number): Promise<MusicTrack> {
+  return apiCall<MusicTrack>(`/music-tracks/${id}`);
+}
+
+export async function getTrashedMusicTracks(): Promise<MusicTrack[]> {
+  return apiCall<MusicTrack[]>('/music-tracks/trash');
+}
+
+export async function createMusicTrack(track: Omit<MusicTrack, 'id' | 'createdAt' | 'updatedAt'>): Promise<MusicTrack> {
+  return apiCall<MusicTrack>('/music-tracks', {
+    method: 'POST',
+    body: JSON.stringify(track),
+  });
+}
+
+export async function updateMusicTrack(id: number, updates: Partial<MusicTrack>): Promise<MusicTrack> {
+  return apiCall<MusicTrack>(`/music-tracks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteMusicTrack(id: number): Promise<void> {
+  return apiCall<void>(`/music-tracks/${id}`, { method: 'DELETE' });
+}
+
+export async function softDeleteMusicTrack(id: number): Promise<MusicTrack> {
+  return apiCall<MusicTrack>(`/music-tracks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: new Date().toISOString() }),
+  });
+}
+
+export async function restoreMusicTrack(id: number): Promise<MusicTrack> {
+  return apiCall<MusicTrack>(`/music-tracks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: null }),
+  });
+}
+
+// ============ SPOTIFY FAVORITES API ============
+
+export async function getSpotifyFavorites(): Promise<SpotifyFavorite[]> {
+  return apiCall<SpotifyFavorite[]>('/spotify-favorites');
+}
+
+export async function getSpotifyFavoritesByListType(listType: string): Promise<SpotifyFavorite[]> {
+  return apiCall<SpotifyFavorite[]>(`/spotify-favorites/list/${listType}`);
+}
+
+export async function getSpotifyFavorite(id: number): Promise<SpotifyFavorite> {
+  return apiCall<SpotifyFavorite>(`/spotify-favorites/${id}`);
+}
+
+export async function getTrashedSpotifyFavorites(): Promise<SpotifyFavorite[]> {
+  return apiCall<SpotifyFavorite[]>('/spotify-favorites/trash');
+}
+
+export async function createSpotifyFavorite(favorite: Omit<SpotifyFavorite, 'id' | 'createdAt'>): Promise<SpotifyFavorite> {
+  return apiCall<SpotifyFavorite>('/spotify-favorites', {
+    method: 'POST',
+    body: JSON.stringify(favorite),
+  });
+}
+
+export async function updateSpotifyFavorite(id: number, updates: Partial<SpotifyFavorite>): Promise<SpotifyFavorite> {
+  return apiCall<SpotifyFavorite>(`/spotify-favorites/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteSpotifyFavorite(id: number): Promise<void> {
+  return apiCall<void>(`/spotify-favorites/${id}`, { method: 'DELETE' });
+}
+
+export async function softDeleteSpotifyFavorite(id: number): Promise<SpotifyFavorite> {
+  return apiCall<SpotifyFavorite>(`/spotify-favorites/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: new Date().toISOString() }),
+  });
+}
+
+export async function restoreSpotifyFavorite(id: number): Promise<SpotifyFavorite> {
+  return apiCall<SpotifyFavorite>(`/spotify-favorites/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: null }),
+  });
+}
+
+// ============ FILM ITEMS API ============
+
+export async function getFilms(): Promise<FilmItem[]> {
+  return apiCall<FilmItem[]>('/films');
+}
+
+export async function getFilmsByStatus(status: string): Promise<FilmItem[]> {
+  return apiCall<FilmItem[]>(`/films/status/${status}`);
+}
+
+export async function getFilm(id: number): Promise<FilmItem> {
+  return apiCall<FilmItem>(`/films/${id}`);
+}
+
+export async function getTrashedFilms(): Promise<FilmItem[]> {
+  return apiCall<FilmItem[]>('/films/trash');
+}
+
+export async function createFilm(film: Omit<FilmItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<FilmItem> {
+  return apiCall<FilmItem>('/films', {
+    method: 'POST',
+    body: JSON.stringify(film),
+  });
+}
+
+export async function updateFilm(id: number, updates: Partial<FilmItem>): Promise<FilmItem> {
+  return apiCall<FilmItem>(`/films/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteFilm(id: number): Promise<void> {
+  return apiCall<void>(`/films/${id}`, { method: 'DELETE' });
+}
+
+export async function softDeleteFilm(id: number): Promise<FilmItem> {
+  return apiCall<FilmItem>(`/films/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: new Date().toISOString() }),
+  });
+}
+
+export async function restoreFilm(id: number): Promise<FilmItem> {
+  return apiCall<FilmItem>(`/films/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: null }),
+  });
+}
+
+// ============ NOTE ITEMS API ============
+
+export async function getNotes(): Promise<NoteItem[]> {
+  return apiCall<NoteItem[]>('/notes');
+}
+
+export async function getNotesByType(type: string): Promise<NoteItem[]> {
+  return apiCall<NoteItem[]>(`/notes/type/${type}`);
+}
+
+export async function getNote(id: number): Promise<NoteItem> {
+  return apiCall<NoteItem>(`/notes/${id}`);
+}
+
+export async function getTrashedNotes(): Promise<NoteItem[]> {
+  return apiCall<NoteItem[]>('/notes/trash');
+}
+
+export async function createNote(note: Omit<NoteItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<NoteItem> {
+  return apiCall<NoteItem>('/notes', {
+    method: 'POST',
+    body: JSON.stringify(note),
+  });
+}
+
+export async function updateNote(id: number, updates: Partial<NoteItem>): Promise<NoteItem> {
+  return apiCall<NoteItem>(`/notes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteNote(id: number): Promise<void> {
+  return apiCall<void>(`/notes/${id}`, { method: 'DELETE' });
+}
+
+export async function softDeleteNote(id: number): Promise<NoteItem> {
+  return apiCall<NoteItem>(`/notes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: new Date().toISOString() }),
+  });
+}
+
+export async function restoreNote(id: number): Promise<NoteItem> {
+  return apiCall<NoteItem>(`/notes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: null }),
   });
 }

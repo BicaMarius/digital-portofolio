@@ -1,11 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +13,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from '@/components/ui/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAdmin } from '@/contexts/AdminContext';
-import { Clapperboard, Plus, Film, Search, CheckCircle2, Undo2, Eye, Star, ArrowUpDown, Trash2, RotateCcw, Pencil } from 'lucide-react';
+import { Clapperboard, Plus, Film, Search, CheckCircle2, Undo2, Eye, Star, ArrowUpDown, Trash2, RotateCcw, Pencil, Loader2, Trash } from 'lucide-react';
+import { getFilms, createFilm, updateFilm, softDeleteFilm as apiSoftDeleteFilm, restoreFilm as apiRestoreFilm, deleteFilm, getTrashedFilms } from '@/lib/api';
+import type { FilmItem as ApiFilmItem } from '@shared/schema';
 
-interface FilmItem {
+// Local interface for UI compatibility
+interface LocalFilmItem {
   id: number;
   title: string;
   genre: string;
@@ -26,11 +29,38 @@ interface FilmItem {
   notes?: string;
 }
 
-const sampleFilms: FilmItem[] = [
-  { id: 1, title: 'Dune: Part Two', genre: 'SF', year: 2024, status: 'todo', notes: 'De văzut în IMAX' },
-  { id: 2, title: 'Blade Runner 2049', genre: 'SF', year: 2017, status: 'watched', rating: 9, category: 'Neo-noir', notes: 'Soundtrack Hans Zimmer/Wallfisch' },
-  { id: 3, title: 'La La Land', genre: 'Musical', year: 2016, status: 'watched', rating: 8, category: 'Romantic', notes: 'Coregrafie și culori superbe' },
-];
+// Convert API FilmItem to local format
+function toLocalFilm(f: ApiFilmItem): LocalFilmItem {
+  return {
+    id: f.id,
+    title: f.title,
+    genre: (f.genre && f.genre.length > 0) ? f.genre[0] : 'Necunoscut',
+    year: f.year ? parseInt(f.year) : undefined,
+    status: f.status === 'watched' ? 'watched' : 'todo',
+    rating: f.rating ?? undefined,
+    category: f.director ?? undefined, // Using director field as category for now
+    notes: f.notes ?? undefined,
+  };
+}
+
+// Convert local format to API format
+function toApiFilm(f: Omit<LocalFilmItem, 'id'>): Omit<ApiFilmItem, 'id' | 'createdAt' | 'updatedAt'> {
+  return {
+    title: f.title,
+    genre: f.genre ? [f.genre] : [],
+    year: f.year ? String(f.year) : null,
+    status: f.status === 'watched' ? 'watched' : 'to-watch',
+    rating: f.rating ?? null,
+    director: f.category ?? null, // Using director field as category
+    notes: f.notes ?? null,
+    posterUrl: null,
+    tmdbId: null,
+    watchedDate: null,
+    runtime: null,
+    isPrivate: false,
+    deletedAt: null,
+  };
+}
 
 const sortOptions: { value: 'none' | 'name' | 'genre' | 'category' | 'year' | 'rating'; label: string }[] = [
   { value: 'none', label: 'Fără sortare' },
@@ -44,18 +74,43 @@ const sortOptions: { value: 'none' | 'name' | 'genre' | 'category' | 'year' | 'r
 export default function Films() {
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
-  const [films, setFilms] = useState<FilmItem[]>(sampleFilms);
+  const [films, setFilms] = useState<LocalFilmItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'none' | 'name' | 'genre' | 'category' | 'year' | 'rating'>('none');
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
-  const [showDetail, setShowDetail] = useState<FilmItem | null>(null);
+  const [showDetail, setShowDetail] = useState<LocalFilmItem | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ title: '', genre: '', year: '' as number | string | '', status: 'todo' as FilmItem['status'], rating: '', category: '', notes: '' });
-  const [trashed, setTrashed] = useState<FilmItem[]>([]);
+  const [form, setForm] = useState({ title: '', genre: '', year: '' as number | string | '', status: 'todo' as LocalFilmItem['status'], rating: '', category: '', notes: '' });
+  const [trashed, setTrashed] = useState<LocalFilmItem[]>([]);
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [swipeState, setSwipeState] = useState<Record<number, 'left' | 'right' | null>>({});
   const touchStart = useRef<number | null>(null);
   const touchId = useRef<number | null>(null);
+
+  // Load data from cloud
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [filmsData, trashedData] = await Promise.all([
+        getFilms(),
+        getTrashedFilms()
+      ]);
+      setFilms(filmsData.map(toLocalFilm));
+      setTrashed(trashedData.map(toLocalFilm));
+    } catch (error) {
+      console.error('Error loading films:', error);
+      toast({ title: 'Eroare', description: 'Nu s-au putut încărca filmele.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const filteredFilms = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -84,16 +139,15 @@ export default function Films() {
     }
   };
 
-  const openAddForStatus = (status: FilmItem['status']) => {
+  const openAddForStatus = (status: LocalFilmItem['status']) => {
     setEditingId(null);
     setForm({ title: '', genre: '', year: '', status, rating: '', category: '', notes: '' });
     handleDialogOpenChange(true);
   };
 
-  const submitFilm = () => {
+  const submitFilm = async () => {
     if (!form.title.trim()) return;
-    const baseFilm: FilmItem = {
-      id: editingId ?? Date.now(),
+    const baseFilm: Omit<LocalFilmItem, 'id'> = {
       title: form.title.trim(),
       genre: form.genre.trim() || 'Necunoscut',
       year: form.year ? Number(form.year) : undefined,
@@ -103,56 +157,86 @@ export default function Films() {
       notes: form.notes.trim() || undefined,
     };
 
-    setFilms((prev) => {
+    try {
       if (editingId) {
-        return prev.map((f) => (f.id === editingId ? baseFilm : f));
+        const updated = await updateFilm(editingId, toApiFilm(baseFilm));
+        setFilms(prev => prev.map(f => f.id === editingId ? toLocalFilm(updated) : f));
+        toast({ title: 'Salvat', description: `${baseFilm.title} a fost actualizat.` });
+      } else {
+        const created = await createFilm(toApiFilm(baseFilm));
+        setFilms(prev => [...prev, toLocalFilm(created)]);
+        toast({ title: 'Adăugat', description: `${baseFilm.title} a fost adăugat.` });
       }
-      return [...prev, baseFilm];
-    });
-
-    handleDialogOpenChange(false);
+      handleDialogOpenChange(false);
+    } catch (error) {
+      console.error('Error saving film:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut salva filmul.', variant: 'destructive' });
+    }
   };
 
-  const removeFilm = (id: number) => {
-    setFilms(prev => prev.filter(f => f.id !== id));
+  const softDeleteFilm = async (film: LocalFilmItem) => {
+    try {
+      await apiSoftDeleteFilm(film.id);
+      setFilms(prev => prev.filter(f => f.id !== film.id));
+      setTrashed(prev => [film, ...prev]);
+      toast({ title: 'Mutat în coș', description: `${film.title} a fost mutat în coșul de gunoi.` });
+    } catch (error) {
+      console.error('Error soft deleting film:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut muta în coș.', variant: 'destructive' });
+    }
   };
 
-  const softDeleteFilm = (film: FilmItem) => {
-    setFilms(prev => prev.filter((f) => f.id !== film.id));
-    setTrashed((prev) => [film, ...prev]);
-    toast({ title: 'Mutat în coș', description: `${film.title} a fost mutat în coșul de gunoi.` });
-  };
-
-  const restoreFilm = (id: number) => {
-    const film = trashed.find((f) => f.id === id);
+  const restoreFilmHandler = async (id: number) => {
+    const film = trashed.find(f => f.id === id);
     if (!film) return;
-    setTrashed((prev) => prev.filter((f) => f.id !== id));
-    setFilms((prev) => [...prev, film]);
-    toast({ title: 'Restaurat', description: `${film.title} a fost restaurat.` });
+    try {
+      await apiRestoreFilm(id);
+      setTrashed(prev => prev.filter(f => f.id !== id));
+      setFilms(prev => [...prev, film]);
+      toast({ title: 'Restaurat', description: `${film.title} a fost restaurat.` });
+    } catch (error) {
+      console.error('Error restoring film:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut restaura.', variant: 'destructive' });
+    }
   };
 
-  const deleteForever = (id: number) => {
-    const film = trashed.find((f) => f.id === id);
-    setTrashed((prev) => prev.filter((f) => f.id !== id));
-    toast({ title: 'Șters definitiv', description: film ? film.title : 'Element șters.' });
+  const deleteForever = async (id: number) => {
+    const film = trashed.find(f => f.id === id);
+    try {
+      await deleteFilm(id);
+      setTrashed(prev => prev.filter(f => f.id !== id));
+      toast({ title: 'Șters definitiv', description: film ? film.title : 'Element șters.' });
+    } catch (error) {
+      console.error('Error deleting film permanently:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut șterge definitiv.', variant: 'destructive' });
+    }
   };
 
-  const emptyTrash = () => {
-    setTrashed([]);
-    toast({ title: 'Coș golit', description: 'Ai șters definitiv toate elementele din coș.' });
+  const emptyTrash = async () => {
+    try {
+      await Promise.all(trashed.map(f => deleteFilm(f.id)));
+      setTrashed([]);
+      toast({ title: 'Coș golit', description: 'Ai șters definitiv toate elementele din coș.' });
+    } catch (error) {
+      console.error('Error emptying trash:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut goli coșul.', variant: 'destructive' });
+    }
   };
 
-  const toggleStatus = (id: number) => {
-    setFilms((prev) =>
-      prev.map((film) =>
-        film.id === id
-          ? { ...film, status: film.status === 'todo' ? 'watched' : 'todo' }
-          : film,
-      ),
-    );
+  const toggleStatus = async (id: number) => {
+    const film = films.find(f => f.id === id);
+    if (!film) return;
+    const newStatus = film.status === 'todo' ? 'watched' : 'todo';
+    try {
+      const updated = await updateFilm(id, { status: newStatus === 'watched' ? 'watched' : 'to-watch' });
+      setFilms(prev => prev.map(f => f.id === id ? toLocalFilm(updated) : f));
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut schimba statusul.', variant: 'destructive' });
+    }
   };
 
-  const startEdit = (film: FilmItem) => {
+  const startEdit = (film: LocalFilmItem) => {
     setEditingId(film.id);
     setForm({
       title: film.title,
@@ -166,10 +250,10 @@ export default function Films() {
     setShowDialog(true);
   };
 
-  const FilmList = ({ items, title }: { items: FilmItem[]; title: string }) => {
+  const FilmList = ({ items, title }: { items: LocalFilmItem[]; title: string }) => {
     const grouped = useMemo(() => {
       if (sortBy === 'year') {
-        const map = new Map<string, FilmItem[]>();
+        const map = new Map<string, LocalFilmItem[]>();
         items.forEach((f) => {
           const key = typeof f.year === 'number' ? String(f.year) : 'Fără an';
           const bucket = map.get(key) || [];
@@ -179,7 +263,7 @@ export default function Films() {
         return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([label, list]) => ({ label, list }));
       }
       if (sortBy === 'genre' || sortBy === 'category') {
-        const map = new Map<string, FilmItem[]>();
+        const map = new Map<string, LocalFilmItem[]>();
         items.forEach((f) => {
           const key = (sortBy === 'category' ? f.category : f.genre) || 'Neclasificat';
           const bucket = map.get(key) || [];
@@ -191,7 +275,7 @@ export default function Films() {
       return null;
     }, [items, sortBy]);
 
-    const renderFilmCard = (film: FilmItem) => (
+    const renderFilmCard = (film: LocalFilmItem) => (
       <div
         key={film.id}
         onClick={() => setShowDetail(film)}
@@ -337,13 +421,19 @@ export default function Films() {
               ) : (
                 <>
                   <div className="flex-1 flex items-center justify-center order-3 lg:order-none">
-                    <div className="relative group w-[12rem] sm:w-[15rem] lg:w-[18rem] transition-all duration-200">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <div 
+                      className={`relative transition-all duration-300 ease-in-out ${
+                        searchFocused ? 'w-[20rem] lg:w-[24rem]' : 'w-[10rem] sm:w-[12rem] lg:w-[14rem]'
+                      }`}
+                    >
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                       <Input
-                        placeholder="Caută rapid în listă"
+                        placeholder="Caută..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 rounded-full transition-all duration-200 w-full group-focus-within:w-[22rem]"
+                        onFocus={() => setSearchFocused(true)}
+                        onBlur={() => setSearchFocused(false)}
+                        className="pl-9 rounded-full w-full"
                       />
                     </div>
                   </div>
@@ -360,6 +450,18 @@ export default function Films() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {isAdmin && trashed.length > 0 && (
+                      <Button
+                        variant="outline"
+                        className="gap-2 rounded-full"
+                        onClick={() => setShowTrashDialog(true)}
+                      >
+                        <Trash className="h-4 w-4" />
+                        <Badge variant="secondary" className="px-1.5 py-0.5 text-xs">
+                          {trashed.length}
+                        </Badge>
+                      </Button>
+                    )}
                     {isAdmin && (
                       <Button
                         className="gap-2 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg"
@@ -374,12 +476,20 @@ export default function Films() {
               )}
             </div>
 
-            <TabsContent value="todo" className="space-y-3">
-              <FilmList items={toWatch} title="Listă filme de văzut" />
-            </TabsContent>
-            <TabsContent value="done" className="space-y-3">
-              <FilmList items={watched} title="Filme văzute" />
-            </TabsContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <TabsContent value="todo" className="space-y-3">
+                  <FilmList items={toWatch} title="Listă filme de văzut" />
+                </TabsContent>
+                <TabsContent value="done" className="space-y-3">
+                  <FilmList items={watched} title="Filme văzute" />
+                </TabsContent>
+              </>
+            )}
           </Tabs>
         </div>
       </section>
@@ -488,36 +598,56 @@ export default function Films() {
         </DialogContent>
       </Dialog>
 
-      {trashed.length > 0 && (
-        <Card className="border-dashed border-2 border-border/70 bg-muted/20 mx-4 sm:mx-0">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Trash2 className="h-4 w-4" /> Coș de gunoi ({trashed.length})
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={emptyTrash}><Trash2 className="h-4 w-4 mr-1" /> Golește</Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
+      {/* Trash Management Dialog */}
+      <Dialog open={showTrashDialog} onOpenChange={setShowTrashDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Coș de gunoi ({trashed.length})</DialogTitle>
+            <DialogDescription>
+              Restaurează sau șterge permanent filmele.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
             {trashed.map((film) => (
-              <div key={film.id} className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/70 p-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{film.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{film.genre} • {film.year ?? '—'}</p>
+              <div
+                key={film.id}
+                className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition"
+              >
+                <div className="flex items-center justify-center w-12 h-12 rounded bg-muted flex-shrink-0">
+                  <Film className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => restoreFilm(film.id)}>
-                    <RotateCcw className="h-4 w-4" />
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium truncate">{film.title}</h4>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {film.genre} • {film.year ?? '—'}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => restoreFilmHandler(film.id)}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-1" />
+                    Restaurează
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => deleteForever(film.id)}>
-                    <Trash2 className="h-4 w-4 text-rose-500" />
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deleteForever(film.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Șterge
                   </Button>
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      )}
+            {trashed.length === 0 && (
+              <p className="text-center text-muted-foreground py-4">Coșul de gunoi este gol.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 }

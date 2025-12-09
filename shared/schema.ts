@@ -173,3 +173,125 @@ export const updatePhotoDeviceSchema = insertPhotoDeviceSchema.partial();
 export type PhotoDevice = typeof photoDevices.$inferSelect;
 export type InsertPhotoDevice = typeof photoDevices.$inferInsert;
 export type UpdatePhotoDevice = Partial<InsertPhotoDevice>;
+
+// ============ MUSIC TABLES ============
+
+// Music tracks table - for custom uploaded tracks
+export const musicTracks = pgTable("music_tracks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  artist: text("artist").notNull(),
+  album: text("album"),
+  audioUrl: text("audio_url").notNull(), // Cloudinary URL for audio file
+  coverUrl: text("cover_url"), // Cloudinary URL for cover image
+  lyricsUrl: text("lyrics_url"), // Cloudinary URL for lyrics file
+  duration: integer("duration"), // Duration in seconds
+  genre: text("genre"),
+  year: text("year"),
+  isPrivate: boolean("is_private").notNull().default(false),
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertMusicTrackSchema = createInsertSchema(musicTracks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateMusicTrackSchema = insertMusicTrackSchema.partial();
+export type MusicTrack = typeof musicTracks.$inferSelect;
+export type InsertMusicTrack = typeof musicTracks.$inferInsert;
+export type UpdateMusicTrack = Partial<InsertMusicTrack>;
+
+// Spotify favorites table - for saved Spotify items
+export const spotifyFavorites = pgTable("spotify_favorites", {
+  id: serial("id").primaryKey(),
+  spotifyId: text("spotify_id").notNull().unique(), // Spotify track/album/artist ID
+  type: text("type").notNull(), // 'track', 'album', 'artist'
+  name: text("name").notNull(),
+  artist: text("artist"), // For tracks and albums
+  albumName: text("album_name"), // For tracks
+  imageUrl: text("image_url"),
+  spotifyUrl: text("spotify_url"),
+  previewUrl: text("preview_url"), // 30s preview URL from Spotify
+  rank: integer("rank"), // Position in top 10 list
+  listType: text("list_type"), // 'top-tracks', 'top-albums', 'top-artists', 'favorites'
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertSpotifyFavoriteSchema = createInsertSchema(spotifyFavorites).omit({
+  id: true,
+  createdAt: true,
+});
+export const updateSpotifyFavoriteSchema = insertSpotifyFavoriteSchema.partial();
+export type SpotifyFavorite = typeof spotifyFavorites.$inferSelect;
+export type InsertSpotifyFavorite = typeof spotifyFavorites.$inferInsert;
+export type UpdateSpotifyFavorite = Partial<InsertSpotifyFavorite>;
+
+// ============ FILMS TABLE ============
+
+export const filmItems = pgTable("film_items", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  director: text("director"),
+  year: text("year"),
+  posterUrl: text("poster_url"), // Cloudinary URL or TMDB URL
+  tmdbId: text("tmdb_id"), // TMDB movie ID for API integration
+  status: text("status").notNull().default("to-watch"), // 'to-watch', 'watched'
+  rating: integer("rating"), // 1-10 personal rating
+  notes: text("notes"),
+  watchedDate: text("watched_date"),
+  genre: text("genre").array().default([]),
+  runtime: integer("runtime"), // Duration in minutes
+  isPrivate: boolean("is_private").notNull().default(false),
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertFilmItemSchema = createInsertSchema(filmItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateFilmItemSchema = insertFilmItemSchema.partial();
+export type FilmItem = typeof filmItems.$inferSelect;
+export type InsertFilmItem = typeof filmItems.$inferInsert;
+export type UpdateFilmItem = Partial<InsertFilmItem>;
+
+// ============ NOTES TABLE ============
+
+export const noteItems = pgTable("note_items", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(), // 'recipe', 'shopping', 'quote'
+  title: text("title").notNull(),
+  content: text("content"), // JSON string for complex content (ingredients, steps, etc)
+  imageUrl: text("image_url"), // Cloudinary URL for recipe image
+  // Recipe specific fields
+  prepTime: integer("prep_time"), // in minutes
+  cookTime: integer("cook_time"), // in minutes
+  servings: integer("servings"),
+  difficulty: text("difficulty"), // 'easy', 'medium', 'hard'
+  cuisine: text("cuisine"),
+  // Quote specific fields
+  author: text("author"),
+  source: text("source"),
+  // Shopping list specific
+  completed: boolean("completed").default(false),
+  isPrivate: boolean("is_private").notNull().default(false),
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertNoteItemSchema = createInsertSchema(noteItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateNoteItemSchema = insertNoteItemSchema.partial();
+export type NoteItem = typeof noteItems.$inferSelect;
+export type InsertNoteItem = typeof noteItems.$inferInsert;
+export type UpdateNoteItem = Partial<InsertNoteItem>;

@@ -22,6 +22,18 @@ import type {
   PhotoDevice,
   InsertPhotoDevice,
   UpdatePhotoDevice,
+  MusicTrack,
+  InsertMusicTrack,
+  UpdateMusicTrack,
+  SpotifyFavorite,
+  InsertSpotifyFavorite,
+  UpdateSpotifyFavorite,
+  FilmItem,
+  InsertFilmItem,
+  UpdateFilmItem,
+  NoteItem,
+  InsertNoteItem,
+  UpdateNoteItem,
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -82,6 +94,41 @@ export interface IStorage {
   createPhotoDevice(device: InsertPhotoDevice): Promise<PhotoDevice>;
   updatePhotoDevice(id: number, updates: UpdatePhotoDevice): Promise<PhotoDevice | null>;
   deletePhotoDevice(id: number): Promise<boolean>;
+
+  // Music Tracks
+  getMusicTracks(): Promise<MusicTrack[]>;
+  getMusicTrackById(id: number): Promise<MusicTrack | null>;
+  getTrashedMusicTracks(): Promise<MusicTrack[]>;
+  createMusicTrack(track: InsertMusicTrack): Promise<MusicTrack>;
+  updateMusicTrack(id: number, updates: UpdateMusicTrack): Promise<MusicTrack | null>;
+  deleteMusicTrack(id: number): Promise<boolean>;
+
+  // Spotify Favorites
+  getSpotifyFavorites(): Promise<SpotifyFavorite[]>;
+  getSpotifyFavoriteById(id: number): Promise<SpotifyFavorite | null>;
+  getSpotifyFavoritesByListType(listType: string): Promise<SpotifyFavorite[]>;
+  getTrashedSpotifyFavorites(): Promise<SpotifyFavorite[]>;
+  createSpotifyFavorite(favorite: InsertSpotifyFavorite): Promise<SpotifyFavorite>;
+  updateSpotifyFavorite(id: number, updates: UpdateSpotifyFavorite): Promise<SpotifyFavorite | null>;
+  deleteSpotifyFavorite(id: number): Promise<boolean>;
+
+  // Film Items
+  getFilmItems(): Promise<FilmItem[]>;
+  getFilmItemById(id: number): Promise<FilmItem | null>;
+  getFilmItemsByStatus(status: string): Promise<FilmItem[]>;
+  getTrashedFilmItems(): Promise<FilmItem[]>;
+  createFilmItem(film: InsertFilmItem): Promise<FilmItem>;
+  updateFilmItem(id: number, updates: UpdateFilmItem): Promise<FilmItem | null>;
+  deleteFilmItem(id: number): Promise<boolean>;
+
+  // Note Items
+  getNoteItems(): Promise<NoteItem[]>;
+  getNoteItemById(id: number): Promise<NoteItem | null>;
+  getNoteItemsByType(type: string): Promise<NoteItem[]>;
+  getTrashedNoteItems(): Promise<NoteItem[]>;
+  createNoteItem(note: InsertNoteItem): Promise<NoteItem>;
+  updateNoteItem(id: number, updates: UpdateNoteItem): Promise<NoteItem | null>;
+  deleteNoteItem(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -441,12 +488,201 @@ export class MemStorage implements IStorage {
       ...device,
       ...updates,
     };
-    this.photoDevices.set(id, updatedDevice);
+    return this.photoDevices.set(id, updatedDevice);
     return updatedDevice;
   }
 
   async deletePhotoDevice(id: number): Promise<boolean> {
     return this.photoDevices.delete(id);
+  }
+
+  // Music Tracks - MemStorage placeholders
+  private musicTracks: Map<number, MusicTrack> = new Map();
+  private musicTrackIdCounter = 1;
+  
+  async getMusicTracks(): Promise<MusicTrack[]> {
+    return Array.from(this.musicTracks.values()).filter(t => !t.deletedAt);
+  }
+  async getMusicTrackById(id: number): Promise<MusicTrack | null> {
+    return this.musicTracks.get(id) || null;
+  }
+  async getTrashedMusicTracks(): Promise<MusicTrack[]> {
+    return Array.from(this.musicTracks.values()).filter(t => t.deletedAt !== null);
+  }
+  async createMusicTrack(track: InsertMusicTrack): Promise<MusicTrack> {
+    const newTrack: MusicTrack = {
+      id: this.musicTrackIdCounter++,
+      title: track.title,
+      artist: track.artist,
+      album: track.album ?? null,
+      audioUrl: track.audioUrl,
+      coverUrl: track.coverUrl ?? null,
+      lyricsUrl: track.lyricsUrl ?? null,
+      duration: track.duration ?? null,
+      genre: track.genre ?? null,
+      year: track.year ?? null,
+      isPrivate: track.isPrivate ?? false,
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.musicTracks.set(newTrack.id, newTrack);
+    return newTrack;
+  }
+  async updateMusicTrack(id: number, updates: UpdateMusicTrack): Promise<MusicTrack | null> {
+    const track = this.musicTracks.get(id);
+    if (!track) return null;
+    const updated = { ...track, ...updates, updatedAt: new Date() };
+    this.musicTracks.set(id, updated);
+    return updated;
+  }
+  async deleteMusicTrack(id: number): Promise<boolean> {
+    return this.musicTracks.delete(id);
+  }
+
+  // Spotify Favorites - MemStorage placeholders
+  private spotifyFavorites: Map<number, SpotifyFavorite> = new Map();
+  private spotifyFavoriteIdCounter = 1;
+
+  async getSpotifyFavorites(): Promise<SpotifyFavorite[]> {
+    return Array.from(this.spotifyFavorites.values()).filter(f => !f.deletedAt);
+  }
+  async getSpotifyFavoriteById(id: number): Promise<SpotifyFavorite | null> {
+    return this.spotifyFavorites.get(id) || null;
+  }
+  async getSpotifyFavoritesByListType(listType: string): Promise<SpotifyFavorite[]> {
+    return Array.from(this.spotifyFavorites.values()).filter(f => f.listType === listType && !f.deletedAt);
+  }
+  async getTrashedSpotifyFavorites(): Promise<SpotifyFavorite[]> {
+    return Array.from(this.spotifyFavorites.values()).filter(f => f.deletedAt !== null);
+  }
+  async createSpotifyFavorite(favorite: InsertSpotifyFavorite): Promise<SpotifyFavorite> {
+    const newFavorite: SpotifyFavorite = {
+      id: this.spotifyFavoriteIdCounter++,
+      spotifyId: favorite.spotifyId,
+      type: favorite.type,
+      name: favorite.name,
+      artist: favorite.artist ?? null,
+      albumName: favorite.albumName ?? null,
+      imageUrl: favorite.imageUrl ?? null,
+      spotifyUrl: favorite.spotifyUrl ?? null,
+      previewUrl: favorite.previewUrl ?? null,
+      rank: favorite.rank ?? null,
+      listType: favorite.listType ?? null,
+      deletedAt: null,
+      createdAt: new Date(),
+    };
+    this.spotifyFavorites.set(newFavorite.id, newFavorite);
+    return newFavorite;
+  }
+  async updateSpotifyFavorite(id: number, updates: UpdateSpotifyFavorite): Promise<SpotifyFavorite | null> {
+    const fav = this.spotifyFavorites.get(id);
+    if (!fav) return null;
+    const updated = { ...fav, ...updates };
+    this.spotifyFavorites.set(id, updated);
+    return updated;
+  }
+  async deleteSpotifyFavorite(id: number): Promise<boolean> {
+    return this.spotifyFavorites.delete(id);
+  }
+
+  // Film Items - MemStorage placeholders
+  private filmItems: Map<number, FilmItem> = new Map();
+  private filmItemIdCounter = 1;
+
+  async getFilmItems(): Promise<FilmItem[]> {
+    return Array.from(this.filmItems.values()).filter(f => !f.deletedAt);
+  }
+  async getFilmItemById(id: number): Promise<FilmItem | null> {
+    return this.filmItems.get(id) || null;
+  }
+  async getFilmItemsByStatus(status: string): Promise<FilmItem[]> {
+    return Array.from(this.filmItems.values()).filter(f => f.status === status && !f.deletedAt);
+  }
+  async getTrashedFilmItems(): Promise<FilmItem[]> {
+    return Array.from(this.filmItems.values()).filter(f => f.deletedAt !== null);
+  }
+  async createFilmItem(film: InsertFilmItem): Promise<FilmItem> {
+    const newFilm: FilmItem = {
+      id: this.filmItemIdCounter++,
+      title: film.title,
+      director: film.director ?? null,
+      year: film.year ?? null,
+      posterUrl: film.posterUrl ?? null,
+      tmdbId: film.tmdbId ?? null,
+      status: film.status ?? "to-watch",
+      rating: film.rating ?? null,
+      notes: film.notes ?? null,
+      watchedDate: film.watchedDate ?? null,
+      genre: film.genre ?? [],
+      runtime: film.runtime ?? null,
+      isPrivate: film.isPrivate ?? false,
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.filmItems.set(newFilm.id, newFilm);
+    return newFilm;
+  }
+  async updateFilmItem(id: number, updates: UpdateFilmItem): Promise<FilmItem | null> {
+    const film = this.filmItems.get(id);
+    if (!film) return null;
+    const updated = { ...film, ...updates, updatedAt: new Date() };
+    this.filmItems.set(id, updated);
+    return updated;
+  }
+  async deleteFilmItem(id: number): Promise<boolean> {
+    return this.filmItems.delete(id);
+  }
+
+  // Note Items - MemStorage placeholders
+  private noteItems: Map<number, NoteItem> = new Map();
+  private noteItemIdCounter = 1;
+
+  async getNoteItems(): Promise<NoteItem[]> {
+    return Array.from(this.noteItems.values()).filter(n => !n.deletedAt);
+  }
+  async getNoteItemById(id: number): Promise<NoteItem | null> {
+    return this.noteItems.get(id) || null;
+  }
+  async getNoteItemsByType(type: string): Promise<NoteItem[]> {
+    return Array.from(this.noteItems.values()).filter(n => n.type === type && !n.deletedAt);
+  }
+  async getTrashedNoteItems(): Promise<NoteItem[]> {
+    return Array.from(this.noteItems.values()).filter(n => n.deletedAt !== null);
+  }
+  async createNoteItem(note: InsertNoteItem): Promise<NoteItem> {
+    const newNote: NoteItem = {
+      id: this.noteItemIdCounter++,
+      type: note.type,
+      title: note.title,
+      content: note.content ?? null,
+      imageUrl: note.imageUrl ?? null,
+      prepTime: note.prepTime ?? null,
+      cookTime: note.cookTime ?? null,
+      servings: note.servings ?? null,
+      difficulty: note.difficulty ?? null,
+      cuisine: note.cuisine ?? null,
+      author: note.author ?? null,
+      source: note.source ?? null,
+      completed: note.completed ?? false,
+      isPrivate: note.isPrivate ?? false,
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.noteItems.set(newNote.id, newNote);
+    return newNote;
+  }
+  async updateNoteItem(id: number, updates: UpdateNoteItem): Promise<NoteItem | null> {
+    const note = this.noteItems.get(id);
+    if (!note) return null;
+    const updated = { ...note, ...updates, updatedAt: new Date() };
+    this.noteItems.set(id, updated);
+    return updated;
+  }
+  async deleteNoteItem(id: number): Promise<boolean> {
+    return this.noteItems.delete(id);
   }
 }
 
@@ -455,7 +691,7 @@ import { db } from "./db.js";
 import * as schema from "../shared/schema.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices } = schema;
+const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, spotifyFavorites, filmItems, noteItems } = schema;
 
 export class DbStorage implements IStorage {
   // Projects
@@ -744,6 +980,177 @@ export class DbStorage implements IStorage {
 
   async deletePhotoDevice(id: number): Promise<boolean> {
     const result = await db.delete(photoDevices).where(eq(photoDevices.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Music Tracks
+  async getMusicTracks(): Promise<MusicTrack[]> {
+    return await db.select().from(musicTracks).where(isNull(musicTracks.deletedAt));
+  }
+
+  async getMusicTrackById(id: number): Promise<MusicTrack | null> {
+    const result = await db.select().from(musicTracks).where(eq(musicTracks.id, id));
+    return result[0] || null;
+  }
+
+  async getTrashedMusicTracks(): Promise<MusicTrack[]> {
+    return await db.select().from(musicTracks).where(sql`"deleted_at" IS NOT NULL`);
+  }
+
+  async createMusicTrack(track: InsertMusicTrack): Promise<MusicTrack> {
+    const result = await db.insert(musicTracks).values({
+      ...track,
+      isPrivate: track.isPrivate ?? false,
+      deletedAt: null,
+    }).returning();
+    return result[0];
+  }
+
+  async updateMusicTrack(id: number, updates: UpdateMusicTrack): Promise<MusicTrack | null> {
+    const result = await db
+      .update(musicTracks)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(musicTracks.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteMusicTrack(id: number): Promise<boolean> {
+    const result = await db.delete(musicTracks).where(eq(musicTracks.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Spotify Favorites
+  async getSpotifyFavorites(): Promise<SpotifyFavorite[]> {
+    return await db.select().from(spotifyFavorites).where(isNull(spotifyFavorites.deletedAt));
+  }
+
+  async getSpotifyFavoriteById(id: number): Promise<SpotifyFavorite | null> {
+    const result = await db.select().from(spotifyFavorites).where(eq(spotifyFavorites.id, id));
+    return result[0] || null;
+  }
+
+  async getSpotifyFavoritesByListType(listType: string): Promise<SpotifyFavorite[]> {
+    return await db
+      .select()
+      .from(spotifyFavorites)
+      .where(and(eq(spotifyFavorites.listType, listType), isNull(spotifyFavorites.deletedAt)));
+  }
+
+  async getTrashedSpotifyFavorites(): Promise<SpotifyFavorite[]> {
+    return await db.select().from(spotifyFavorites).where(sql`"deleted_at" IS NOT NULL`);
+  }
+
+  async createSpotifyFavorite(favorite: InsertSpotifyFavorite): Promise<SpotifyFavorite> {
+    const result = await db.insert(spotifyFavorites).values({
+      ...favorite,
+      deletedAt: null,
+    }).returning();
+    return result[0];
+  }
+
+  async updateSpotifyFavorite(id: number, updates: UpdateSpotifyFavorite): Promise<SpotifyFavorite | null> {
+    const result = await db
+      .update(spotifyFavorites)
+      .set(updates)
+      .where(eq(spotifyFavorites.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteSpotifyFavorite(id: number): Promise<boolean> {
+    const result = await db.delete(spotifyFavorites).where(eq(spotifyFavorites.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Film Items
+  async getFilmItems(): Promise<FilmItem[]> {
+    return await db.select().from(filmItems).where(isNull(filmItems.deletedAt));
+  }
+
+  async getFilmItemById(id: number): Promise<FilmItem | null> {
+    const result = await db.select().from(filmItems).where(eq(filmItems.id, id));
+    return result[0] || null;
+  }
+
+  async getFilmItemsByStatus(status: string): Promise<FilmItem[]> {
+    return await db
+      .select()
+      .from(filmItems)
+      .where(and(eq(filmItems.status, status), isNull(filmItems.deletedAt)));
+  }
+
+  async getTrashedFilmItems(): Promise<FilmItem[]> {
+    return await db.select().from(filmItems).where(sql`"deleted_at" IS NOT NULL`);
+  }
+
+  async createFilmItem(film: InsertFilmItem): Promise<FilmItem> {
+    const result = await db.insert(filmItems).values({
+      ...film,
+      status: film.status ?? "to-watch",
+      isPrivate: film.isPrivate ?? false,
+      genre: film.genre ?? [],
+      deletedAt: null,
+    }).returning();
+    return result[0];
+  }
+
+  async updateFilmItem(id: number, updates: UpdateFilmItem): Promise<FilmItem | null> {
+    const result = await db
+      .update(filmItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(filmItems.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteFilmItem(id: number): Promise<boolean> {
+    const result = await db.delete(filmItems).where(eq(filmItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Note Items
+  async getNoteItems(): Promise<NoteItem[]> {
+    return await db.select().from(noteItems).where(isNull(noteItems.deletedAt));
+  }
+
+  async getNoteItemById(id: number): Promise<NoteItem | null> {
+    const result = await db.select().from(noteItems).where(eq(noteItems.id, id));
+    return result[0] || null;
+  }
+
+  async getNoteItemsByType(type: string): Promise<NoteItem[]> {
+    return await db
+      .select()
+      .from(noteItems)
+      .where(and(eq(noteItems.type, type), isNull(noteItems.deletedAt)));
+  }
+
+  async getTrashedNoteItems(): Promise<NoteItem[]> {
+    return await db.select().from(noteItems).where(sql`"deleted_at" IS NOT NULL`);
+  }
+
+  async createNoteItem(note: InsertNoteItem): Promise<NoteItem> {
+    const result = await db.insert(noteItems).values({
+      ...note,
+      isPrivate: note.isPrivate ?? false,
+      completed: note.completed ?? false,
+      deletedAt: null,
+    }).returning();
+    return result[0];
+  }
+
+  async updateNoteItem(id: number, updates: UpdateNoteItem): Promise<NoteItem | null> {
+    const result = await db
+      .update(noteItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(noteItems.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteNoteItem(id: number): Promise<boolean> {
+    const result = await db.delete(noteItems).where(eq(noteItems.id, id)).returning();
     return result.length > 0;
   }
 }

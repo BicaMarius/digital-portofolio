@@ -11,9 +11,9 @@ export const Navigation: React.FC = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       {/* Desktop layout */}
-      <div className="hidden sm:flex responsive-container responsive-nav items-center justify-between gap-4">
-        {/* Logo */}
-        <div className="flex items-center gap-4">
+      <div className="hidden sm:flex responsive-container responsive-nav items-center gap-4">
+        {/* Logo - fixed width for balance */}
+        <div className="flex items-center gap-4 w-48">
           <h1
             className="text-xl font-bold gradient-text cursor-pointer"
             onClick={() => navigate('/')}
@@ -22,9 +22,9 @@ export const Navigation: React.FC = () => {
           </h1>
         </div>
 
-        {/* Quick selectors */}
-        <div className="flex-1 flex justify-center min-w-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm max-w-2xl">
+        {/* Quick selectors - centered */}
+        <div className="flex-1 flex justify-center">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm">
             <Button
               variant={location.pathname === '/films' ? 'default' : 'ghost'}
               size="sm"
@@ -55,8 +55,8 @@ export const Navigation: React.FC = () => {
           </div>
         </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Navigation Buttons - fixed width for balance */}
+        <div className="flex items-center gap-2 w-48 justify-end">
           <Button
             variant={isHomePage ? 'default' : 'ghost'}
             size="sm"
@@ -80,17 +80,20 @@ export const Navigation: React.FC = () => {
       </div>
 
       {/* Mobile layout: single row with logo, centered icons, right icons */}
-      <div className="flex sm:hidden items-center justify-between px-3 py-2">
-        {/* Logo */}
-        <h1
-          className="text-lg font-bold gradient-text cursor-pointer"
-          onClick={() => navigate('/')}
-        >
-          CP
-        </h1>
+      <div className="flex sm:hidden items-center px-3 py-2">
+        {/* Logo - fixed width for balance */}
+        <div className="w-12">
+          <h1
+            className="text-lg font-bold gradient-text cursor-pointer"
+            onClick={() => navigate('/')}
+          >
+            CP
+          </h1>
+        </div>
 
         {/* Centered quick selectors (icons only) */}
-        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 border border-border/50">
+        <div className="flex-1 flex justify-center">
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 border border-border/50">
           <Button
             variant={location.pathname === '/films' ? 'default' : 'ghost'}
             size="icon"
@@ -115,10 +118,11 @@ export const Navigation: React.FC = () => {
           >
             <StickyNote className="h-4 w-4" />
           </Button>
+          </div>
         </div>
 
-        {/* Right nav icons */}
-        <div className="flex items-center gap-1">
+        {/* Right nav icons - fixed width for balance */}
+        <div className="flex items-center gap-1 w-12 justify-end">
           <Button
             variant={isHomePage ? 'default' : 'ghost'}
             size="icon"

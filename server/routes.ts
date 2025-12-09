@@ -16,6 +16,14 @@ import {
   updatePhotoLocationSchema,
   insertPhotoDeviceSchema,
   updatePhotoDeviceSchema,
+  insertMusicTrackSchema,
+  updateMusicTrackSchema,
+  insertSpotifyFavoriteSchema,
+  updateSpotifyFavoriteSchema,
+  insertFilmItemSchema,
+  updateFilmItemSchema,
+  insertNoteItemSchema,
+  updateNoteItemSchema,
 } from "../shared/schema.js";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
@@ -754,6 +762,361 @@ export function registerRoutes(app: Express, storage: IStorage) {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete photo device" });
+    }
+  });
+
+  // ============ MUSIC TRACKS ============
+  app.get("/api/music-tracks", async (_req, res) => {
+    try {
+      const tracks = await storage.getMusicTracks();
+      res.json(tracks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch music tracks" });
+    }
+  });
+
+  app.get("/api/music-tracks/trash", async (_req, res) => {
+    try {
+      const tracks = await storage.getTrashedMusicTracks();
+      res.json(tracks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch trashed music tracks" });
+    }
+  });
+
+  app.get("/api/music-tracks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const track = await storage.getMusicTrackById(id);
+      if (!track) {
+        return res.status(404).json({ error: "Music track not found" });
+      }
+      res.json(track);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch music track" });
+    }
+  });
+
+  app.post("/api/music-tracks", async (req, res) => {
+    try {
+      const track = insertMusicTrackSchema.parse(req.body) as any;
+      const newTrack = await storage.createMusicTrack(track);
+      res.status(201).json(newTrack);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create music track" });
+    }
+  });
+
+  app.patch("/api/music-tracks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid music track ID" });
+      }
+      const updates = updateMusicTrackSchema.parse(req.body);
+      const updatedTrack = await storage.updateMusicTrack(id, updates);
+      if (!updatedTrack) {
+        return res.status(404).json({ error: "Music track not found" });
+      }
+      res.json(updatedTrack);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update music track" });
+    }
+  });
+
+  app.delete("/api/music-tracks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteMusicTrack(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Music track not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete music track" });
+    }
+  });
+
+  // Audio file upload endpoint
+  app.post("/api/upload/audio", upload.single("file"), async (req, res) => {
+    try {
+      const file = (req as Request & { file?: UploadedFile }).file;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+      const folder = (req.body?.folder as string) || 'portfolio-music';
+      const { url, publicId } = await uploadToCloudinary(file.buffer, file.originalname, folder);
+      res.json({ url, publicId });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload audio file" });
+    }
+  });
+
+  // ============ SPOTIFY FAVORITES ============
+  app.get("/api/spotify-favorites", async (_req, res) => {
+    try {
+      const favorites = await storage.getSpotifyFavorites();
+      res.json(favorites);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch spotify favorites" });
+    }
+  });
+
+  app.get("/api/spotify-favorites/list/:listType", async (req, res) => {
+    try {
+      const { listType } = req.params;
+      const favorites = await storage.getSpotifyFavoritesByListType(listType);
+      res.json(favorites);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch spotify favorites" });
+    }
+  });
+
+  app.get("/api/spotify-favorites/trash", async (_req, res) => {
+    try {
+      const favorites = await storage.getTrashedSpotifyFavorites();
+      res.json(favorites);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch trashed spotify favorites" });
+    }
+  });
+
+  app.get("/api/spotify-favorites/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const favorite = await storage.getSpotifyFavoriteById(id);
+      if (!favorite) {
+        return res.status(404).json({ error: "Spotify favorite not found" });
+      }
+      res.json(favorite);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch spotify favorite" });
+    }
+  });
+
+  app.post("/api/spotify-favorites", async (req, res) => {
+    try {
+      const favorite = insertSpotifyFavoriteSchema.parse(req.body) as any;
+      const newFavorite = await storage.createSpotifyFavorite(favorite);
+      res.status(201).json(newFavorite);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create spotify favorite" });
+    }
+  });
+
+  app.patch("/api/spotify-favorites/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid spotify favorite ID" });
+      }
+      const updates = updateSpotifyFavoriteSchema.parse(req.body);
+      const updatedFavorite = await storage.updateSpotifyFavorite(id, updates);
+      if (!updatedFavorite) {
+        return res.status(404).json({ error: "Spotify favorite not found" });
+      }
+      res.json(updatedFavorite);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update spotify favorite" });
+    }
+  });
+
+  app.delete("/api/spotify-favorites/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteSpotifyFavorite(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Spotify favorite not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete spotify favorite" });
+    }
+  });
+
+  // ============ FILM ITEMS ============
+  app.get("/api/films", async (_req, res) => {
+    try {
+      const films = await storage.getFilmItems();
+      res.json(films);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch films" });
+    }
+  });
+
+  app.get("/api/films/status/:status", async (req, res) => {
+    try {
+      const { status } = req.params;
+      const films = await storage.getFilmItemsByStatus(status);
+      res.json(films);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch films" });
+    }
+  });
+
+  app.get("/api/films/trash", async (_req, res) => {
+    try {
+      const films = await storage.getTrashedFilmItems();
+      res.json(films);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch trashed films" });
+    }
+  });
+
+  app.get("/api/films/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const film = await storage.getFilmItemById(id);
+      if (!film) {
+        return res.status(404).json({ error: "Film not found" });
+      }
+      res.json(film);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch film" });
+    }
+  });
+
+  app.post("/api/films", async (req, res) => {
+    try {
+      const film = insertFilmItemSchema.parse(req.body) as any;
+      const newFilm = await storage.createFilmItem(film);
+      res.status(201).json(newFilm);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create film" });
+    }
+  });
+
+  app.patch("/api/films/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid film ID" });
+      }
+      const updates = updateFilmItemSchema.parse(req.body);
+      const updatedFilm = await storage.updateFilmItem(id, updates);
+      if (!updatedFilm) {
+        return res.status(404).json({ error: "Film not found" });
+      }
+      res.json(updatedFilm);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update film" });
+    }
+  });
+
+  app.delete("/api/films/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteFilmItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Film not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete film" });
+    }
+  });
+
+  // ============ NOTE ITEMS ============
+  app.get("/api/notes", async (_req, res) => {
+    try {
+      const notes = await storage.getNoteItems();
+      res.json(notes);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch notes" });
+    }
+  });
+
+  app.get("/api/notes/type/:type", async (req, res) => {
+    try {
+      const { type } = req.params;
+      const notes = await storage.getNoteItemsByType(type);
+      res.json(notes);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch notes" });
+    }
+  });
+
+  app.get("/api/notes/trash", async (_req, res) => {
+    try {
+      const notes = await storage.getTrashedNoteItems();
+      res.json(notes);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch trashed notes" });
+    }
+  });
+
+  app.get("/api/notes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const note = await storage.getNoteItemById(id);
+      if (!note) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.json(note);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch note" });
+    }
+  });
+
+  app.post("/api/notes", async (req, res) => {
+    try {
+      const note = insertNoteItemSchema.parse(req.body) as any;
+      const newNote = await storage.createNoteItem(note);
+      res.status(201).json(newNote);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create note" });
+    }
+  });
+
+  app.patch("/api/notes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid note ID" });
+      }
+      const updates = updateNoteItemSchema.parse(req.body);
+      const updatedNote = await storage.updateNoteItem(id, updates);
+      if (!updatedNote) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.json(updatedNote);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update note" });
+    }
+  });
+
+  app.delete("/api/notes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteNoteItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete note" });
     }
   });
 }
