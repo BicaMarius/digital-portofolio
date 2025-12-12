@@ -328,6 +328,76 @@ export async function restoreMusicTrack(id: number): Promise<MusicTrack> {
   });
 }
 
+// ============ SPOTIFY API ============
+
+export interface SpotifySearchResult {
+  id: string;
+  spotifyId: string;
+  name: string;
+  artist?: string;
+  albumName?: string;
+  imageUrl?: string;
+  spotifyUrl: string;
+  previewUrl?: string;
+  type: 'artist' | 'album' | 'track';
+  popularity?: number;
+  releaseDate?: string;
+  genres?: string[];
+}
+
+export async function searchSpotify(type: 'artist' | 'album' | 'track', query: string, limit: number = 10): Promise<SpotifySearchResult[]> {
+  return apiCall<SpotifySearchResult[]>(`/spotify/search?type=${type}&q=${encodeURIComponent(query)}&limit=${limit}`);
+}
+
+export async function getSpotifyItem(type: 'artist' | 'album' | 'track', id: string): Promise<SpotifySearchResult> {
+  return apiCall<SpotifySearchResult>(`/spotify/item/${type}/${id}`);
+}
+
+export async function getSpotifyStatus(): Promise<{ configured: boolean }> {
+  return apiCall<{ configured: boolean }>('/spotify/status');
+}
+
+// ============ SPOTIFY USER AUTH & STATS ============
+
+export interface SpotifyAuthUrl {
+  url: string;
+  state: string;
+}
+
+export interface SpotifyTopItem {
+  id: string;
+  name: string;
+  artist?: string;
+  imageUrl?: string;
+  spotifyUrl: string;
+  playCount?: number;
+  type: 'artist' | 'album' | 'track';
+}
+
+export async function getSpotifyAuthUrl(): Promise<SpotifyAuthUrl> {
+  return apiCall<SpotifyAuthUrl>('/spotify/auth/url');
+}
+
+export async function getSpotifyAuthStatus(): Promise<{ authenticated: boolean }> {
+  return apiCall<{ authenticated: boolean }>('/spotify/auth/status');
+}
+
+export async function getSpotifyUserTopArtists(timeRange: 'short_term' | 'medium_term' | 'long_term' = 'medium_term'): Promise<SpotifyTopItem[]> {
+  return apiCall<SpotifyTopItem[]>(`/spotify/me/top/artists?time_range=${timeRange}&limit=10`);
+}
+
+export async function getSpotifyUserTopTracks(timeRange: 'short_term' | 'medium_term' | 'long_term' = 'medium_term'): Promise<SpotifyTopItem[]> {
+  return apiCall<SpotifyTopItem[]>(`/spotify/me/top/tracks?time_range=${timeRange}&limit=10`);
+}
+
+export async function getSpotifyRecentlyPlayed(limit: number = 50): Promise<any[]> {
+  return apiCall<any[]>(`/spotify/me/recently-played?limit=${limit}`);
+}
+
+export async function getSpotifyUserProfile(): Promise<any> {
+  return apiCall<any>('/spotify/me/profile');
+}
+
 // ============ SPOTIFY FAVORITES API ============
 
 export async function getSpotifyFavorites(): Promise<SpotifyFavorite[]> {

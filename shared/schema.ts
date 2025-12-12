@@ -310,3 +310,26 @@ export const updateFilmGenreSchema = insertFilmGenreSchema.partial();
 export type FilmGenre = typeof filmGenres.$inferSelect;
 export type InsertFilmGenre = typeof filmGenres.$inferInsert;
 export type UpdateFilmGenre = Partial<InsertFilmGenre>;
+
+// ============ SPOTIFY USER TOKENS TABLE ============
+
+export const spotifyUserTokens = pgTable("spotify_user_tokens", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull().unique(), // Spotify user ID
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: integer("expires_at").notNull(), // Unix timestamp in seconds
+  scope: text("scope"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSpotifyUserTokenSchema = createInsertSchema(spotifyUserTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateSpotifyUserTokenSchema = insertSpotifyUserTokenSchema.partial();
+export type SpotifyUserToken = typeof spotifyUserTokens.$inferSelect;
+export type InsertSpotifyUserToken = typeof spotifyUserTokens.$inferInsert;
+export type UpdateSpotifyUserToken = Partial<InsertSpotifyUserToken>;

@@ -2,10 +2,12 @@ import React from 'react';
 import { User, Home, Clapperboard, Music, StickyNote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAdmin } from '@/contexts/AdminContext';
 
 export const Navigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAdmin();
   const isHomePage = location.pathname === '/';
 
   return (
@@ -22,37 +24,39 @@ export const Navigation: React.FC = () => {
           </h1>
         </div>
 
-        {/* Quick selectors - centered */}
+        {/* Quick selectors - centered (admin only) */}
         <div className="flex-1 flex justify-center">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm">
-            <Button
-              variant={location.pathname === '/films' ? 'default' : 'ghost'}
-              size="sm"
-              className="gap-2"
-              onClick={() => navigate('/films')}
-            >
-              <Clapperboard className="h-4 w-4" />
-              <span className="hidden md:inline">Filme</span>
-            </Button>
-            <Button
-              variant={location.pathname === '/music' ? 'default' : 'ghost'}
-              size="sm"
-              className="gap-2"
-              onClick={() => navigate('/music')}
-            >
-              <Music className="h-4 w-4" />
-              <span className="hidden md:inline">Muzică</span>
-            </Button>
-            <Button
-              variant={location.pathname === '/notes' ? 'default' : 'ghost'}
-              size="sm"
-              className="gap-2"
-              onClick={() => navigate('/notes')}
-            >
-              <StickyNote className="h-4 w-4" />
-              <span className="hidden md:inline">Notițe</span>
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm">
+              <Button
+                variant={location.pathname === '/films' ? 'default' : 'ghost'}
+                size="sm"
+                className="gap-2"
+                onClick={() => navigate('/films')}
+              >
+                <Clapperboard className="h-4 w-4" />
+                <span className="hidden md:inline">Filme</span>
+              </Button>
+              <Button
+                variant={location.pathname === '/music' ? 'default' : 'ghost'}
+                size="sm"
+                className="gap-2"
+                onClick={() => navigate('/music')}
+              >
+                <Music className="h-4 w-4" />
+                <span className="hidden md:inline">Muzică</span>
+              </Button>
+              <Button
+                variant={location.pathname === '/notes' ? 'default' : 'ghost'}
+                size="sm"
+                className="gap-2"
+                onClick={() => navigate('/notes')}
+              >
+                <StickyNote className="h-4 w-4" />
+                <span className="hidden md:inline">Notițe</span>
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Navigation Buttons - fixed width for balance */}
@@ -91,34 +95,36 @@ export const Navigation: React.FC = () => {
           </h1>
         </div>
 
-        {/* Centered quick selectors (icons only) */}
+        {/* Centered quick selectors (icons only) - admin only */}
         <div className="flex-1 flex justify-center">
-          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 border border-border/50">
-          <Button
-            variant={location.pathname === '/films' ? 'default' : 'ghost'}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => navigate('/films')}
-          >
-            <Clapperboard className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={location.pathname === '/music' ? 'default' : 'ghost'}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => navigate('/music')}
-          >
-            <Music className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={location.pathname === '/notes' ? 'default' : 'ghost'}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => navigate('/notes')}
-          >
-            <StickyNote className="h-4 w-4" />
-          </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 border border-border/50">
+              <Button
+                variant={location.pathname === '/films' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => navigate('/films')}
+              >
+                <Clapperboard className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={location.pathname === '/music' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => navigate('/music')}
+              >
+                <Music className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={location.pathname === '/notes' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => navigate('/notes')}
+              >
+                <StickyNote className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Right nav icons - fixed width for balance */}

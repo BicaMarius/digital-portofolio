@@ -858,6 +858,272 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // ============ SPOTIFY API SEARCH ============
+  app.get("/api/spotify/search", async (req, res) => {
+    try {
+      const { searchSpotify, isSpotifyConfigured } = await import("./spotify.js");
+      
+      if (!isSpotifyConfigured()) {
+        return res.status(503).json({ 
+          error: "Spotify not configured", 
+          message: "SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables are required" 
+        });
+      }
+      
+      const type = req.query.type as 'artist' | 'album' | 'track';
+      const query = req.query.q as string;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      if (!type || !['artist', 'album', 'track'].includes(type)) {
+        return res.status(400).json({ error: "Invalid type. Must be 'artist', 'album', or 'track'" });
+      }
+      
+      if (!query?.trim()) {
+        return res.status(400).json({ error: "Query parameter 'q' is required" });
+      }
+      
+      const results = await searchSpotify(type, query, limit);
+      res.json(results);
+    } catch (error) {
+      console.error('[Spotify Search] Error:', error);
+      res.status(500).json({ error: "Failed to search Spotify" });
+    }
+  });
+
+  app.get("/api/spotify/item/:type/:id", async (req, res) => {
+    try {
+      const { getSpotifyItem, isSpotifyConfigured } = await import("./spotify.js");
+      
+      if (!isSpotifyConfigured()) {
+        return res.status(503).json({ error: "Spotify not configured" });
+      }
+      
+      const type = req.params.type as 'artist' | 'album' | 'track';
+      const { id } = req.params;
+      
+      if (!['artist', 'album', 'track'].includes(type)) {
+        return res.status(400).json({ error: "Invalid type" });
+      }
+      
+      const item = await getSpotifyItem(type, id);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      res.json(item);
+    } catch (error) {
+      console.error('[Spotify Item] Error:', error);
+      res.status(500).json({ error: "Failed to fetch Spotify item" });
+    }
+  });
+
+  app.get("/api/spotify/status", async (_req, res) => {
+    try {
+      const { isSpotifyConfigured } = await import("./spotify.js");
+      res.json({ configured: isSpotifyConfigured() });
+    } catch (error) {
+      res.json({ configured: false });
+    }
+  });
+
+  // Check if user is authenticated
+  app.get("/api/spotify/auth/status", async (req, res) => {
+    const userId = req.cookies.spotify_user_id;
+    
+    if (!userId) {
+      return res.json({ authenticated: false });
+    }
+
+    try {
+      const { db } = await import("./db.js");
+      const { spotifyUserTokens } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const tokens = await db
+        .select()
+        .from(spotifyUserTokens)
+        .where(eq(spotifyUserTokens.userId, userId))
+        .limit(1);
+
+      res.json({ authenticated: tokens.length > 0 });
+    } catch (error) {
+      console.error('[Spotify Auth Status] Error:', error);
+      res.json({ authenticated: false });
+    }
+  });
+
+  // ============ SPOTIFY USER AUTH ============
+  app.get("/api/spotify/auth/url", async (req, res) => {
+    try {
+      const { getAuthorizationUrl } = await import("./spotify.js");
+      const state = Math.random().toString(36).substring(7);
+      const url = getAuthorizationUrl(state);
+      
+      // Store state in session/cookie for verification
+      // Use sameSite: 'lax' to allow cookie to be sent on Spotify redirect
+      res.cookie('spotify_auth_state', state, { 
+        httpOnly: true, 
+        maxAge: 600000, // 10 min
+        sameSite: 'lax', // Important for OAuth redirects!
+        secure: false // Allow http for localhost/127.0.0.1
+      });
+      res.json({ url, state });
+    } catch (error) {
+      console.error('[Spotify Auth URL] Error:', error);
+      res.status(500).json({ error: "Failed to generate auth URL" });
+    }
+  });
+
+  app.get("/api/spotify/callback", async (req, res) => {
+    try {
+      const { exchangeCodeForToken, storeUserToken } = await import("./spotify.js");
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+      const storedState = req.cookies.spotify_auth_state;
+
+      console.log('[Spotify Callback] State verification:', {
+        receivedState: state,
+        storedState: storedState,
+        cookies: req.cookies
+      });
+
+      if (!code) {
+        return res.status(400).send('Missing authorization code');
+      }
+
+      // Verify state to prevent CSRF
+      if (state !== storedState) {
+        console.error('[Spotify Callback] State mismatch!', { 
+          received: state, 
+          stored: storedState,
+          allCookies: req.cookies
+        });
+        return res.status(400).send('State mismatch - possible CSRF attack');
+      }
+
+      const token = await exchangeCodeForToken(code);
+      
+      // Get user's Spotify ID
+      const profileResponse = await fetch('https://api.spotify.com/v1/me', {
+        headers: { 'Authorization': `Bearer ${token.accessToken}` },
+      });
+
+      if (!profileResponse.ok) {
+        throw new Error('Failed to get user profile');
+      }
+
+      const profile = await profileResponse.json() as { id: string };
+      const userId = profile.id;
+
+      // Store token with actual Spotify user ID
+      await storeUserToken(userId, token);
+
+      // Set cookie with userId for future requests
+      res.cookie('spotify_user_id', userId, { 
+        httpOnly: true, 
+        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+        sameSite: 'lax',
+      });
+
+      // Clear state cookie
+      res.clearCookie('spotify_auth_state');
+
+      // Redirect back to music page
+      res.redirect('/#/music?auth=success');
+    } catch (error) {
+      console.error('[Spotify Callback] Error:', error);
+      res.redirect('/#/music?auth=error');
+    }
+  });
+
+  app.get("/api/spotify/me/top/artists", async (req, res) => {
+    try {
+      const { getUserTopArtists } = await import("./spotify.js");
+      const userId = req.cookies.spotify_user_id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+
+      const timeRange = (req.query.time_range as any) || 'medium_term';
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const artists = await getUserTopArtists(userId, timeRange, limit);
+      res.json(artists);
+    } catch (error: any) {
+      console.error('[Spotify Top Artists] Error:', error);
+      if (error.message?.includes('not authenticated')) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+      res.status(500).json({ error: "Failed to get top artists" });
+    }
+  });
+
+  app.get("/api/spotify/me/top/tracks", async (req, res) => {
+    try {
+      const { getUserTopTracks } = await import("./spotify.js");
+      const userId = req.cookies.spotify_user_id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+
+      const timeRange = (req.query.time_range as any) || 'medium_term';
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const tracks = await getUserTopTracks(userId, timeRange, limit);
+      res.json(tracks);
+    } catch (error: any) {
+      console.error('[Spotify Top Tracks] Error:', error);
+      if (error.message?.includes('not authenticated')) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+      res.status(500).json({ error: "Failed to get top tracks" });
+    }
+  });
+
+  app.get("/api/spotify/me/recently-played", async (req, res) => {
+    try {
+      const { getRecentlyPlayed } = await import("./spotify.js");
+      const userId = req.cookies.spotify_user_id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const items = await getRecentlyPlayed(userId, limit);
+      res.json(items);
+    } catch (error: any) {
+      console.error('[Spotify Recently Played] Error:', error);
+      if (error.message?.includes('not authenticated')) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+      res.status(500).json({ error: "Failed to get recently played" });
+    }
+  });
+
+  app.get("/api/spotify/me/profile", async (req, res) => {
+    try {
+      const { getUserProfile } = await import("./spotify.js");
+      const userId = req.cookies.spotify_user_id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+      
+      const profile = await getUserProfile(userId);
+      res.json(profile);
+    } catch (error: any) {
+      console.error('[Spotify Profile] Error:', error);
+      if (error.message?.includes('not authenticated')) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+      res.status(500).json({ error: "Failed to get profile" });
+    }
+  });
+
   // ============ SPOTIFY FAVORITES ============
   app.get("/api/spotify-favorites", async (_req, res) => {
     try {

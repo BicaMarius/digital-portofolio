@@ -1,70 +1,34 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Slider } from '@/components/ui/slider';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
-import { Music2, Disc3, Mic2, Play, Pause, Download, Search, Plus, Upload, ArrowUpRight, Headphones, Library, ListMusic, Trash2, RotateCcw, X, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat } from 'lucide-react';
+import { 
+  Music2, Disc3, Mic2, Play, Pause, Download, Search, Plus, Upload, 
+  Headphones, Library, ListMusic, Trash2, RotateCcw, X, 
+  SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, 
+  ChevronUp, ChevronDown, ExternalLink, Loader2, FileText, User, Music as MusicIcon
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
 import type { MusicTrack, SpotifyFavorite } from '@shared/schema';
+import type { SpotifySearchResult } from '@/lib/api';
 
 // Fallback image
 const FALLBACK_IMAGE =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none" stroke="%2394a3b8"><rect x="4" y="4" width="72" height="72" rx="10" fill="%23f8fafc"/><path d="M26 54c3.5-4.5 7-7 11.5-7 4.5 0 8 2.5 11.5 7" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="32" r="4" fill="%2394a3b8"/><circle cx="48" cy="32" r="4" fill="%2394a3b8"/></svg>';
 
-// Types
 type SpotifyType = 'artist' | 'album' | 'track';
-
-interface SpotifySearchResult {
-  id: string;
-  spotifyId: string;
-  name: string;
-  artist?: string;
-  imageUrl?: string;
-  spotifyUrl?: string;
-  previewUrl?: string;
-  type: SpotifyType;
-}
-
-// Mock Spotify search - în viitor va fi înlocuit cu API-ul real Spotify
-const mockSpotifySearch = async (type: SpotifyType, query: string): Promise<SpotifySearchResult[]> => {
-  if (!query.trim()) return [];
-  
-  // Simulate API delay
-  await new Promise(r => setTimeout(r, 300));
-  
-  // Generate mock results based on search query
-  const results: SpotifySearchResult[] = [];
-  const baseImages = [
-    'https://i.scdn.co/image/ab67616d0000b273ff9ca10b55ce82ae553c8228',
-    'https://i.scdn.co/image/ab67616d0000b2734ae1c4c5c45aabe565499163',
-    'https://i.scdn.co/image/ab67616d0000b273d9194aa18fa4c9362b47464f',
-  ];
-  
-  for (let i = 0; i < 5; i++) {
-    results.push({
-      id: `${type}-${query}-${i}`,
-      spotifyId: `spotify:${type}:${Date.now()}${i}`,
-      name: `${query} ${type === 'track' ? 'Song' : type === 'album' ? 'Album' : 'Artist'} ${i + 1}`,
-      artist: type !== 'artist' ? `Artist for ${query}` : undefined,
-      imageUrl: baseImages[i % 3],
-      spotifyUrl: `https://open.spotify.com/${type}/example${i}`,
-      previewUrl: type === 'track' ? 'https://p.scdn.co/mp3-preview/example' : undefined,
-      type,
-    });
-  }
-  
-  return results;
-};
 
 export default function Music() {
   const { isAdmin } = useAdmin();
@@ -79,6 +43,15 @@ export default function Music() {
   const [trashedTracks, setTrashedTracks] = useState<MusicTrack[]>([]);
   const [trashedFavorites, setTrashedFavorites] = useState<SpotifyFavorite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [spotifyConfigured, setSpotifyConfigured] = useState(false);
+
+  // Stats state
+  const [viewMode, setViewMode] = useState<'personal' | 'stats'>('personal');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [statsTimeRange, setStatsTimeRange] = useState<'short_term' | 'medium_term' | 'long_term'>('medium_term');
+  const [statsTopArtists, setStatsTopArtists] = useState<api.SpotifyTopItem[]>([]);
+  const [statsTopTracks, setStatsTopTracks] = useState<api.SpotifyTopItem[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Search dialog state
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -93,26 +66,99 @@ export default function Music() {
     title: '',
     author: '',
     description: '',
-    albumId: null as number | null,
   });
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
   const [lyricsFile, setLyricsFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Media player state
-  const [playerOpen, setPlayerOpen] = useState(false);
+  // Player state
   const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [lyrics, setLyrics] = useState<string>('');
+  const [shuffle, setShuffle] = useState(false);
+  const [repeat, setRepeat] = useState<'off' | 'all' | 'one'>('off');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const progressBarRef = useRef<HTMLDivElement | null>(null);
+  const miniProgressBarRef = useRef<HTMLDivElement | null>(null);
 
   // Trash dialog state
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'track' | 'favorite'; id: number } | null>(null);
+
+  // Check Spotify status and auth callback
+  useEffect(() => {
+    api.getSpotifyStatus()
+      .then(status => setSpotifyConfigured(status.configured))
+      .catch(() => setSpotifyConfigured(false));
+    
+    // Check if user is already authenticated
+    api.getSpotifyAuthStatus()
+      .then(status => {
+        if (status.authenticated) {
+          setIsAuthenticated(true);
+        }
+      })
+      .catch(() => setIsAuthenticated(false));
+    
+    // Check for auth success in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('auth') === 'success') {
+      setIsAuthenticated(true);
+      setViewMode('stats');
+      toast({ title: 'Conectat cu succes!', description: 'Acum poți vedea statisticile tale Spotify.' });
+      // Clean URL
+      window.history.replaceState({}, '', '/#/music');
+    } else if (urlParams.get('auth') === 'error') {
+      toast({ title: 'Eroare la autentificare', description: 'Nu am putut conecta contul Spotify.', variant: 'destructive' });
+      window.history.replaceState({}, '', '/#/music');
+    }
+  }, [toast]);
+
+  // Load stats when switching to stats view
+  useEffect(() => {
+    if (viewMode === 'stats' && isAuthenticated) {
+      loadStats();
+    }
+  }, [viewMode, isAuthenticated, statsTimeRange]);
+
+  const loadStats = async () => {
+    try {
+      setLoadingStats(true);
+      const [artists, tracks] = await Promise.all([
+        api.getSpotifyUserTopArtists(statsTimeRange),
+        api.getSpotifyUserTopTracks(statsTimeRange),
+      ]);
+      setStatsTopArtists(artists);
+      setStatsTopTracks(tracks);
+    } catch (error: any) {
+      console.error('Failed to load stats:', error);
+      if (error?.message?.includes('401') || error?.message?.includes('not authenticated')) {
+        setIsAuthenticated(false);
+        toast({ title: 'Sesiune expirată', description: 'Te rugăm să te autentifici din nou.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Eroare', description: 'Nu am putut încărca statisticile.', variant: 'destructive' });
+      }
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const handleSpotifyLogin = async () => {
+    try {
+      const { url } = await api.getSpotifyAuthUrl();
+      window.location.href = url;
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu am putut genera link-ul de autentificare.', variant: 'destructive' });
+    }
+  };
 
   // Load data from cloud
   const loadData = useCallback(async () => {
@@ -129,10 +175,10 @@ export default function Music() {
       setTrashedTracks(trashedT);
       setTrashedFavorites(trashedF);
       
-      // Separate favorites by type
-      setTopArtists(favs.filter(f => f.type === 'artist' && f.listType === 'top10'));
-      setTopAlbums(favs.filter(f => f.type === 'album' && f.listType === 'top10'));
-      setTopTracks(favs.filter(f => f.type === 'track' && f.listType === 'top10'));
+      // Separate favorites by type and sort by rank
+      setTopArtists(favs.filter(f => f.type === 'artist' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
+      setTopAlbums(favs.filter(f => f.type === 'album' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
+      setTopTracks(favs.filter(f => f.type === 'track' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
     } catch (error) {
       console.error('Failed to load music data:', error);
       toast({ title: 'Eroare', description: 'Nu am putut încărca datele.', variant: 'destructive' });
@@ -145,15 +191,20 @@ export default function Music() {
     loadData();
   }, [loadData]);
 
-  // Spotify search handler
+  // Spotify search handler - uses real API
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const results = await mockSpotifySearch(searchType, searchQuery);
+      const results = await api.searchSpotify(searchType, searchQuery, 10);
       setSearchResults(results);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Search failed:', error);
+      if (error?.message?.includes('503') || error?.message?.includes('not configured')) {
+        toast({ title: 'Spotify nu e configurat', description: 'Adaugă SPOTIFY_CLIENT_ID și SPOTIFY_CLIENT_SECRET.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Eroare la căutare', description: 'Nu am putut căuta pe Spotify.', variant: 'destructive' });
+      }
     } finally {
       setSearching(false);
     }
@@ -180,7 +231,7 @@ export default function Music() {
         type: item.type,
         name: item.name,
         artist: item.artist || null,
-        albumName: null,
+        albumName: item.albumName || null,
         imageUrl: item.imageUrl || null,
         spotifyUrl: item.spotifyUrl || null,
         previewUrl: item.previewUrl || null,
@@ -240,12 +291,6 @@ export default function Music() {
       // Upload files
       const audioUrl = await uploadFile(audioFile, 'portfolio-music', 'audio');
       const artworkUrl = artworkFile ? await uploadFile(artworkFile, 'portfolio-music-artwork', 'image') : null;
-      
-      // Read lyrics if provided
-      let lyrics = null;
-      if (lyricsFile) {
-        lyrics = await lyricsFile.text();
-      }
 
       await api.createMusicTrack({
         title: trackForm.title.trim(),
@@ -274,39 +319,121 @@ export default function Music() {
   };
 
   const resetTrackForm = () => {
-    setTrackForm({ title: '', author: '', description: '', albumId: null });
+    setTrackForm({ title: '', author: '', description: '' });
     setAudioFile(null);
     setArtworkFile(null);
     setLyricsFile(null);
   };
 
-  // Media player controls
-  const playTrack = (track: MusicTrack) => {
+  // ========== PLAYER CONTROLS ==========
+  
+  const playTrack = (track: MusicTrack, index?: number) => {
+    if (currentTrack?.id === track.id) {
+      // Toggle play/pause if same track
+      togglePlayPause();
+      return;
+    }
+    
     setCurrentTrack(track);
-    setPlayerOpen(true);
+    setCurrentTrackIndex(index ?? customTracks.findIndex(t => t.id === track.id));
     setIsPlaying(true);
+    setProgress(0);
     
     if (audioRef.current) {
       audioRef.current.src = track.audioUrl;
-      audioRef.current.play();
+      audioRef.current.play().catch(console.error);
     }
-  };
-
-  const togglePlayPause = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
+    
+    // Load lyrics if available
+    if (track.lyricsUrl) {
+      fetch(track.lyricsUrl)
+        .then(res => res.text())
+        .then(text => setLyrics(text))
+        .catch(() => setLyrics(''));
     } else {
-      audioRef.current.play();
+      setLyrics('');
     }
-    setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
-    const newTime = (parseFloat(e.target.value) / 100) * duration;
+    
+    // If no track is loaded, do nothing
+    if (!currentTrack) return;
+    
+    if (audioRef.current.paused) {
+      audioRef.current.play().catch(console.error);
+      setIsPlaying(true);
+    } else {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [currentTrack]);
+
+  const playNext = useCallback(() => {
+    if (customTracks.length === 0) return;
+    
+    let nextIndex: number;
+    if (shuffle) {
+      nextIndex = Math.floor(Math.random() * customTracks.length);
+    } else {
+      nextIndex = (currentTrackIndex + 1) % customTracks.length;
+    }
+    
+    const nextTrack = customTracks[nextIndex];
+    setCurrentTrack(nextTrack);
+    setCurrentTrackIndex(nextIndex);
+    setIsPlaying(true);
+    setProgress(0);
+    
+    if (audioRef.current) {
+      audioRef.current.src = nextTrack.audioUrl;
+      audioRef.current.play().catch(console.error);
+    }
+  }, [customTracks, currentTrackIndex, shuffle]);
+
+  const playPrevious = () => {
+    if (customTracks.length === 0) return;
+    
+    // If more than 3 seconds in, restart current track
+    if (audioRef.current && audioRef.current.currentTime > 3) {
+      audioRef.current.currentTime = 0;
+      return;
+    }
+    
+    let prevIndex: number;
+    if (shuffle) {
+      prevIndex = Math.floor(Math.random() * customTracks.length);
+    } else {
+      prevIndex = currentTrackIndex <= 0 ? customTracks.length - 1 : currentTrackIndex - 1;
+    }
+    
+    const prevTrack = customTracks[prevIndex];
+    setCurrentTrack(prevTrack);
+    setCurrentTrackIndex(prevIndex);
+    setIsPlaying(true);
+    setProgress(0);
+    
+    if (audioRef.current) {
+      audioRef.current.src = prevTrack.audioUrl;
+      audioRef.current.play().catch(console.error);
+    }
+  };
+
+  const handleSeek = (value: number[]) => {
+    if (!audioRef.current) return;
+    const newTime = (value[0] / 100) * duration;
     audioRef.current.currentTime = newTime;
-    setProgress(parseFloat(e.target.value));
+    setProgress(value[0]);
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    const v = value[0] / 100;
+    setVolume(v);
+    if (audioRef.current) {
+      audioRef.current.volume = v;
+    }
+    if (v > 0) setIsMuted(false);
   };
 
   const toggleMute = () => {
@@ -315,20 +442,50 @@ export default function Music() {
     setIsMuted(!isMuted);
   };
 
+  const toggleRepeat = () => {
+    setRepeat(prev => prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off');
+  };
+
   const formatTime = (seconds: number): string => {
+    if (!seconds || isNaN(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onTimeUpdate = () => {
+    // Use requestAnimationFrame for smooth progress updates without re-renders
+    let animationId: number | null = null;
+    let lastStateUpdate = 0;
+    const STATE_UPDATE_INTERVAL = 1000; // Update React state only once per second
+    
+    const updateProgressBars = () => {
       if (audio.duration) {
-        setProgress((audio.currentTime / audio.duration) * 100);
+        const progressPercent = (audio.currentTime / audio.duration) * 100;
+        
+        // Update progress bar directly via ref (no re-render - smooth!)
+        if (miniProgressBarRef.current) {
+          miniProgressBarRef.current.style.width = `${progressPercent}%`;
+        }
+        
+        // Update React state less frequently (for slider to stay in sync)
+        const now = Date.now();
+        if (now - lastStateUpdate > STATE_UPDATE_INTERVAL) {
+          lastStateUpdate = now;
+          setProgress(progressPercent);
+        }
       }
+    };
+
+    const onTimeUpdate = () => {
+      // Cancel previous animation frame
+      if (animationId) cancelAnimationFrame(animationId);
+      // Schedule update on next frame for smooth animation
+      animationId = requestAnimationFrame(updateProgressBars);
     };
     
     const onLoadedMetadata = () => {
@@ -336,26 +493,45 @@ export default function Music() {
     };
     
     const onEnded = () => {
-      setIsPlaying(false);
-      setProgress(0);
+      if (repeat === 'one') {
+        audio.currentTime = 0;
+        audio.play();
+      } else if (repeat === 'all' || currentTrackIndex < customTracks.length - 1) {
+        playNext();
+      } else {
+        setIsPlaying(false);
+        setProgress(0);
+      }
     };
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
 
     return () => {
+      if (animationId) cancelAnimationFrame(animationId);
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
     };
-  }, []);
+  }, [repeat, currentTrackIndex, customTracks.length, playNext]);
 
   // Trash handlers
   const handleSoftDeleteTrack = async (id: number) => {
     try {
       await api.softDeleteMusicTrack(id);
       toast({ title: 'Șters', description: 'Piesa a fost mutată în coș.' });
+      if (currentTrack?.id === id) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
       loadData();
     } catch (error) {
       toast({ title: 'Eroare', description: 'Nu am putut șterge piesa.', variant: 'destructive' });
@@ -406,35 +582,20 @@ export default function Music() {
     setSearchDialogOpen(true);
   };
 
-  // Handle click on spotify item
-  const handleSpotifyItemClick = (item: SpotifyFavorite) => {
-    if (item.type === 'track' && item.previewUrl) {
-      // Play preview
-      if (audioRef.current) {
-        audioRef.current.src = item.previewUrl;
-        audioRef.current.play();
-        setIsPlaying(true);
-      }
-    } else if (item.spotifyUrl) {
-      // Open in Spotify
-      window.open(item.spotifyUrl, '_blank');
-    }
-  };
-
   const trashedCount = trashedTracks.length + trashedFavorites.length;
+  const playerVisible = currentTrack !== null;
 
   // TopList component
   const TopList = ({
     title,
     icon,
     items,
-    badgeLabel,
     type,
   }: {
     title: string;
     icon: React.ReactNode;
     items: SpotifyFavorite[];
-    badgeLabel: string;
+    badgeLabel?: string;
     type: SpotifyType;
   }) => (
     <Card className="border-border/60 bg-background/70">
@@ -448,9 +609,11 @@ export default function Music() {
             <div
               key={item.id}
               className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 p-2 cursor-pointer hover:bg-muted/50 transition-colors group"
-              onClick={() => handleSpotifyItemClick(item)}
+              onClick={() => item.spotifyUrl && window.open(item.spotifyUrl, '_blank')}
             >
-              <Badge variant="outline" className="px-2 py-1 text-[11px] border-primary/50 text-primary">{badgeLabel}{idx + 1}</Badge>
+              <Badge variant="outline" className="px-2 py-1 text-[11px] border-primary/50 text-primary font-bold min-w-[32px] justify-center">
+                {idx + 1}
+              </Badge>
               <div className="h-10 w-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
                 {item.imageUrl ? (
                   <img
@@ -463,40 +626,366 @@ export default function Music() {
                     }}
                   />
                 ) : (
-                  <Library className="h-4 w-4 m-auto text-muted-foreground" />
+                  <div className="h-full w-full flex items-center justify-center">
+                    <Library className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">{item.name}</p>
                 <p className="text-[11px] text-muted-foreground truncate">{item.artist || item.type}</p>
               </div>
-              {type === 'track' && (
-                <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleSpotifyItemClick(item); }}>
-                  <Play className="h-4 w-4" />
-                </Button>
-              )}
-              {item.spotifyUrl && type !== 'track' && (
-                <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" asChild onClick={(e) => e.stopPropagation()}>
-                  <a href={item.spotifyUrl} target="_blank" rel="noreferrer">
-                    <ArrowUpRight className="h-4 w-4" />
-                  </a>
-                </Button>
-              )}
-              {isAdmin && (
-                <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100 text-destructive" onClick={(e) => { e.stopPropagation(); removeFromTop(item); }}>
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {item.spotifyUrl && (
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-8 w-8"
+                    onClick={(e) => { e.stopPropagation(); window.open(item.spotifyUrl!, '_blank'); }}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                )}
+                {isAdmin && (
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-8 w-8 text-destructive hover:text-destructive" 
+                    onClick={(e) => { e.stopPropagation(); removeFromTop(item); }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
         </div>
         {isAdmin && items.length < 10 && (
-          <Button variant="outline" size="sm" className="w-full gap-2 mt-2" onClick={() => openSearchDialog(type)}>
-            <Plus className="h-4 w-4" /> Adaugă în top
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full gap-2 mt-2" 
+            onClick={() => openSearchDialog(type)}
+            disabled={!spotifyConfigured}
+          >
+            <Plus className="h-4 w-4" /> 
+            {spotifyConfigured ? 'Adaugă din Spotify' : 'Spotify neconfigurat'}
           </Button>
         )}
       </CardContent>
     </Card>
+  );
+
+  // ========== PLAYER UI COMPONENTS ==========
+  
+  // Mini Player (bottom bar)
+  const MiniPlayer = () => (
+    <div 
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border shadow-2xl",
+        "transform transition-transform duration-300 ease-out",
+        playerVisible ? "translate-y-0" : "translate-y-full"
+      )}
+    >
+      {/* Progress bar at top of mini player */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
+        <div 
+          ref={miniProgressBarRef}
+          className="h-full bg-gradient-to-r from-emerald-500 to-sky-500"
+          style={{ width: `${progress}%`, transition: 'none' }}
+        />
+      </div>
+      
+      <div className="flex items-center gap-3 p-3 pt-4">
+        {/* Artwork */}
+        <div 
+          className="h-12 w-12 rounded-md overflow-hidden bg-muted flex-shrink-0 cursor-pointer shadow-lg"
+          onClick={() => setIsExpanded(true)}
+        >
+          {currentTrack?.coverUrl ? (
+            <img
+              src={currentTrack.coverUrl}
+              alt={currentTrack.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center">
+              <Music2 className="h-6 w-6 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+        
+        {/* Track info */}
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setIsExpanded(true)}>
+          <p className="font-semibold truncate text-sm">{currentTrack?.title || 'Nicio piesă'}</p>
+          <p className="text-xs text-muted-foreground truncate">{currentTrack?.artist}</p>
+        </div>
+        
+        {/* Controls */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* Volume control (desktop) */}
+          {!isMobile && (
+            <div className="hidden sm:flex items-center gap-2 mr-2">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8" 
+                onClick={toggleMute}
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="h-4 w-4" />
+                ) : (
+                  <Volume2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Slider
+                value={[isMuted ? 0 : volume * 100]}
+                onValueChange={handleVolumeChange}
+                max={100}
+                step={1}
+                className="w-16 lg:w-20"
+              />
+            </div>
+          )}
+
+          <Button size="icon" variant="ghost" className="h-10 w-10" onClick={playPrevious}>
+            <SkipBack className="h-4 w-4" />
+          </Button>
+          <Button size="icon" className="h-12 w-12 rounded-full" onClick={togglePlayPause}>
+            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+          </Button>
+          <Button size="icon" variant="ghost" className="h-10 w-10" onClick={playNext}>
+            <SkipForward className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        {/* Expand & Close buttons */}
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" className="h-10 w-10" onClick={() => setIsExpanded(true)}>
+            <ChevronUp className="h-5 w-5" />
+          </Button>
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            className="h-10 w-10 text-muted-foreground hover:text-foreground" 
+            onClick={() => {
+              setCurrentTrack(null);
+              setIsPlaying(false);
+              if (audioRef.current) {
+                audioRef.current.pause();
+              }
+            }}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Fullscreen Player
+  const FullscreenPlayer = () => (
+    <div 
+      className={cn(
+        "fixed inset-0 z-[100] bg-background",
+        "transform transition-transform duration-300 ease-out",
+        isExpanded ? "translate-y-0" : "translate-y-full"
+      )}
+    >
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border/50">
+          <Button size="icon" variant="ghost" onClick={() => setIsExpanded(false)}>
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+          <p className="text-sm font-medium text-muted-foreground">În redare</p>
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            onClick={() => setShowLyrics(!showLyrics)}
+            className={cn(showLyrics && "text-primary")}
+          >
+            <FileText className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Main content */}
+        <div className={cn(
+          "flex-1 overflow-hidden",
+          showLyrics && !isMobile ? "grid grid-cols-2 gap-6 p-6" : "flex flex-col p-6"
+        )}>
+          {/* Artwork section */}
+          <div className={cn(
+            "flex flex-col items-center justify-center",
+            showLyrics && !isMobile ? "" : "flex-1"
+          )}>
+            {/* Artwork container with proper aspect ratio handling */}
+            <div className="relative w-full max-w-sm aspect-square mx-auto">
+              <div className="absolute inset-0 rounded-2xl overflow-hidden bg-muted shadow-2xl">
+                {currentTrack?.coverUrl ? (
+                  currentTrack.coverUrl.includes('.mp4') || currentTrack.coverUrl.includes('.webm') ? (
+                    <video
+                      src={currentTrack.coverUrl}
+                      className="w-full h-full object-contain bg-black"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={currentTrack.coverUrl}
+                      alt={currentTrack.title}
+                      className="w-full h-full object-contain"
+                      style={{ backgroundColor: 'var(--muted)' }}
+                    />
+                  )
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Music2 className="w-24 h-24 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Track info */}
+            <div className="text-center mt-6 w-full max-w-sm">
+              <h2 className="text-2xl font-bold truncate">{currentTrack?.title}</h2>
+              <p className="text-lg text-muted-foreground truncate">{currentTrack?.artist}</p>
+              {currentTrack?.album && (
+                <p className="text-sm text-muted-foreground/70 truncate mt-1">{currentTrack.album}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Lyrics section */}
+          {showLyrics && (
+            <div className={cn(
+              "bg-muted/30 rounded-xl p-4",
+              isMobile ? "flex-1 mt-4" : ""
+            )}>
+              <ScrollArea className="h-full">
+                {lyrics ? (
+                  <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">{lyrics}</pre>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <p>Nu sunt versuri disponibile</p>
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          )}
+        </div>
+
+        {/* Player controls section */}
+        <div className="p-6 pt-2 space-y-4 border-t border-border/50">
+          {/* Progress */}
+          <div className="space-y-2">
+            <Slider
+              value={[progress]}
+              onValueChange={handleSeek}
+              max={100}
+              step={0.1}
+              className="cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{formatTime((progress / 100) * duration)}</span>
+              <span>{formatTime(duration)}</span>
+            </div>
+          </div>
+
+          {/* Main controls */}
+          <div className="flex items-center justify-between">
+            {/* Left spacer for centering (or mobile volume) */}
+            <div className="w-24 sm:w-32">
+              {isMobile && (
+                <div className="flex items-center gap-1">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleMute}>
+                    {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Center controls */}
+            <div className="flex items-center justify-center gap-2 sm:gap-4">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => setShuffle(!shuffle)}
+                className={cn("h-10 w-10", shuffle && "text-primary")}
+              >
+                <Shuffle className="h-5 w-5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-12 w-12" onClick={playPrevious}>
+                <SkipBack className="h-6 w-6" />
+              </Button>
+              <Button size="icon" className="h-16 w-16 rounded-full" onClick={togglePlayPause}>
+                {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 ml-1" />}
+              </Button>
+              <Button size="icon" variant="ghost" className="h-12 w-12" onClick={playNext}>
+                <SkipForward className="h-6 w-6" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={toggleRepeat}
+                className={cn("h-10 w-10 relative", repeat !== 'off' && "text-primary")}
+              >
+                <Repeat className="h-5 w-5" />
+                {repeat === 'one' && <span className="absolute text-[10px] font-bold">1</span>}
+              </Button>
+            </div>
+
+            {/* Right side - Volume + Download */}
+            <div className="flex items-center gap-2 w-24 sm:w-32 justify-end">
+              {/* Volume (desktop) */}
+              {!isMobile && (
+                <div className="flex items-center gap-2">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleMute}>
+                    {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                  <Slider
+                    value={[isMuted ? 0 : volume * 100]}
+                    onValueChange={handleVolumeChange}
+                    max={100}
+                    step={1}
+                    className="w-20"
+                  />
+                </div>
+              )}
+              
+              {/* Download button */}
+              {currentTrack?.audioUrl && (
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-10 w-10"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(currentTrack.audioUrl!);
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${currentTrack.title}.mp3`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+                    } catch (error) {
+                      console.error('Download failed:', error);
+                    }
+                  }}
+                >
+                  <Download className="h-6 w-6" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   return (
@@ -505,39 +994,257 @@ export default function Music() {
         <div className="page-container text-center space-y-3">
           <h1 className="text-3xl font-bold gradient-text">Muzică</h1>
           <p className="text-muted-foreground max-w-3xl mx-auto">
-            Topuri Spotify custom și bibliotecă personală cu player modern, artwork și versuri sincronizate.
+            Topuri Spotify și biblioteca personală cu player modern.
           </p>
         </div>
       </section>
 
       <section className="page-content-section">
-        <div className="page-container space-y-6">
-          {/* Trash button */}
-          {isAdmin && trashedCount > 0 && (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setShowTrashDialog(true)}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Coș ({trashedCount})
-              </Button>
-            </div>
-          )}
-
+        <div className={cn("page-container space-y-6", playerVisible && "pb-24")}>
           <Tabs defaultValue="spotify" className="space-y-4">
-            <TabsList className="w-full max-w-2xl grid grid-cols-3 gap-1 sm:gap-0">
-              <TabsTrigger value="spotify" className="text-xs sm:text-sm px-2">Topuri</TabsTrigger>
-              <TabsTrigger value="library" className="text-xs sm:text-sm px-2">Albume</TabsTrigger>
-              <TabsTrigger value="tracks" className="text-xs sm:text-sm px-2">Piese</TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
+              <TabsList className="w-full max-w-2xl grid grid-cols-3 gap-1 sm:gap-0">
+                <TabsTrigger value="spotify" className="text-xs sm:text-sm px-2">Topuri</TabsTrigger>
+                <TabsTrigger value="library" className="text-xs sm:text-sm px-2">Albume</TabsTrigger>
+                <TabsTrigger value="tracks" className="text-xs sm:text-sm px-2">Piese</TabsTrigger>
+              </TabsList>
+
+              <div className="flex items-center gap-2">
+                {/* Trash button */}
+                {isAdmin && trashedCount > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setShowTrashDialog(true)} className="gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Coș</span> ({trashedCount})
+                  </Button>
+                )}
+              </div>
+            </div>
 
             {/* Topuri Tab */}
             <TabsContent value="spotify" className="space-y-4 pt-2">
+              {/* Personal/Stats Toggle - only in Topuri tab */}
+              <div className="flex justify-end">
+                <div className="relative inline-flex items-center h-9 rounded-full border border-border bg-muted/30 p-0.5">
+                  <button
+                    onClick={() => setViewMode('personal')}
+                    className={cn(
+                      "relative z-10 text-xs font-medium transition-all px-3 sm:px-4 py-1.5 rounded-full whitespace-nowrap",
+                      viewMode === 'personal' 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Personal
+                  </button>
+                  <button
+                    onClick={() => setViewMode('stats')}
+                    className={cn(
+                      "relative z-10 text-xs font-medium transition-all px-3 sm:px-4 py-1.5 rounded-full whitespace-nowrap",
+                      viewMode === 'stats' 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Stats
+                  </button>
+                </div>
+              </div>
+
+              {!spotifyConfigured && isAdmin && (
+                <Card className="border-amber-500/50 bg-amber-500/5">
+                  <CardContent className="p-4 flex items-start gap-3">
+                    <div className="text-amber-500 mt-0.5">⚠️</div>
+                    <div>
+                      <p className="font-semibold text-amber-500">Spotify API neconfigurat</p>
+                      <p className="text-sm text-muted-foreground">
+                        Pentru a căuta și adăuga artiști/albume/piese din Spotify, adaugă variabilele de mediu:
+                        <code className="mx-1 px-1 bg-muted rounded">SPOTIFY_CLIENT_ID</code> și 
+                        <code className="mx-1 px-1 bg-muted rounded">SPOTIFY_CLIENT_SECRET</code>.
+                        <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="ml-2 text-primary underline">
+                          Spotify Developer Dashboard →
+                        </a>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
               {loading ? (
-                <p className="text-center text-muted-foreground py-8">Se încarcă...</p>
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : viewMode === 'stats' ? (
+                // Stats view
+                <div className="space-y-6">
+                  {!isAuthenticated ? (
+                    <Card className="border-border/60 bg-muted/20">
+                      <CardContent className="p-8 flex flex-col items-center gap-4 text-center">
+                        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Music2 className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold mb-2">Conectează-te cu Spotify</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Vezi top 10 piese/artiști calculați de Spotify, timp de ascultare pe ani și genuri preferate.
+                          </p>
+                        </div>
+                        <Button onClick={handleSpotifyLogin} className="gap-2">
+                          <Music2 className="h-4 w-4" />
+                          Conectează cu Spotify
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      {/* Time range selector */}
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          variant={statsTimeRange === 'short_term' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setStatsTimeRange('short_term')}
+                        >
+                          Ultima lună
+                        </Button>
+                        <Button
+                          variant={statsTimeRange === 'medium_term' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setStatsTimeRange('medium_term')}
+                        >
+                          Ultimele 6 luni
+                        </Button>
+                        <Button
+                          variant={statsTimeRange === 'long_term' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setStatsTimeRange('long_term')}
+                        >
+                          Toți anii
+                        </Button>
+                      </div>
+
+                      {loadingStats ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Top Artists */}
+                          <Card className="border-border/60 bg-muted/20">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2">
+                                <User className="h-4 w-4" /> Top 10 Artiști
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">Calculat de Spotify</p>
+                            </CardHeader>
+                            <CardContent>
+                              {statsTopArtists.length === 0 ? (
+                                <p className="text-center text-sm text-muted-foreground py-4">Nu există date</p>
+                              ) : (
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                                  {statsTopArtists.slice(0, 10).map((item, index) => (
+                                    <div key={item.id} className="group relative">
+                                      <a
+                                        href={item.spotifyUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block rounded-lg overflow-hidden border border-border/50 hover:border-primary/50 transition-all hover:scale-105"
+                                      >
+                                        <div className="aspect-square relative">
+                                          {item.imageUrl ? (
+                                            <img 
+                                              src={item.imageUrl} 
+                                              alt={item.name}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                e.currentTarget.onerror = null;
+                                                e.currentTarget.src = FALLBACK_IMAGE;
+                                              }}
+                                            />
+                                          ) : (
+                                            <div className="w-full h-full bg-muted flex items-center justify-center">
+                                              <User className="h-12 w-12 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                          {/* Rank badge */}
+                                          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded">
+                                            #{index + 1}
+                                          </div>
+                                        </div>
+                                        <div className="p-2 bg-background">
+                                          <p className="font-medium text-sm truncate">{item.name}</p>
+                                        </div>
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+
+                          {/* Top Tracks */}
+                          <Card className="border-border/60 bg-muted/20">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2">
+                                <MusicIcon className="h-4 w-4" /> Top 10 Piese
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">Calculat de Spotify</p>
+                            </CardHeader>
+                            <CardContent>
+                              {statsTopTracks.length === 0 ? (
+                                <p className="text-center text-sm text-muted-foreground py-4">Nu există date</p>
+                              ) : (
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                                  {statsTopTracks.slice(0, 10).map((item, index) => (
+                                    <div key={item.id} className="group relative">
+                                      <a
+                                        href={item.spotifyUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block rounded-lg overflow-hidden border border-border/50 hover:border-primary/50 transition-all hover:scale-105"
+                                      >
+                                        <div className="aspect-square relative">
+                                          {item.imageUrl ? (
+                                            <img 
+                                              src={item.imageUrl} 
+                                              alt={item.name}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                e.currentTarget.onerror = null;
+                                                e.currentTarget.src = FALLBACK_IMAGE;
+                                              }}
+                                            />
+                                          ) : (
+                                            <div className="w-full h-full bg-muted flex items-center justify-center">
+                                              <MusicIcon className="h-12 w-12 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                          {/* Rank badge */}
+                                          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded">
+                                            #{index + 1}
+                                          </div>
+                                        </div>
+                                        <div className="p-2 bg-background">
+                                          <p className="font-medium text-sm truncate">{item.name}</p>
+                                          {item.artist && (
+                                            <p className="text-xs text-muted-foreground truncate">{item.artist}</p>
+                                          )}
+                                        </div>
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               ) : (
                 <div className={isMobile ? 'space-y-3' : 'grid gap-4 md:grid-cols-2 lg:grid-cols-3'}>
-                  <TopList title="Top 10 artiști" icon={<Mic2 className="h-4 w-4" />} items={topArtists} badgeLabel="AR" type="artist" />
-                  <TopList title="Top 10 albume" icon={<Disc3 className="h-4 w-4" />} items={topAlbums} badgeLabel="AL" type="album" />
-                  <TopList title="Top 10 piese" icon={<Headphones className="h-4 w-4" />} items={topTracks} badgeLabel="TR" type="track" />
+                  <TopList title="Top 10 artiști" icon={<Mic2 className="h-4 w-4" />} items={topArtists} type="artist" />
+                  <TopList title="Top 10 albume" icon={<Disc3 className="h-4 w-4" />} items={topAlbums} type="album" />
+                  <TopList title="Top 10 piese" icon={<Headphones className="h-4 w-4" />} items={topTracks} type="track" />
                 </div>
               )}
             </TabsContent>
@@ -551,18 +1258,6 @@ export default function Music() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold">Colecția ta de albume</p>
-                      <p className="text-xs text-muted-foreground">Încarcă artwork, descrieri și grupează piesele.</p>
-                    </div>
-                    {isAdmin && (
-                      <Button variant="outline" className="gap-2">
-                        <Plus className="h-4 w-4" /> Adaugă album
-                      </Button>
-                    )}
-                  </div>
-                  
                   <Card className="border-dashed border-border/70 bg-background/60">
                     <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
                       <Disc3 className="h-8 w-8 text-muted-foreground" />
@@ -578,103 +1273,123 @@ export default function Music() {
             <TabsContent value="tracks" className="space-y-4">
               <Card className="border-border/60 bg-muted/20">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2">
-                    <ListMusic className="h-4 w-4" /> Piese proprii cu player
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold">Biblioteca ta de piese</p>
-                      <p className="text-xs text-muted-foreground">Upload audio, artwork, versuri și atribuie albume.</p>
-                    </div>
+                    <CardTitle className="flex items-center gap-2">
+                      <ListMusic className="h-4 w-4" /> Piese proprii
+                    </CardTitle>
                     {isAdmin && (
-                      <Button variant="outline" className="gap-2" onClick={() => setShowTrackDialog(true)}>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowTrackDialog(true)}>
                         <Upload className="h-4 w-4" /> Adaugă piesă
                       </Button>
                     )}
                   </div>
-
-                  <div className="space-y-3">
-                    {customTracks.length === 0 ? (
-                      <Card className="border-dashed border-border/70 bg-background/60">
-                        <CardContent className="p-4 flex flex-col items-start gap-2">
-                          <p className="font-semibold">Nu ai încă piese</p>
-                          <p className="text-sm text-muted-foreground">Încarcă audio, artwork și versuri.</p>
-                          {isAdmin && (
-                            <Button size="sm" onClick={() => setShowTrackDialog(true)} className="gap-2">
-                              <Upload className="h-4 w-4" /> Adaugă piesă
-                            </Button>
+                </CardHeader>
+                <CardContent>
+                  {customTracks.length === 0 ? (
+                    <Card className="border-dashed border-border/70 bg-background/60">
+                      <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+                        <Music2 className="h-8 w-8 text-muted-foreground" />
+                        <p className="font-semibold">Nu ai încă piese</p>
+                        <p className="text-sm text-muted-foreground">Încarcă audio, artwork și versuri.</p>
+                        {isAdmin && (
+                          <Button size="sm" onClick={() => setShowTrackDialog(true)} className="gap-2 mt-2">
+                            <Upload className="h-4 w-4" /> Adaugă piesă
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-1">
+                      {customTracks.map((track, index) => (
+                        <div 
+                          key={track.id} 
+                          className={cn(
+                            "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
+                            currentTrack?.id === track.id 
+                              ? "bg-primary/10 border border-primary/30" 
+                              : "hover:bg-muted/50"
                           )}
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      customTracks.map((track) => (
-                        <Card key={track.id} className="border-border/60 bg-background/80 shadow-sm group">
-                          <CardContent className="p-3 space-y-3">
-                            <div className="flex items-start gap-3 sm:gap-4 flex-col sm:flex-row">
-                              <div 
-                                className="h-24 w-full sm:w-24 sm:h-24 rounded-md overflow-hidden bg-muted flex-shrink-0 shadow-inner cursor-pointer"
-                                onClick={() => playTrack(track)}
+                          onClick={() => playTrack(track, index)}
+                        >
+                          {/* Track number / Play indicator */}
+                          <div className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">
+                            {currentTrack?.id === track.id && isPlaying ? (
+                              <div className="flex items-center gap-0.5">
+                                <span className="w-0.5 h-3 bg-primary animate-pulse rounded-full" />
+                                <span className="w-0.5 h-4 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.2s' }} />
+                                <span className="w-0.5 h-2 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.4s' }} />
+                              </div>
+                            ) : (
+                              <span className="group-hover:hidden">{index + 1}</span>
+                            )}
+                            <Play className="h-4 w-4 hidden group-hover:block" />
+                          </div>
+
+                          {/* Artwork */}
+                          <div className="h-10 w-10 rounded overflow-hidden bg-muted flex-shrink-0">
+                            {track.coverUrl ? (
+                              <img
+                                src={track.coverUrl}
+                                alt={track.title}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = FALLBACK_IMAGE;
+                                }}
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center">
+                                <Music2 className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Track info */}
+                          <div className="flex-1 min-w-0">
+                            <p className={cn(
+                              "font-medium truncate text-sm",
+                              currentTrack?.id === track.id && "text-primary"
+                            )}>
+                              {track.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                          </div>
+
+                          {/* Duration */}
+                          {track.duration && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatTime(track.duration)}
+                            </span>
+                          )}
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-8 w-8"
+                              asChild
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <a href={track.audioUrl} download title="Descarcă">
+                                <Download className="h-4 w-4" />
+                              </a>
+                            </Button>
+                            {isAdmin && (
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-8 w-8 text-destructive hover:text-destructive" 
+                                onClick={(e) => { e.stopPropagation(); handleSoftDeleteTrack(track.id); }}
                               >
-                                {track.coverUrl ? (
-                                  <img
-                                    src={track.coverUrl}
-                                    alt={track.title}
-                                    className="h-full w-full object-cover"
-                                    onError={(e) => {
-                                      e.currentTarget.onerror = null;
-                                      e.currentTarget.src = FALLBACK_IMAGE;
-                                    }}
-                                  />
-                                ) : (
-                                  <Music2 className="h-8 w-8 m-auto text-muted-foreground" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0 w-full space-y-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0 space-y-1">
-                                    <p className="font-semibold truncate">{track.title}</p>
-                                    <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                                    {track.album && (
-                                      <p className="text-[11px] text-muted-foreground">Album: {track.album}</p>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    <Button size="icon" variant="ghost" onClick={() => playTrack(track)}>
-                                      <Play className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="icon" variant="ghost" asChild>
-                                      <a href={track.audioUrl} download title="Descarcă piesa">
-                                        <Download className="h-4 w-4" />
-                                      </a>
-                                    </Button>
-                                    {isAdmin && (
-                                      <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100 text-destructive" onClick={() => handleSoftDeleteTrack(track.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                                    <div
-                                      className="h-2 rounded-full bg-gradient-to-r from-emerald-500 to-sky-500 transition-[width] duration-150"
-                                      style={{ width: `${currentTrack?.id === track.id ? progress : 0}%` }}
-                                    />
-                                  </div>
-                                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                    <span>{currentTrack?.id === track.id && isPlaying ? 'În redare' : 'Ready'}</span>
-                                    <span className="uppercase tracking-wide">Hi-Fi</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))
-                    )}
-                  </div>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -683,13 +1398,22 @@ export default function Music() {
       </section>
 
       {/* Hidden audio element */}
-      <audio ref={audioRef} className="hidden" />
+      <audio ref={audioRef} className="hidden" preload="metadata" />
+
+      {/* Mini Player */}
+      <MiniPlayer />
+
+      {/* Fullscreen Player */}
+      <FullscreenPlayer />
 
       {/* Search Dialog */}
       <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Caută pe Spotify</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Caută pe Spotify
+            </DialogTitle>
             <DialogDescription>
               Caută {searchType === 'artist' ? 'artiști' : searchType === 'album' ? 'albume' : 'piese'} și adaugă în top 10
             </DialogDescription>
@@ -708,38 +1432,46 @@ export default function Music() {
                 />
               </div>
               <Button onClick={handleSearch} disabled={searching}>
-                <Search className="h-4 w-4" />
+                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
 
-            <div className="max-h-64 overflow-y-auto space-y-2">
-              {searching && <p className="text-center text-muted-foreground py-4">Se caută...</p>}
-              {!searching && searchResults.length === 0 && searchQuery && (
-                <p className="text-center text-muted-foreground py-4">Niciun rezultat găsit.</p>
-              )}
-              {searchResults.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                  onClick={() => addToTop(item)}
-                >
-                  <div className="h-12 w-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <Library className="h-5 w-5 m-auto text-muted-foreground" />
-                    )}
+            <ScrollArea className="max-h-64">
+              <div className="space-y-2">
+                {searching && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{item.name}</p>
-                    {item.artist && <p className="text-sm text-muted-foreground truncate">{item.artist}</p>}
+                )}
+                {!searching && searchResults.length === 0 && searchQuery && (
+                  <p className="text-center text-muted-foreground py-8">Niciun rezultat găsit.</p>
+                )}
+                {searchResults.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                    onClick={() => addToTop(item)}
+                  >
+                    <div className="h-12 w-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center">
+                          <Library className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.name}</p>
+                      {item.artist && <p className="text-sm text-muted-foreground truncate">{item.artist}</p>}
+                    </div>
+                    <Button size="sm" variant="outline">
+                      <Plus className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button size="sm" variant="outline">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </ScrollArea>
           </div>
         </DialogContent>
       </Dialog>
@@ -801,103 +1533,21 @@ export default function Music() {
               />
               {lyricsFile && <p className="text-xs text-muted-foreground">{lyricsFile.name}</p>}
             </div>
-
-            <div className="space-y-2">
-              <Label>Descriere (opțional)</Label>
-              <Textarea
-                value={trackForm.description}
-                onChange={(e) => setTrackForm({ ...trackForm, description: e.target.value })}
-                placeholder="Descriere piesă..."
-                rows={2}
-              />
-            </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTrackDialog(false)}>Anulează</Button>
             <Button onClick={handleAddTrack} disabled={uploading}>
-              {uploading ? 'Se încarcă...' : 'Adaugă piesă'}
+              {uploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Se încarcă...
+                </>
+              ) : (
+                'Adaugă piesă'
+              )}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Media Player Dialog */}
-      <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
-        <DialogContent className="max-w-md">
-          {currentTrack && (
-            <div className="space-y-6">
-              {/* Artwork */}
-              <div className="aspect-square w-full max-w-xs mx-auto rounded-lg overflow-hidden bg-muted shadow-xl">
-                {currentTrack.coverUrl ? (
-                  <img
-                    src={currentTrack.coverUrl}
-                    alt={currentTrack.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Music2 className="w-24 h-24 text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-
-              {/* Track info */}
-              <div className="text-center space-y-1">
-                <h3 className="text-xl font-bold">{currentTrack.title}</h3>
-                <p className="text-muted-foreground">{currentTrack.artist}</p>
-              </div>
-
-              {/* Progress bar */}
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={progress}
-                  onChange={handleSeek}
-                  className="w-full h-2 bg-muted rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{formatTime((progress / 100) * duration)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="flex items-center justify-center gap-4">
-                <Button size="icon" variant="ghost" onClick={() => { if (audioRef.current) audioRef.current.currentTime = 0; }}>
-                  <SkipBack className="h-5 w-5" />
-                </Button>
-                <Button size="icon" className="h-14 w-14 rounded-full" onClick={togglePlayPause}>
-                  {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-1" />}
-                </Button>
-                <Button size="icon" variant="ghost">
-                  <SkipForward className="h-5 w-5" />
-                </Button>
-              </div>
-
-              {/* Volume */}
-              <div className="flex items-center gap-3">
-                <Button size="icon" variant="ghost" onClick={toggleMute}>
-                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                </Button>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={isMuted ? 0 : volume * 100}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value) / 100;
-                    setVolume(v);
-                    if (audioRef.current) audioRef.current.volume = v;
-                    if (v > 0) setIsMuted(false);
-                  }}
-                  className="flex-1 h-1 bg-muted rounded-full appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 
