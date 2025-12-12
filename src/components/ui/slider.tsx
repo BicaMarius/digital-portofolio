@@ -29,11 +29,12 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
     const [isHovered, setIsHovered] = React.useState(false);
     const [isDragging, setIsDragging] = React.useState(false);
     const trackRef = React.useRef<HTMLDivElement>(null);
+    const isDraggingRef = React.useRef(false);
     
     const currentValue = value !== undefined ? value[0] : internalValue;
     const percentage = Math.max(0, Math.min(100, ((currentValue - min) / (max - min)) * 100));
 
-    const getValueFromClientX = (clientX: number) => {
+    const getValueFromClientX = React.useCallback((clientX: number) => {
       if (!trackRef.current) return currentValue;
       
       const rect = trackRef.current.getBoundingClientRect();
@@ -44,31 +45,32 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
       // Round to step
       newValue = Math.round(newValue / step) * step;
       return Math.max(min, Math.min(max, newValue));
-    };
+    }, [min, max, step, currentValue]);
 
-    const updateValue = (newValue: number) => {
+    const updateValue = React.useCallback((newValue: number) => {
       if (value === undefined) {
         setInternalValue(newValue);
       }
       onValueChange?.([newValue]);
-    };
+    }, [value, onValueChange]);
 
-    // Unified pointer handlers that work for both mouse and touch
+    // Global event listeners for dragging
     React.useEffect(() => {
-      if (!isDragging) return;
-
       const handlePointerMove = (e: PointerEvent) => {
+        if (!isDraggingRef.current) return;
         e.preventDefault();
         const newValue = getValueFromClientX(e.clientX);
         updateValue(newValue);
       };
 
       const handlePointerUp = () => {
-        setIsDragging(false);
-        onValueCommit?.([currentValue]);
+        if (isDraggingRef.current) {
+          isDraggingRef.current = false;
+          setIsDragging(false);
+          onValueCommit?.([currentValue]);
+        }
       };
 
-      // Use pointer events for unified mouse/touch handling
       document.addEventListener('pointermove', handlePointerMove);
       document.addEventListener('pointerup', handlePointerUp);
       document.addEventListener('pointercancel', handlePointerUp);
@@ -78,14 +80,20 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
         document.removeEventListener('pointerup', handlePointerUp);
         document.removeEventListener('pointercancel', handlePointerUp);
       };
-    }, [isDragging, currentValue, min, max, step]);
+    }, [getValueFromClientX, updateValue, onValueCommit, currentValue]);
 
     const handlePointerDown = (e: React.PointerEvent) => {
       if (disabled) return;
       e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      
+      // Capture pointer for smooth dragging
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      
+      isDraggingRef.current = true;
       setIsDragging(true);
       setIsHovered(true);
+      
       const newValue = getValueFromClientX(e.clientX);
       updateValue(newValue);
     };
@@ -100,9 +108,9 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
           disabled && "opacity-50 pointer-events-none",
           className
         )}
-        style={{ height: '16px', cursor: 'pointer' }}
+        style={{ height: '20px', cursor: 'pointer' }}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => !isDragging && setIsHovered(false)}
+        onMouseLeave={() => !isDraggingRef.current && setIsHovered(false)}
       >
         {/* Track container - full height for easier clicking */}
         <div
@@ -129,7 +137,7 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
             className={cn(
               "absolute rounded-full bg-white shadow-lg pointer-events-none",
               "transition-[width,height,opacity] duration-100",
-              showThumb ? "w-3 h-3 opacity-100" : "w-0 h-0 opacity-0",
+              showThumb ? "w-4 h-4 opacity-100" : "w-0 h-0 opacity-0",
               isDragging && "scale-110"
             )}
             style={{ 

@@ -115,6 +115,7 @@ interface SpotifyTrack {
   external_urls: { spotify: string };
   preview_url?: string;
   popularity?: number;
+  duration_ms?: number;
 }
 
 /**
@@ -556,6 +557,67 @@ export async function getRecentlyPlayed(
 
   const data = await response.json() as { items: any[] };
   return data.items || [];
+}
+
+/**
+ * Get user's top albums derived from top tracks
+ * Spotify doesn't have a direct top albums endpoint, so we derive it from top tracks
+ */
+export async function getUserTopAlbums(
+  userId: string,
+  timeRange: 'short_term' | 'medium_term' | 'long_term' = 'medium_term',
+  limit: number = 10
+): Promise<SpotifyTopItem[]> {
+  const token = await getUserToken(userId);
+  
+  // Get more tracks to have a better album sample
+  const params = new URLSearchParams({
+    time_range: timeRange,
+    limit: '50', // Get 50 tracks to extract album variety
+  });
+
+  const response = await fetch(`https://api.spotify.com/v1/me/top/tracks?${params}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to get top tracks for albums: ${error}`);
+  }
+
+  const data = await response.json() as { items: SpotifyTrack[] };
+
+  // Count album occurrences and keep track of album info
+  const albumMap = new Map<string, { count: number; album: SpotifyTrack['album']; artists: string }>();
+  
+  for (const track of data.items) {
+    const albumId = track.album.id;
+    const existing = albumMap.get(albumId);
+    if (existing) {
+      existing.count++;
+    } else {
+      albumMap.set(albumId, {
+        count: 1,
+        album: track.album,
+        artists: track.artists.map(a => a.name).join(', '),
+      });
+    }
+  }
+
+  // Sort by count and take top albums
+  const sortedAlbums = Array.from(albumMap.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, limit);
+
+  return sortedAlbums.map(([albumId, { album, artists }]): SpotifyTopItem => ({
+    id: albumId,
+    name: album.name,
+    artist: artists,
+    imageUrl: album.images?.[0]?.url,
+    spotifyUrl: album.external_urls.spotify,
+    playCount: undefined,
+    type: 'album',
+  }));
 }
 
 /**

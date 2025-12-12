@@ -390,6 +390,10 @@ export async function getSpotifyUserTopTracks(timeRange: 'short_term' | 'medium_
   return apiCall<SpotifyTopItem[]>(`/spotify/me/top/tracks?time_range=${timeRange}&limit=10`);
 }
 
+export async function getSpotifyUserTopAlbums(timeRange: 'short_term' | 'medium_term' | 'long_term' = 'medium_term'): Promise<SpotifyTopItem[]> {
+  return apiCall<SpotifyTopItem[]>(`/spotify/me/top/albums?time_range=${timeRange}&limit=10`);
+}
+
 export async function getSpotifyRecentlyPlayed(limit: number = 50): Promise<any[]> {
   return apiCall<any[]>(`/spotify/me/recently-played?limit=${limit}`);
 }

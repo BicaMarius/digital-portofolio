@@ -858,6 +858,19 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // Raw file upload endpoint (for text files like lyrics)
+  app.post("/api/upload/raw", upload.single("file"), async (req, res) => {
+    try {
+      const file = (req as Request & { file?: UploadedFile }).file;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+      const folder = (req.body?.folder as string) || 'portfolio-raw';
+      const { url, publicId } = await uploadToCloudinary(file.buffer, file.originalname, folder);
+      res.json({ url, publicId });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
   // ============ SPOTIFY API SEARCH ============
   app.get("/api/spotify/search", async (req, res) => {
     try {
@@ -1085,6 +1098,29 @@ export function registerRoutes(app: Express, storage: IStorage) {
         return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
       }
       res.status(500).json({ error: "Failed to get top tracks" });
+    }
+  });
+
+  app.get("/api/spotify/me/top/albums", async (req, res) => {
+    try {
+      const { getUserTopAlbums } = await import("./spotify.js");
+      const userId = req.cookies.spotify_user_id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+
+      const timeRange = (req.query.time_range as any) || 'medium_term';
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const albums = await getUserTopAlbums(userId, timeRange, limit);
+      res.json(albums);
+    } catch (error: any) {
+      console.error('[Spotify Top Albums] Error:', error);
+      if (error.message?.includes('not authenticated')) {
+        return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
+      }
+      res.status(500).json({ error: "Failed to get top albums" });
     }
   });
 

@@ -48,11 +48,13 @@ export default function Music() {
   const [spotifyConfigured, setSpotifyConfigured] = useState(false);
 
   // Stats state
+  const [activeTab, setActiveTab] = useState('spotify');
   const [viewMode, setViewMode] = useState<'personal' | 'stats'>('personal');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [statsTimeRange, setStatsTimeRange] = useState<'short_term' | 'medium_term' | 'long_term'>('medium_term');
   const [statsTopArtists, setStatsTopArtists] = useState<api.SpotifyTopItem[]>([]);
   const [statsTopTracks, setStatsTopTracks] = useState<api.SpotifyTopItem[]>([]);
+  const [statsTopAlbums, setStatsTopAlbums] = useState<api.SpotifyTopItem[]>([]);
   const [loadingStats, setLoadingStats] = useState(false);
 
   // Search dialog state
@@ -96,6 +98,10 @@ export default function Music() {
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'track' | 'favorite'; id: number } | null>(null);
 
+  // Long press state for mobile track menu
+  const [longPressTrack, setLongPressTrack] = useState<MusicTrack | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Check Spotify status and auth callback
   useEffect(() => {
     api.getSpotifyStatus()
@@ -135,12 +141,14 @@ export default function Music() {
   const loadStats = async () => {
     try {
       setLoadingStats(true);
-      const [artists, tracks] = await Promise.all([
+      const [artists, tracks, albums] = await Promise.all([
         api.getSpotifyUserTopArtists(statsTimeRange),
         api.getSpotifyUserTopTracks(statsTimeRange),
+        api.getSpotifyUserTopAlbums(statsTimeRange),
       ]);
       setStatsTopArtists(artists);
       setStatsTopTracks(tracks);
+      setStatsTopAlbums(albums);
     } catch (error: any) {
       console.error('Failed to load stats:', error);
       if (error?.message?.includes('401') || error?.message?.includes('not authenticated')) {
@@ -182,6 +190,13 @@ export default function Music() {
       setTopArtists(favs.filter(f => f.type === 'artist' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
       setTopAlbums(favs.filter(f => f.type === 'album' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
       setTopTracks(favs.filter(f => f.type === 'track' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
+      
+      // Extract and update duration for tracks that don't have it
+      for (const track of tracks) {
+        if (!track.duration && track.audioUrl) {
+          extractAndUpdateDuration(track);
+        }
+      }
     } catch (error) {
       console.error('Failed to load music data:', error);
       toast({ title: 'Eroare', description: 'Nu am putut încărca datele.', variant: 'destructive' });
@@ -189,6 +204,34 @@ export default function Music() {
       setLoading(false);
     }
   }, [toast]);
+
+  // Extract duration from audio URL and update track
+  const extractAndUpdateDuration = async (track: MusicTrack) => {
+    try {
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      
+      audio.onloadedmetadata = async () => {
+        const durationSeconds = Math.round(audio.duration);
+        if (durationSeconds > 0) {
+          // Update locally
+          setCustomTracks(prev => prev.map(t => 
+            t.id === track.id ? { ...t, duration: durationSeconds } : t
+          ));
+          // Update in database
+          try {
+            await api.updateMusicTrack(track.id, { duration: durationSeconds });
+          } catch (e) {
+            console.error('Failed to update track duration:', e);
+          }
+        }
+      };
+      
+      audio.src = track.audioUrl;
+    } catch (error) {
+      console.error('Failed to extract duration:', error);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -281,6 +324,26 @@ export default function Music() {
     return data.url;
   };
 
+  // Get audio duration from file
+  const getAudioDuration = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      
+      audio.onloadedmetadata = () => {
+        URL.revokeObjectURL(audio.src);
+        resolve(Math.round(audio.duration));
+      };
+      
+      audio.onerror = () => {
+        URL.revokeObjectURL(audio.src);
+        resolve(0);
+      };
+      
+      audio.src = URL.createObjectURL(file);
+    });
+  };
+
   // Add or update custom track
   const handleAddTrack = async () => {
     if (!trackForm.title.trim() || !trackForm.author.trim()) {
@@ -297,6 +360,12 @@ export default function Music() {
     try {
       setUploading(true);
       
+      // Get audio duration if new audio file
+      let audioDuration: number | null = editingTrack?.duration || null;
+      if (audioFile) {
+        audioDuration = await getAudioDuration(audioFile);
+      }
+      
       // Upload files if provided
       const audioUrl = audioFile 
         ? await uploadFile(audioFile, 'portfolio-music', 'audio') 
@@ -304,6 +373,23 @@ export default function Music() {
       const artworkUrl = artworkFile 
         ? await uploadFile(artworkFile, 'portfolio-music-artwork', 'image') 
         : (editingTrack?.coverUrl || null);
+      
+      // Upload lyrics if provided
+      let lyricsUrl: string | null = editingTrack?.lyricsUrl || null;
+      if (lyricsFile) {
+        // Read lyrics file content and upload as text
+        const lyricsText = await lyricsFile.text();
+        // For now, store lyrics inline via API (would need backend support for file storage)
+        // We'll upload it as a text file
+        const formData = new FormData();
+        formData.append('file', lyricsFile);
+        formData.append('folder', 'portfolio-music-lyrics');
+        const res = await fetch('/api/upload/raw', { method: 'POST', body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          lyricsUrl = data.url;
+        }
+      }
 
       if (editingTrack) {
         // Update existing track
@@ -311,8 +397,9 @@ export default function Music() {
           title: trackForm.title.trim(),
           artist: trackForm.author.trim(),
           album: trackForm.description.trim() || null,
-          ...(audioFile && { audioUrl }),
+          ...(audioFile && { audioUrl, duration: audioDuration }),
           ...(artworkFile && { coverUrl: artworkUrl }),
+          ...(lyricsFile && { lyricsUrl }),
         });
         toast({ title: 'Succes', description: 'Piesa a fost actualizată.' });
       } else {
@@ -323,8 +410,8 @@ export default function Music() {
           album: trackForm.description.trim() || null,
           audioUrl,
           coverUrl: artworkUrl,
-          lyricsUrl: null,
-          duration: null,
+          lyricsUrl,
+          duration: audioDuration,
           genre: null,
           year: null,
           isPrivate: false,
@@ -360,6 +447,25 @@ export default function Music() {
       description: track.album || '',
     });
     setShowTrackDialog(true);
+  };
+
+  // Long press handlers for mobile
+  const handleLongPressStart = (track: MusicTrack) => {
+    if (!isMobile) return;
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressTrack(track);
+      // Vibrate if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
   };
 
   // ========== PLAYER CONTROLS ==========
@@ -488,6 +594,14 @@ export default function Music() {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get rank badge style based on position
+  const getRankBadgeStyle = (index: number): string => {
+    if (index === 0) return 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black'; // Gold
+    if (index === 1) return 'bg-gradient-to-r from-gray-300 to-gray-400 text-black'; // Silver
+    if (index === 2) return 'bg-gradient-to-r from-amber-600 to-amber-700 text-white'; // Bronze
+    return 'bg-black/70 text-white';
   };
 
   // Audio event listeners
@@ -933,13 +1047,10 @@ export default function Music() {
 
           {/* Main controls - symmetric layout */}
           <div className="flex items-center justify-center">
-            {/* Mobile: all controls in one row, symmetric */}
+            {/* Mobile: symmetric controls - Shuffle - Prev - Play - Next - Repeat */}
             {isMobile ? (
               <div className="flex items-center justify-center gap-3">
-                {/* Left 3 buttons */}
-                <Button size="icon" variant="ghost" className="h-10 w-10" onClick={toggleMute}>
-                  {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                </Button>
+                {/* Shuffle - left edge */}
                 <Button 
                   size="icon" 
                   variant="ghost" 
@@ -948,19 +1059,23 @@ export default function Music() {
                 >
                   <Shuffle className="h-5 w-5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-10 w-10" onClick={playPrevious}>
-                  <SkipBack className="h-5 w-5" />
+
+                {/* Previous */}
+                <Button size="icon" variant="ghost" className="h-11 w-11" onClick={playPrevious}>
+                  <SkipBack className="h-6 w-6" />
                 </Button>
 
                 {/* Center play button */}
-                <Button size="icon" className="h-14 w-14 rounded-full mx-2" onClick={togglePlayPause}>
+                <Button size="icon" className="h-14 w-14 rounded-full" onClick={togglePlayPause}>
                   {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-0.5" />}
                 </Button>
 
-                {/* Right 3 buttons */}
-                <Button size="icon" variant="ghost" className="h-10 w-10" onClick={playNext}>
-                  <SkipForward className="h-5 w-5" />
+                {/* Next */}
+                <Button size="icon" variant="ghost" className="h-11 w-11" onClick={playNext}>
+                  <SkipForward className="h-6 w-6" />
                 </Button>
+
+                {/* Repeat - right edge */}
                 <Button 
                   size="icon" 
                   variant="ghost" 
@@ -969,14 +1084,6 @@ export default function Music() {
                 >
                   <Repeat className="h-5 w-5" />
                   {repeat === 'one' && <span className="absolute text-[10px] font-bold">1</span>}
-                </Button>
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  onClick={() => setShowLyrics(!showLyrics)}
-                  className={cn("h-10 w-10", showLyrics && "text-primary")}
-                >
-                  <FileText className="h-5 w-5" />
                 </Button>
               </div>
             ) : (
@@ -1049,54 +1156,69 @@ export default function Music() {
 
       <section className="page-content-section">
         <div className={cn("page-container space-y-6", playerVisible && "pb-24")}>
-          <Tabs defaultValue="spotify" className="space-y-4">
-            <div className="flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
-              <TabsList className="w-full max-w-2xl grid grid-cols-3 gap-1 sm:gap-0">
-                <TabsTrigger value="spotify" className="text-xs sm:text-sm px-2">Topuri</TabsTrigger>
-                <TabsTrigger value="library" className="text-xs sm:text-sm px-2">Albume</TabsTrigger>
-                <TabsTrigger value="tracks" className="text-xs sm:text-sm px-2">Piese</TabsTrigger>
-              </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <TabsList className="grid grid-cols-3 h-10">
+                    <TabsTrigger value="spotify" className="text-xs sm:text-sm px-3 sm:px-4 gap-1.5">
+                      <svg className="h-4 w-4 sm:hidden" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                      </svg>
+                      <span className="hidden sm:inline">Topuri</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="library" className="text-xs sm:text-sm px-3 sm:px-4 gap-1.5">
+                      <Disc3 className="h-4 w-4 sm:hidden" />
+                      <span className="hidden sm:inline">Albume</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="tracks" className="text-xs sm:text-sm px-3 sm:px-4 gap-1.5">
+                      <MusicIcon className="h-4 w-4 sm:hidden" />
+                      <span className="hidden sm:inline">Piese</span>
+                    </TabsTrigger>
+                  </TabsList>
 
-              <div className="flex items-center gap-2">
-                {/* Trash button */}
-                {isAdmin && trashedCount > 0 && (
-                  <Button variant="outline" size="sm" onClick={() => setShowTrashDialog(true)} className="gap-2">
-                    <Trash2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Coș</span> ({trashedCount})
-                  </Button>
-                )}
-              </div>
-            </div>
+                  <div className="flex items-center gap-2">
+                    {/* Personal/Stats Toggle - only show in Topuri tab */}
+                    {activeTab === 'spotify' && (
+                      <div className="relative inline-flex items-center h-8 rounded-full border border-border bg-muted/30 p-0.5">
+                        <button
+                          onClick={() => setViewMode('personal')}
+                          className={cn(
+                            "relative z-10 text-xs font-medium transition-all px-2 sm:px-3 py-1 rounded-full whitespace-nowrap",
+                            viewMode === 'personal' 
+                              ? "bg-primary text-primary-foreground shadow-sm" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <User className="h-3.5 w-3.5 sm:hidden" />
+                          <span className="hidden sm:inline">Personal</span>
+                        </button>
+                        <button
+                          onClick={() => setViewMode('stats')}
+                          className={cn(
+                            "relative z-10 text-xs font-medium transition-all px-2 sm:px-3 py-1 rounded-full whitespace-nowrap",
+                            viewMode === 'stats' 
+                              ? "bg-primary text-primary-foreground shadow-sm" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Headphones className="h-3.5 w-3.5 sm:hidden" />
+                          <span className="hidden sm:inline">Stats</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Trash button */}
+                    {isAdmin && trashedCount > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => setShowTrashDialog(true)} className="gap-1 h-8 px-2 sm:px-3">
+                        <Trash2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">Coș</span>
+                        <span className="text-xs">({trashedCount})</span>
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
             {/* Topuri Tab */}
             <TabsContent value="spotify" className="space-y-4 pt-2">
-              {/* Personal/Stats Toggle - only in Topuri tab */}
-              <div className="flex justify-end">
-                <div className="relative inline-flex items-center h-9 rounded-full border border-border bg-muted/30 p-0.5">
-                  <button
-                    onClick={() => setViewMode('personal')}
-                    className={cn(
-                      "relative z-10 text-xs font-medium transition-all px-3 sm:px-4 py-1.5 rounded-full whitespace-nowrap",
-                      viewMode === 'personal' 
-                        ? "bg-primary text-primary-foreground shadow-sm" 
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Personal
-                  </button>
-                  <button
-                    onClick={() => setViewMode('stats')}
-                    className={cn(
-                      "relative z-10 text-xs font-medium transition-all px-3 sm:px-4 py-1.5 rounded-full whitespace-nowrap",
-                      viewMode === 'stats' 
-                        ? "bg-primary text-primary-foreground shadow-sm" 
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Stats
-                  </button>
-                </div>
-              </div>
 
               {!spotifyConfigured && isAdmin && (
                 <Card className="border-amber-500/50 bg-amber-500/5">
@@ -1187,7 +1309,7 @@ export default function Music() {
                               {statsTopArtists.length === 0 ? (
                                 <p className="text-center text-sm text-muted-foreground py-4">Nu există date</p>
                               ) : (
-                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                                   {statsTopArtists.slice(0, 10).map((item, index) => (
                                     <div key={item.id} className="group relative">
                                       <a
@@ -1213,7 +1335,7 @@ export default function Music() {
                                             </div>
                                           )}
                                           {/* Rank badge */}
-                                          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded">
+                                          <div className={cn("absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded shadow-lg", getRankBadgeStyle(index))}>
                                             #{index + 1}
                                           </div>
                                         </div>
@@ -1240,7 +1362,7 @@ export default function Music() {
                               {statsTopTracks.length === 0 ? (
                                 <p className="text-center text-sm text-muted-foreground py-4">Nu există date</p>
                               ) : (
-                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                                   {statsTopTracks.slice(0, 10).map((item, index) => (
                                     <div key={item.id} className="group relative">
                                       <a
@@ -1266,7 +1388,63 @@ export default function Music() {
                                             </div>
                                           )}
                                           {/* Rank badge */}
-                                          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded">
+                                          <div className={cn("absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded shadow-lg", getRankBadgeStyle(index))}>
+                                            #{index + 1}
+                                          </div>
+                                        </div>
+                                        <div className="p-2 bg-background">
+                                          <p className="font-medium text-sm truncate">{item.name}</p>
+                                          {item.artist && (
+                                            <p className="text-xs text-muted-foreground truncate">{item.artist}</p>
+                                          )}
+                                        </div>
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+
+                          {/* Top Albums */}
+                          <Card className="border-border/60 bg-muted/20">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2">
+                                <Disc3 className="h-4 w-4" /> Top 10 Albume
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">Derivat din piesele tale top</p>
+                            </CardHeader>
+                            <CardContent>
+                              {statsTopAlbums.length === 0 ? (
+                                <p className="text-center text-sm text-muted-foreground py-4">Nu există date</p>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                                  {statsTopAlbums.slice(0, 10).map((item, index) => (
+                                    <div key={item.id} className="group relative">
+                                      <a
+                                        href={item.spotifyUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block rounded-lg overflow-hidden border border-border/50 hover:border-primary/50 transition-all hover:scale-105"
+                                      >
+                                        <div className="aspect-square relative">
+                                          {item.imageUrl ? (
+                                            <img 
+                                              src={item.imageUrl} 
+                                              alt={item.name}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                e.currentTarget.onerror = null;
+                                                e.currentTarget.src = FALLBACK_IMAGE;
+                                              }}
+                                            />
+                                          ) : (
+                                            <div className="w-full h-full bg-muted flex items-center justify-center">
+                                              <Disc3 className="h-12 w-12 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                          {/* Rank badge */}
+                                          <div className={cn("absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded shadow-lg", getRankBadgeStyle(index))}>
                                             #{index + 1}
                                           </div>
                                         </div>
@@ -1352,12 +1530,21 @@ export default function Music() {
                         <div 
                           key={track.id} 
                           className={cn(
-                            "flex items-center gap-2 sm:gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
+                            "flex items-center gap-2 sm:gap-3 p-2 rounded-lg transition-colors cursor-pointer group select-none",
                             currentTrack?.id === track.id 
                               ? "bg-primary/10 border border-primary/30" 
                               : "hover:bg-muted/50"
                           )}
                           onClick={() => playTrack(track, index)}
+                          onTouchStart={() => handleLongPressStart(track)}
+                          onTouchEnd={handleLongPressEnd}
+                          onTouchCancel={handleLongPressEnd}
+                          onContextMenu={(e) => {
+                            if (isMobile) {
+                              e.preventDefault();
+                              setLongPressTrack(track);
+                            }
+                          }}
                         >
                           {/* Track number / Play indicator - hidden on mobile */}
                           <div className="hidden sm:flex w-8 h-8 items-center justify-center text-sm text-muted-foreground">
@@ -1408,13 +1595,13 @@ export default function Music() {
                             {track.duration ? formatTime(track.duration) : '--:--'}
                           </span>
 
-                          {/* Options menu */}
+                          {/* Options menu - hidden on mobile (use long press instead) */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <Button 
                                 size="icon" 
                                 variant="ghost" 
-                                className="h-8 w-8 flex-shrink-0"
+                                className="h-8 w-8 flex-shrink-0 hidden sm:flex"
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
@@ -1466,6 +1653,58 @@ export default function Music() {
 
       {/* Fullscreen Player */}
       <FullscreenPlayer />
+
+      {/* Mobile Long Press Menu */}
+      <Dialog open={!!longPressTrack} onOpenChange={(open) => !open && setLongPressTrack(null)}>
+        <DialogContent className="max-w-xs mx-auto rounded-2xl">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-center truncate">{longPressTrack?.title}</DialogTitle>
+            <DialogDescription className="text-center truncate">{longPressTrack?.artist}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                className="justify-start gap-3 h-12"
+                onClick={() => {
+                  if (longPressTrack) openEditTrackDialog(longPressTrack);
+                  setLongPressTrack(null);
+                }}
+              >
+                <Pencil className="h-5 w-5" />
+                Editează
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              className="justify-start gap-3 h-12"
+              asChild
+            >
+              <a 
+                href={longPressTrack?.audioUrl} 
+                download={`${longPressTrack?.title}.mp3`}
+                onClick={() => setLongPressTrack(null)}
+              >
+                <Download className="h-5 w-5" />
+                Descarcă
+              </a>
+            </Button>
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                className="justify-start gap-3 h-12 text-destructive hover:text-destructive"
+                onClick={() => {
+                  if (longPressTrack) handleSoftDeleteTrack(longPressTrack.id);
+                  setLongPressTrack(null);
+                }}
+              >
+                <Trash2 className="h-5 w-5" />
+                Șterge
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Search Dialog */}
       <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
