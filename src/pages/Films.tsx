@@ -105,16 +105,9 @@ export default function Films() {
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterRatingMin, setFilterRatingMin] = useState<string>('');
   const [filterRatingMax, setFilterRatingMax] = useState<string>('');
-  // Swipe state: tracks current X offset for each film being swiped
-  const [swipeOffset, setSwipeOffset] = useState<Record<number, number>>({});
-  const [swipeCompleted, setSwipeCompleted] = useState<Record<number, 'left' | 'right' | null>>({});
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const touchId = useRef<number | null>(null);
-  const isHorizontalSwipe = useRef<boolean | null>(null);
-  
-  const SWIPE_THRESHOLD = 100; // Pixels needed to trigger action
-  const SWIPE_MAX = 150; // Max visual offset
+  // Swipe state - moved to individual cards
+  const SWIPE_THRESHOLD = 80; // Pixels needed to trigger action
+  const SWIPE_MAX = 120; // Max visual offset
 
   // Load data from cloud
   const loadData = useCallback(async () => {
@@ -418,154 +411,162 @@ export default function Films() {
       return null;
     }, [items, sortBy]);
 
-    const handleTouchStart = (e: React.TouchEvent, filmId: number) => {
-      touchStartX.current = e.changedTouches[0]?.clientX ?? null;
-      touchStartY.current = e.changedTouches[0]?.clientY ?? null;
-      touchId.current = filmId;
-      isHorizontalSwipe.current = null;
-    };
-
-    const handleTouchMove = (e: React.TouchEvent, filmId: number) => {
-      if (touchId.current !== filmId || touchStartX.current === null || touchStartY.current === null) return;
+    // Swipeable Card Component - each card manages its own swipe state
+    const SwipeableCard = ({ film }: { film: LocalFilmItem }) => {
+      const [offset, setOffset] = useState(0);
+      const [isAnimating, setIsAnimating] = useState(false);
+      const startXRef = useRef<number | null>(null);
+      const startYRef = useRef<number | null>(null);
+      const isHorizontalRef = useRef<boolean | null>(null);
+      const cardRef = useRef<HTMLDivElement>(null);
       
-      const currentX = e.changedTouches[0]?.clientX ?? 0;
-      const currentY = e.changedTouches[0]?.clientY ?? 0;
-      const deltaX = currentX - touchStartX.current;
-      const deltaY = currentY - touchStartY.current;
-      
-      // Determine if this is a horizontal or vertical swipe (only once)
-      if (isHorizontalSwipe.current === null) {
-        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-          isHorizontalSwipe.current = Math.abs(deltaX) > Math.abs(deltaY);
-        }
-      }
-      
-      // Only track horizontal swipes
-      if (isHorizontalSwipe.current) {
-        e.preventDefault();
-        // Clamp the offset between -SWIPE_MAX and SWIPE_MAX
-        const clampedOffset = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, deltaX));
-        setSwipeOffset(prev => ({ ...prev, [filmId]: clampedOffset }));
-      }
-    };
-
-    const handleTouchEnd = (e: React.TouchEvent, film: LocalFilmItem) => {
-      if (touchId.current !== film.id || touchStartX.current === null) {
-        return;
-      }
-      
-      const offset = swipeOffset[film.id] || 0;
-      
-      // Reset refs
-      touchStartX.current = null;
-      touchStartY.current = null;
-      touchId.current = null;
-      isHorizontalSwipe.current = null;
-      
-      // Check if threshold was reached
-      if (Math.abs(offset) >= SWIPE_THRESHOLD) {
-        if (offset > 0) {
-          // Swipe right -> mark as watched/unwatched
-          setSwipeCompleted(prev => ({ ...prev, [film.id]: 'right' }));
-          setTimeout(() => {
-            toggleStatus(film.id);
-            toast({ 
-              title: film.status === 'todo' ? 'Marcat ca văzut' : 'Mutat la de văzut', 
-              description: film.title 
-            });
-            setSwipeOffset(prev => ({ ...prev, [film.id]: 0 }));
-            setSwipeCompleted(prev => ({ ...prev, [film.id]: null }));
-          }, 200);
-        } else {
-          // Swipe left -> delete
-          setSwipeCompleted(prev => ({ ...prev, [film.id]: 'left' }));
-          setTimeout(() => {
-            softDeleteFilm(film);
-            setSwipeOffset(prev => ({ ...prev, [film.id]: 0 }));
-            setSwipeCompleted(prev => ({ ...prev, [film.id]: null }));
-          }, 200);
-        }
-      } else {
-        // Reset position with animation
-        setSwipeOffset(prev => ({ ...prev, [film.id]: 0 }));
-      }
-    };
-
-    const renderFilmCard = (film: LocalFilmItem) => {
-      const offset = swipeOffset[film.id] || 0;
-      const completed = swipeCompleted[film.id];
-      // Gmail style: when swiping RIGHT, show action on LEFT side (the revealed part)
-      // when swiping LEFT, show action on RIGHT side
       const isSwipingRight = offset > 0;
       const isSwipingLeft = offset < 0;
-      const swipeProgress = Math.abs(offset) / SWIPE_THRESHOLD;
-      const isReady = Math.abs(offset) >= SWIPE_THRESHOLD;
+      const absOffset = Math.abs(offset);
+      const isReady = absOffset >= SWIPE_THRESHOLD;
+      
+      const handleStart = (clientX: number, clientY: number) => {
+        startXRef.current = clientX;
+        startYRef.current = clientY;
+        isHorizontalRef.current = null;
+        setIsAnimating(false);
+      };
+      
+      const handleMove = (clientX: number, clientY: number) => {
+        if (startXRef.current === null || startYRef.current === null) return;
+        
+        const deltaX = clientX - startXRef.current;
+        const deltaY = clientY - startYRef.current;
+        
+        // Determine direction only once
+        if (isHorizontalRef.current === null && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+          isHorizontalRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+        }
+        
+        if (isHorizontalRef.current) {
+          const clampedOffset = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, deltaX));
+          setOffset(clampedOffset);
+        }
+      };
+      
+      const handleEnd = () => {
+        if (startXRef.current === null) return;
+        
+        startXRef.current = null;
+        startYRef.current = null;
+        
+        if (absOffset >= SWIPE_THRESHOLD) {
+          setIsAnimating(true);
+          // Slide out completely
+          setOffset(isSwipingRight ? 300 : -300);
+          
+          setTimeout(() => {
+            if (offset > 0) {
+              toggleStatus(film.id);
+              toast({ 
+                title: film.status === 'todo' ? 'Marcat ca văzut' : 'Mutat la de văzut', 
+                description: film.title 
+              });
+            } else {
+              softDeleteFilm(film);
+            }
+          }, 250);
+        } else {
+          setIsAnimating(true);
+          setOffset(0);
+          setTimeout(() => setIsAnimating(false), 200);
+        }
+        
+        isHorizontalRef.current = null;
+      };
+      
+      const onTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        if (touch) handleStart(touch.clientX, touch.clientY);
+      };
+      
+      const onTouchMove = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        if (touch && isHorizontalRef.current) {
+          e.preventDefault();
+          handleMove(touch.clientX, touch.clientY);
+        } else if (touch) {
+          handleMove(touch.clientX, touch.clientY);
+        }
+      };
+      
+      const onTouchEnd = () => handleEnd();
+      
+      const onCardClick = () => {
+        if (absOffset < 5) {
+          setShowDetail(film);
+        }
+      };
       
       return (
         <div
-          key={film.id}
-          className="relative overflow-hidden rounded-lg"
-          style={{ minHeight: '44px' }}
+          ref={cardRef}
+          className="relative overflow-hidden rounded-lg touch-pan-y"
+          style={{ minHeight: '48px' }}
         >
-          {/* Gmail-style full-width background - revealed as you swipe */}
-          {/* When swiping RIGHT (to mark as watched) - GREEN background on LEFT */}
+          {/* GREEN background - Mark as watched (swipe right) */}
           <div 
-            className={`absolute inset-0 flex items-center transition-colors duration-150 ${
-              isSwipingRight ? 'opacity-100' : 'opacity-0'
-            }`}
+            className="absolute inset-0 flex items-center justify-start rounded-lg"
             style={{ 
-              backgroundColor: isReady ? '#22c55e' : '#4ade80',
+              backgroundColor: isReady ? '#16a34a' : '#22c55e',
+              opacity: isSwipingRight ? 1 : 0,
+              transition: 'opacity 0.1s, background-color 0.15s',
             }}
           >
-            <div className="flex items-center justify-start pl-4">
+            <div className="flex items-center pl-4">
               {film.status === 'todo' ? (
-                <CheckCircle2 className={`h-6 w-6 text-white transition-transform duration-200 ${isReady ? 'scale-125' : ''}`} />
+                <CheckCircle2 className="h-6 w-6 text-white" style={{ transform: isReady ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.15s' }} />
               ) : (
-                <Undo2 className={`h-6 w-6 text-white transition-transform duration-200 ${isReady ? 'scale-125' : ''}`} />
+                <Undo2 className="h-6 w-6 text-white" style={{ transform: isReady ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.15s' }} />
               )}
-              <span className={`ml-2 text-white font-medium text-sm transition-opacity duration-200 ${swipeProgress > 0.3 ? 'opacity-100' : 'opacity-0'}`}>
+              <span className="ml-2 text-white font-medium text-sm" style={{ opacity: absOffset > 30 ? 1 : 0, transition: 'opacity 0.15s' }}>
                 {film.status === 'todo' ? 'Văzut' : 'De văzut'}
               </span>
             </div>
           </div>
           
-          {/* When swiping LEFT (to delete) - RED background on RIGHT */}
+          {/* RED background - Delete (swipe left) */}
           <div 
-            className={`absolute inset-0 flex items-center justify-end transition-colors duration-150 ${
-              isSwipingLeft ? 'opacity-100' : 'opacity-0'
-            }`}
+            className="absolute inset-0 flex items-center justify-end rounded-lg"
             style={{ 
-              backgroundColor: isReady ? '#ef4444' : '#f87171',
+              backgroundColor: isReady ? '#dc2626' : '#ef4444',
+              opacity: isSwipingLeft ? 1 : 0,
+              transition: 'opacity 0.1s, background-color 0.15s',
             }}
           >
-            <div className="flex items-center justify-end pr-4">
-              <span className={`mr-2 text-white font-medium text-sm transition-opacity duration-200 ${swipeProgress > 0.3 ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="flex items-center pr-4">
+              <span className="mr-2 text-white font-medium text-sm" style={{ opacity: absOffset > 30 ? 1 : 0, transition: 'opacity 0.15s' }}>
                 Șterge
               </span>
-              <Trash2 className={`h-6 w-6 text-white transition-transform duration-200 ${isReady ? 'scale-125' : ''}`} />
+              <Trash2 className="h-6 w-6 text-white" style={{ transform: isReady ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.15s' }} />
             </div>
           </div>
           
-          {/* The actual card content that slides */}
+          {/* Card content */}
           <div
-            onClick={() => Math.abs(offset) < 10 && setShowDetail(film)}
-            onTouchStart={(e) => handleTouchStart(e, film.id)}
-            onTouchMove={(e) => handleTouchMove(e, film.id)}
-            onTouchEnd={(e) => handleTouchEnd(e, film)}
+            onClick={onCardClick}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
             style={{ 
               transform: `translateX(${offset}px)`,
-              transition: completed ? 'transform 0.3s ease-out' : (offset === 0 ? 'transform 0.2s ease-out' : 'none'),
+              transition: isAnimating ? 'transform 0.25s ease-out' : 'none',
             }}
-            className="relative flex flex-col gap-2 rounded-lg border border-border/50 bg-background px-3 py-2 md:flex-row md:items-center md:justify-between cursor-pointer active:bg-accent/30"
+            className="relative flex flex-col gap-1 rounded-lg border border-border/50 bg-background px-3 py-2 md:flex-row md:items-center md:justify-between select-none"
           >
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm">{film.title}</span>
                 {sortBy === 'rating' && film.rating && film.status === 'watched' && (
-                  <Badge variant="outline">⭐ {film.rating}</Badge>
+                  <Badge variant="outline" className="text-xs py-0">⭐ {film.rating}</Badge>
                 )}
               </div>
-              <span className="text-xs text-muted-foreground hidden sm:block">{film.year ?? '—'} • {film.genres.length > 0 ? film.genres.join(', ') : 'Fără gen'}</span>
+              <span className="text-xs text-muted-foreground">{film.year ?? '—'} • {film.genres.length > 0 ? film.genres.slice(0, 2).join(', ') : 'Fără gen'}{film.genres.length > 2 ? '...' : ''}</span>
             </div>
             {!isMobile && (
               <div className="flex items-center gap-2 self-start md:self-auto">
@@ -613,11 +614,11 @@ export default function Films() {
                     <div className="h-px flex-1 rounded-full bg-border/60" />
                   </div>
                   <div className="space-y-2">
-                    {group.list.map((film) => renderFilmCard(film))}
+                    {group.list.map((film) => <SwipeableCard key={film.id} film={film} />)}
                   </div>
                 </div>
               ))
-            : items.map((film) => renderFilmCard(film))}
+            : items.map((film) => <SwipeableCard key={film.id} film={film} />)}
         </CardContent>
       </Card>
     );
