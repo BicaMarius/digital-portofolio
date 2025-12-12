@@ -91,6 +91,7 @@ export default function Films() {
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [mobileSearchFocused, setMobileSearchFocused] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [showDetail, setShowDetail] = useState<LocalFilmItem | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -493,62 +494,69 @@ export default function Films() {
     const renderFilmCard = (film: LocalFilmItem) => {
       const offset = swipeOffset[film.id] || 0;
       const completed = swipeCompleted[film.id];
-      const showDeleteHint = offset < -20;
-      const showWatchedHint = offset > 20;
-      const deleteReady = offset <= -SWIPE_THRESHOLD;
-      const watchedReady = offset >= SWIPE_THRESHOLD;
+      // Gmail style: when swiping RIGHT, show action on LEFT side (the revealed part)
+      // when swiping LEFT, show action on RIGHT side
+      const isSwipingRight = offset > 0;
+      const isSwipingLeft = offset < 0;
+      const swipeProgress = Math.abs(offset) / SWIPE_THRESHOLD;
+      const isReady = Math.abs(offset) >= SWIPE_THRESHOLD;
       
       return (
         <div
           key={film.id}
           className="relative overflow-hidden rounded-lg"
+          style={{ minHeight: '44px' }}
         >
-          {/* Background action indicators */}
-          <div className="absolute inset-0 flex">
-            {/* Left side - Delete (shown when swiping left) */}
-            <div 
-              className={`absolute inset-y-0 left-0 flex items-center justify-start pl-4 transition-all duration-200 ${
-                showDeleteHint ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={{ 
-                width: Math.abs(Math.min(offset, 0)),
-                backgroundColor: deleteReady ? '#ef4444' : '#fca5a5',
-              }}
-            >
-              <Trash2 className={`h-5 w-5 transition-transform duration-200 ${deleteReady ? 'text-white scale-110' : 'text-rose-700'}`} />
-            </div>
-            
-            {/* Right side - Mark watched (shown when swiping right) */}
-            <div 
-              className={`absolute inset-y-0 right-0 flex items-center justify-end pr-4 transition-all duration-200 ${
-                showWatchedHint ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={{ 
-                width: Math.max(offset, 0),
-                backgroundColor: watchedReady ? '#22c55e' : '#86efac',
-              }}
-            >
+          {/* Gmail-style full-width background - revealed as you swipe */}
+          {/* When swiping RIGHT (to mark as watched) - GREEN background on LEFT */}
+          <div 
+            className={`absolute inset-0 flex items-center transition-colors duration-150 ${
+              isSwipingRight ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ 
+              backgroundColor: isReady ? '#22c55e' : '#4ade80',
+            }}
+          >
+            <div className="flex items-center justify-start pl-4">
               {film.status === 'todo' ? (
-                <CheckCircle2 className={`h-5 w-5 transition-transform duration-200 ${watchedReady ? 'text-white scale-110' : 'text-green-700'}`} />
+                <CheckCircle2 className={`h-6 w-6 text-white transition-transform duration-200 ${isReady ? 'scale-125' : ''}`} />
               ) : (
-                <Undo2 className={`h-5 w-5 transition-transform duration-200 ${watchedReady ? 'text-white scale-110' : 'text-green-700'}`} />
+                <Undo2 className={`h-6 w-6 text-white transition-transform duration-200 ${isReady ? 'scale-125' : ''}`} />
               )}
+              <span className={`ml-2 text-white font-medium text-sm transition-opacity duration-200 ${swipeProgress > 0.3 ? 'opacity-100' : 'opacity-0'}`}>
+                {film.status === 'todo' ? 'Văzut' : 'De văzut'}
+              </span>
             </div>
           </div>
           
-          {/* The actual card content */}
+          {/* When swiping LEFT (to delete) - RED background on RIGHT */}
+          <div 
+            className={`absolute inset-0 flex items-center justify-end transition-colors duration-150 ${
+              isSwipingLeft ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ 
+              backgroundColor: isReady ? '#ef4444' : '#f87171',
+            }}
+          >
+            <div className="flex items-center justify-end pr-4">
+              <span className={`mr-2 text-white font-medium text-sm transition-opacity duration-200 ${swipeProgress > 0.3 ? 'opacity-100' : 'opacity-0'}`}>
+                Șterge
+              </span>
+              <Trash2 className={`h-6 w-6 text-white transition-transform duration-200 ${isReady ? 'scale-125' : ''}`} />
+            </div>
+          </div>
+          
+          {/* The actual card content that slides */}
           <div
-            onClick={() => !offset && setShowDetail(film)}
+            onClick={() => Math.abs(offset) < 10 && setShowDetail(film)}
             onTouchStart={(e) => handleTouchStart(e, film.id)}
             onTouchMove={(e) => handleTouchMove(e, film.id)}
             onTouchEnd={(e) => handleTouchEnd(e, film)}
             style={{ 
               transform: `translateX(${offset}px)`,
-              transition: completed || offset === 0 ? 'transform 0.2s ease-out' : 'none',
+              transition: completed ? 'transform 0.3s ease-out' : (offset === 0 ? 'transform 0.2s ease-out' : 'none'),
             }}
-            className={`relative flex flex-col gap-2 rounded-lg border border-border/50 bg-background px-3 py-2 hover:-translate-y-[1px] hover:border-primary/40 md:flex-row md:items-center md:justify-between ${
-              completed === 'left' ? 'translate-x-[-100%]' : ''
-            } ${completed === 'right' ? 'translate-x-[100%]' : ''}`}
+            className="relative flex flex-col gap-2 rounded-lg border border-border/50 bg-background px-3 py-2 md:flex-row md:items-center md:justify-between cursor-pointer active:bg-accent/30"
           >
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
@@ -635,78 +643,72 @@ export default function Films() {
 
               {isMobile ? (
                 <div className="flex w-full items-center gap-2">
-                  <div className="relative flex-1">
+                  <div className={`relative transition-all duration-300 ${mobileSearchFocused ? 'flex-1' : 'flex-1'}`}>
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      placeholder="Caută rapid în listă"
+                      placeholder={mobileSearchFocused ? "Caută film..." : "Caută..."}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
+                      onFocus={() => setMobileSearchFocused(true)}
+                      onBlur={() => setMobileSearchFocused(false)}
                       className="pl-9 rounded-full"
                     />
                   </div>
-                  {/* Filter button */}
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className={`h-11 w-11 rounded-full relative ${hasActiveFilters ? 'border-primary bg-primary/10' : ''}`}
-                    onClick={() => setShowFilterDialog(true)}
-                  >
-                    <Filter className="h-4 w-4" />
-                    {hasActiveFilters && (
-                      <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
-                        !
-                      </span>
-                    )}
-                  </Button>
-                  {/* Sort button */}
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button size="icon" variant="outline" className="h-11 w-11 rounded-full">
-                        <ArrowUpDown className="h-4 w-4" />
+                  {/* Hide icons when search is focused */}
+                  {!mobileSearchFocused && (
+                    <>
+                      {/* Filter button */}
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className={`h-11 w-11 rounded-full relative flex-shrink-0 ${hasActiveFilters ? 'border-primary bg-primary/10' : ''}`}
+                        onClick={() => setShowFilterDialog(true)}
+                      >
+                        <Filter className="h-4 w-4" />
+                        {hasActiveFilters && (
+                          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
+                            !
+                          </span>
+                        )}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-56">
-                      <div className="space-y-1">
-                        {sortOptions.map((opt) => (
-                          <Button
-                            key={opt.value}
-                            variant={sortBy === opt.value ? 'secondary' : 'ghost'}
-                            className="w-full justify-start gap-2"
-                            onClick={() => setSortBy(opt.value)}
-                          >
-                            {sortBy === opt.value ? <CheckCircle2 className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 opacity-50" />}
-                            {opt.label}
+                      {/* Sort button */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button size="icon" variant="outline" className="h-11 w-11 rounded-full flex-shrink-0">
+                            <ArrowUpDown className="h-4 w-4" />
                           </Button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  {/* Trash button in popover for mobile */}
-                  {isAdmin && trashed.length > 0 && (
-                    <Popover>
-                      <PopoverTrigger asChild>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-56">
+                          <div className="space-y-1">
+                            {sortOptions.map((opt) => (
+                              <Button
+                                key={opt.value}
+                                variant={sortBy === opt.value ? 'secondary' : 'ghost'}
+                                className="w-full justify-start gap-2"
+                                onClick={() => setSortBy(opt.value)}
+                              >
+                                {sortBy === opt.value ? <CheckCircle2 className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 opacity-50" />}
+                                {opt.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      {/* Trash button - opens dialog directly */}
+                      {isAdmin && trashed.length > 0 && (
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-11 w-11 rounded-full relative"
+                          className="h-11 w-11 rounded-full relative flex-shrink-0"
+                          onClick={() => setShowTrashDialog(true)}
                         >
                           <Trash className="h-4 w-4" />
                           <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
                             {trashed.length}
                           </span>
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-48 p-2">
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start gap-2"
-                          onClick={() => setShowTrashDialog(true)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Deschide coșul
-                        </Button>
-                      </PopoverContent>
-                    </Popover>
+                      )}
+                    </>
                   )}
                 </div>
               ) : (
