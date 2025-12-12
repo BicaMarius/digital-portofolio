@@ -295,3 +295,18 @@ export const updateNoteItemSchema = insertNoteItemSchema.partial();
 export type NoteItem = typeof noteItems.$inferSelect;
 export type InsertNoteItem = typeof noteItems.$inferInsert;
 export type UpdateNoteItem = Partial<InsertNoteItem>;
+
+// ============ FILM GENRES TABLE ============
+
+export const filmGenres = pgTable("film_genres", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+});
+
+export const insertFilmGenreSchema = createInsertSchema(filmGenres).omit({
+  id: true,
+});
+export const updateFilmGenreSchema = insertFilmGenreSchema.partial();
+export type FilmGenre = typeof filmGenres.$inferSelect;
+export type InsertFilmGenre = typeof filmGenres.$inferInsert;
+export type UpdateFilmGenre = Partial<InsertFilmGenre>;

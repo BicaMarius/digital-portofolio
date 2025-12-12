@@ -477,3 +477,32 @@ export async function restoreNote(id: number): Promise<NoteItem> {
     body: JSON.stringify({ deletedAt: null }),
   });
 }
+
+// ============ FILM GENRES API ============
+
+export interface FilmGenre {
+  id: number;
+  name: string;
+}
+
+export async function getFilmGenres(): Promise<FilmGenre[]> {
+  return apiCall<FilmGenre[]>('/film-genres');
+}
+
+export async function createFilmGenre(name: string): Promise<FilmGenre> {
+  return apiCall<FilmGenre>('/film-genres', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function updateFilmGenre(id: number, name: string): Promise<FilmGenre> {
+  return apiCall<FilmGenre>(`/film-genres/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deleteFilmGenre(id: number): Promise<void> {
+  return apiCall<void>(`/film-genres/${id}`, { method: 'DELETE' });
+}

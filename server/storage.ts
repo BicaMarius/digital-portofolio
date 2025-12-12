@@ -34,6 +34,9 @@ import type {
   NoteItem,
   InsertNoteItem,
   UpdateNoteItem,
+  FilmGenre,
+  InsertFilmGenre,
+  UpdateFilmGenre,
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -129,6 +132,13 @@ export interface IStorage {
   createNoteItem(note: InsertNoteItem): Promise<NoteItem>;
   updateNoteItem(id: number, updates: UpdateNoteItem): Promise<NoteItem | null>;
   deleteNoteItem(id: number): Promise<boolean>;
+
+  // Film Genres
+  getFilmGenres(): Promise<FilmGenre[]>;
+  getFilmGenreById(id: number): Promise<FilmGenre | null>;
+  createFilmGenre(genre: InsertFilmGenre): Promise<FilmGenre>;
+  updateFilmGenre(id: number, updates: UpdateFilmGenre): Promise<FilmGenre | null>;
+  deleteFilmGenre(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -691,7 +701,7 @@ import { db } from "./db.js";
 import * as schema from "../shared/schema.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, spotifyFavorites, filmItems, noteItems } = schema;
+const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, spotifyFavorites, filmItems, noteItems, filmGenres } = schema;
 
 export class DbStorage implements IStorage {
   // Projects
@@ -1151,6 +1161,35 @@ export class DbStorage implements IStorage {
 
   async deleteNoteItem(id: number): Promise<boolean> {
     const result = await db.delete(noteItems).where(eq(noteItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Film Genres
+  async getFilmGenres(): Promise<FilmGenre[]> {
+    return await db.select().from(filmGenres).orderBy(filmGenres.name);
+  }
+
+  async getFilmGenreById(id: number): Promise<FilmGenre | null> {
+    const result = await db.select().from(filmGenres).where(eq(filmGenres.id, id));
+    return result[0] || null;
+  }
+
+  async createFilmGenre(genre: InsertFilmGenre): Promise<FilmGenre> {
+    const result = await db.insert(filmGenres).values(genre).returning();
+    return result[0];
+  }
+
+  async updateFilmGenre(id: number, updates: UpdateFilmGenre): Promise<FilmGenre | null> {
+    const result = await db
+      .update(filmGenres)
+      .set(updates)
+      .where(eq(filmGenres.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteFilmGenre(id: number): Promise<boolean> {
+    const result = await db.delete(filmGenres).where(eq(filmGenres.id, id)).returning();
     return result.length > 0;
   }
 }

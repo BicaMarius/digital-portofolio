@@ -24,6 +24,8 @@ import {
   updateFilmItemSchema,
   insertNoteItemSchema,
   updateNoteItemSchema,
+  insertFilmGenreSchema,
+  updateFilmGenreSchema,
 } from "../shared/schema.js";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
@@ -1117,6 +1119,73 @@ export function registerRoutes(app: Express, storage: IStorage) {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete note" });
+    }
+  });
+
+  // ============ FILM GENRES ============
+
+  app.get("/api/film-genres", async (_req, res) => {
+    try {
+      const genres = await storage.getFilmGenres();
+      res.json(genres);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch film genres" });
+    }
+  });
+
+  app.get("/api/film-genres/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const genre = await storage.getFilmGenreById(id);
+      if (!genre) {
+        return res.status(404).json({ error: "Genre not found" });
+      }
+      res.json(genre);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch genre" });
+    }
+  });
+
+  app.post("/api/film-genres", async (req, res) => {
+    try {
+      const genre = insertFilmGenreSchema.parse(req.body);
+      const newGenre = await storage.createFilmGenre(genre);
+      res.status(201).json(newGenre);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create genre" });
+    }
+  });
+
+  app.patch("/api/film-genres/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updates = updateFilmGenreSchema.parse(req.body);
+      const updatedGenre = await storage.updateFilmGenre(id, updates);
+      if (!updatedGenre) {
+        return res.status(404).json({ error: "Genre not found" });
+      }
+      res.json(updatedGenre);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update genre" });
+    }
+  });
+
+  app.delete("/api/film-genres/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteFilmGenre(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Genre not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete genre" });
     }
   });
 }
