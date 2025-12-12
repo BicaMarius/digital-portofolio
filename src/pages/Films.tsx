@@ -456,25 +456,27 @@ export default function Films() {
         startYRef.current = null;
         
         if (absOffset >= SWIPE_THRESHOLD) {
+          // Execute action immediately for responsiveness
+          if (offset > 0) {
+            toggleStatus(film.id);
+            toast({ 
+              title: film.status === 'todo' ? 'Marcat ca văzut' : 'Mutat la de văzut', 
+              description: film.title 
+            });
+          } else {
+            softDeleteFilm(film);
+          }
+          // Quick slide out animation
           setIsAnimating(true);
-          // Slide out completely
-          setOffset(isSwipingRight ? 300 : -300);
-          
+          setOffset(isSwipingRight ? 200 : -200);
           setTimeout(() => {
-            if (offset > 0) {
-              toggleStatus(film.id);
-              toast({ 
-                title: film.status === 'todo' ? 'Marcat ca văzut' : 'Mutat la de văzut', 
-                description: film.title 
-              });
-            } else {
-              softDeleteFilm(film);
-            }
-          }, 250);
+            setOffset(0);
+            setIsAnimating(false);
+          }, 100);
         } else {
           setIsAnimating(true);
           setOffset(0);
-          setTimeout(() => setIsAnimating(false), 200);
+          setTimeout(() => setIsAnimating(false), 100);
         }
         
         isHorizontalRef.current = null;
@@ -555,7 +557,7 @@ export default function Films() {
             onTouchEnd={onTouchEnd}
             style={{ 
               transform: `translateX(${offset}px)`,
-              transition: isAnimating ? 'transform 0.25s ease-out' : 'none',
+              transition: isAnimating ? 'transform 0.15s ease-out' : 'none',
             }}
             className="relative flex flex-col gap-1 rounded-lg border border-border/50 bg-background px-3 py-2 md:flex-row md:items-center md:justify-between select-none"
           >
