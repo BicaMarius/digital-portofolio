@@ -959,13 +959,15 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const state = Math.random().toString(36).substring(7);
       const url = getAuthorizationUrl(state);
       
+      // Detect if we're on HTTPS (production)
+      const isProduction = process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https';
+      
       // Store state in session/cookie for verification
-      // Use sameSite: 'lax' to allow cookie to be sent on Spotify redirect
       res.cookie('spotify_auth_state', state, { 
         httpOnly: true, 
         maxAge: 600000, // 10 min
         sameSite: 'lax', // Important for OAuth redirects!
-        secure: false // Allow http for localhost/127.0.0.1
+        secure: isProduction // HTTPS in production, HTTP in development
       });
       res.json({ url, state });
     } catch (error) {
@@ -1018,11 +1020,15 @@ export function registerRoutes(app: Express, storage: IStorage) {
       // Store token with actual Spotify user ID
       await storeUserToken(userId, token);
 
+      // Detect if we're on HTTPS (production)
+      const isProduction = process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https';
+
       // Set cookie with userId for future requests
       res.cookie('spotify_user_id', userId, { 
         httpOnly: true, 
         maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
         sameSite: 'lax',
+        secure: isProduction // HTTPS in production
       });
 
       // Clear state cookie
