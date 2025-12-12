@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
@@ -17,7 +18,8 @@ import {
   Music2, Disc3, Mic2, Play, Pause, Download, Search, Plus, Upload, 
   Headphones, Library, ListMusic, Trash2, RotateCcw, X, 
   SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, 
-  ChevronUp, ChevronDown, ExternalLink, Loader2, FileText, User, Music as MusicIcon
+  ChevronUp, ChevronDown, ExternalLink, Loader2, FileText, User, Music as MusicIcon,
+  MoreVertical, Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
@@ -62,6 +64,7 @@ export default function Music() {
 
   // Track upload dialog state
   const [showTrackDialog, setShowTrackDialog] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<MusicTrack | null>(null);
   const [trackForm, setTrackForm] = useState({
     title: '',
     author: '',
@@ -278,41 +281,64 @@ export default function Music() {
     return data.url;
   };
 
-  // Add custom track
+  // Add or update custom track
   const handleAddTrack = async () => {
-    if (!trackForm.title.trim() || !trackForm.author.trim() || !audioFile) {
-      toast({ title: 'Eroare', description: 'Titlu, autor și fișier audio sunt obligatorii.', variant: 'destructive' });
+    if (!trackForm.title.trim() || !trackForm.author.trim()) {
+      toast({ title: 'Eroare', description: 'Titlu și autor sunt obligatorii.', variant: 'destructive' });
+      return;
+    }
+
+    // Audio is required only for new tracks
+    if (!editingTrack && !audioFile) {
+      toast({ title: 'Eroare', description: 'Fișier audio este obligatoriu.', variant: 'destructive' });
       return;
     }
 
     try {
       setUploading(true);
       
-      // Upload files
-      const audioUrl = await uploadFile(audioFile, 'portfolio-music', 'audio');
-      const artworkUrl = artworkFile ? await uploadFile(artworkFile, 'portfolio-music-artwork', 'image') : null;
+      // Upload files if provided
+      const audioUrl = audioFile 
+        ? await uploadFile(audioFile, 'portfolio-music', 'audio') 
+        : (editingTrack?.audioUrl || '');
+      const artworkUrl = artworkFile 
+        ? await uploadFile(artworkFile, 'portfolio-music-artwork', 'image') 
+        : (editingTrack?.coverUrl || null);
 
-      await api.createMusicTrack({
-        title: trackForm.title.trim(),
-        artist: trackForm.author.trim(),
-        album: null,
-        audioUrl,
-        coverUrl: artworkUrl,
-        lyricsUrl: null,
-        duration: null,
-        genre: null,
-        year: null,
-        isPrivate: false,
-        deletedAt: null,
-      });
+      if (editingTrack) {
+        // Update existing track
+        await api.updateMusicTrack(editingTrack.id, {
+          title: trackForm.title.trim(),
+          artist: trackForm.author.trim(),
+          album: trackForm.description.trim() || null,
+          ...(audioFile && { audioUrl }),
+          ...(artworkFile && { coverUrl: artworkUrl }),
+        });
+        toast({ title: 'Succes', description: 'Piesa a fost actualizată.' });
+      } else {
+        // Create new track
+        await api.createMusicTrack({
+          title: trackForm.title.trim(),
+          artist: trackForm.author.trim(),
+          album: trackForm.description.trim() || null,
+          audioUrl,
+          coverUrl: artworkUrl,
+          lyricsUrl: null,
+          duration: null,
+          genre: null,
+          year: null,
+          isPrivate: false,
+          deletedAt: null,
+        });
+        toast({ title: 'Succes', description: 'Piesa a fost adăugată.' });
+      }
 
-      toast({ title: 'Succes', description: 'Piesa a fost adăugată.' });
       resetTrackForm();
       setShowTrackDialog(false);
       loadData();
     } catch (error) {
-      console.error('Failed to add track:', error);
-      toast({ title: 'Eroare', description: 'Nu am putut adăuga piesa.', variant: 'destructive' });
+      console.error('Failed to save track:', error);
+      toast({ title: 'Eroare', description: 'Nu am putut salva piesa.', variant: 'destructive' });
     } finally {
       setUploading(false);
     }
@@ -323,6 +349,17 @@ export default function Music() {
     setAudioFile(null);
     setArtworkFile(null);
     setLyricsFile(null);
+    setEditingTrack(null);
+  };
+
+  const openEditTrackDialog = (track: MusicTrack) => {
+    setEditingTrack(track);
+    setTrackForm({
+      title: track.title,
+      author: track.artist,
+      description: track.album || '',
+    });
+    setShowTrackDialog(true);
   };
 
   // ========== PLAYER CONTROLS ==========
@@ -894,54 +931,92 @@ export default function Music() {
             </div>
           </div>
 
-          {/* Main controls */}
-          <div className="flex items-center justify-between">
-            {/* Left spacer for centering (or mobile volume) */}
-            <div className="w-24 sm:w-32">
-              {isMobile && (
-                <div className="flex items-center gap-1">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleMute}>
-                    {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          {/* Main controls - symmetric layout */}
+          <div className="flex items-center justify-center">
+            {/* Mobile: all controls in one row, symmetric */}
+            {isMobile ? (
+              <div className="flex items-center justify-center gap-3">
+                {/* Left 3 buttons */}
+                <Button size="icon" variant="ghost" className="h-10 w-10" onClick={toggleMute}>
+                  {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </Button>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  onClick={() => setShuffle(!shuffle)}
+                  className={cn("h-10 w-10", shuffle && "text-primary")}
+                >
+                  <Shuffle className="h-5 w-5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-10 w-10" onClick={playPrevious}>
+                  <SkipBack className="h-5 w-5" />
+                </Button>
+
+                {/* Center play button */}
+                <Button size="icon" className="h-14 w-14 rounded-full mx-2" onClick={togglePlayPause}>
+                  {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-0.5" />}
+                </Button>
+
+                {/* Right 3 buttons */}
+                <Button size="icon" variant="ghost" className="h-10 w-10" onClick={playNext}>
+                  <SkipForward className="h-5 w-5" />
+                </Button>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  onClick={toggleRepeat}
+                  className={cn("h-10 w-10 relative", repeat !== 'off' && "text-primary")}
+                >
+                  <Repeat className="h-5 w-5" />
+                  {repeat === 'one' && <span className="absolute text-[10px] font-bold">1</span>}
+                </Button>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  onClick={() => setShowLyrics(!showLyrics)}
+                  className={cn("h-10 w-10", showLyrics && "text-primary")}
+                >
+                  <FileText className="h-5 w-5" />
+                </Button>
+              </div>
+            ) : (
+              /* Desktop layout */
+              <div className="flex items-center justify-between w-full">
+                {/* Left spacer */}
+                <div className="w-32" />
+
+                {/* Center controls */}
+                <div className="flex items-center justify-center gap-4">
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={() => setShuffle(!shuffle)}
+                    className={cn("h-10 w-10", shuffle && "text-primary")}
+                  >
+                    <Shuffle className="h-5 w-5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-12 w-12" onClick={playPrevious}>
+                    <SkipBack className="h-6 w-6" />
+                  </Button>
+                  <Button size="icon" className="h-16 w-16 rounded-full" onClick={togglePlayPause}>
+                    {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 ml-1" />}
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-12 w-12" onClick={playNext}>
+                    <SkipForward className="h-6 w-6" />
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={toggleRepeat}
+                    className={cn("h-10 w-10 relative", repeat !== 'off' && "text-primary")}
+                  >
+                    <Repeat className="h-5 w-5" />
+                    {repeat === 'one' && <span className="absolute text-[10px] font-bold">1</span>}
                   </Button>
                 </div>
-              )}
-            </div>
 
-            {/* Center controls */}
-            <div className="flex items-center justify-center gap-2 sm:gap-4">
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                onClick={() => setShuffle(!shuffle)}
-                className={cn("h-10 w-10", shuffle && "text-primary")}
-              >
-                <Shuffle className="h-5 w-5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-12 w-12" onClick={playPrevious}>
-                <SkipBack className="h-6 w-6" />
-              </Button>
-              <Button size="icon" className="h-16 w-16 rounded-full" onClick={togglePlayPause}>
-                {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 ml-1" />}
-              </Button>
-              <Button size="icon" variant="ghost" className="h-12 w-12" onClick={playNext}>
-                <SkipForward className="h-6 w-6" />
-              </Button>
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                onClick={toggleRepeat}
-                className={cn("h-10 w-10 relative", repeat !== 'off' && "text-primary")}
-              >
-                <Repeat className="h-5 w-5" />
-                {repeat === 'one' && <span className="absolute text-[10px] font-bold">1</span>}
-              </Button>
-            </div>
-
-            {/* Right side - Volume + Download */}
-            <div className="flex items-center gap-2 w-24 sm:w-32 justify-end">
-              {/* Volume (desktop) */}
-              {!isMobile && (
-                <div className="flex items-center gap-2">
+                {/* Right side - Volume only */}
+                <div className="flex items-center gap-2 w-32 justify-end">
                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleMute}>
                     {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   </Button>
@@ -953,35 +1028,8 @@ export default function Music() {
                     className="w-20"
                   />
                 </div>
-              )}
-              
-              {/* Download button */}
-              {currentTrack?.audioUrl && (
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  className="h-10 w-10"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch(currentTrack.audioUrl!);
-                      const blob = await response.blob();
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${currentTrack.title}.mp3`;
-                      document.body.appendChild(a);
-                      a.click();
-                      window.URL.revokeObjectURL(url);
-                      document.body.removeChild(a);
-                    } catch (error) {
-                      console.error('Download failed:', error);
-                    }
-                  }}
-                >
-                  <Download className="h-6 w-6" />
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1304,15 +1352,15 @@ export default function Music() {
                         <div 
                           key={track.id} 
                           className={cn(
-                            "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
+                            "flex items-center gap-2 sm:gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
                             currentTrack?.id === track.id 
                               ? "bg-primary/10 border border-primary/30" 
                               : "hover:bg-muted/50"
                           )}
                           onClick={() => playTrack(track, index)}
                         >
-                          {/* Track number / Play indicator */}
-                          <div className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">
+                          {/* Track number / Play indicator - hidden on mobile */}
+                          <div className="hidden sm:flex w-8 h-8 items-center justify-center text-sm text-muted-foreground">
                             {currentTrack?.id === track.id && isPlaying ? (
                               <div className="flex items-center gap-0.5">
                                 <span className="w-0.5 h-3 bg-primary animate-pulse rounded-full" />
@@ -1326,7 +1374,7 @@ export default function Music() {
                           </div>
 
                           {/* Artwork */}
-                          <div className="h-10 w-10 rounded overflow-hidden bg-muted flex-shrink-0">
+                          <div className="h-10 w-10 sm:h-10 sm:w-10 rounded overflow-hidden bg-muted flex-shrink-0">
                             {track.coverUrl ? (
                               <img
                                 src={track.coverUrl}
@@ -1344,7 +1392,7 @@ export default function Music() {
                             )}
                           </div>
 
-                          {/* Track info */}
+                          {/* Track info - more space on mobile */}
                           <div className="flex-1 min-w-0">
                             <p className={cn(
                               "font-medium truncate text-sm",
@@ -1355,37 +1403,50 @@ export default function Music() {
                             <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
                           </div>
 
-                          {/* Duration */}
-                          {track.duration && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatTime(track.duration)}
-                            </span>
-                          )}
+                          {/* Duration - always visible */}
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {track.duration ? formatTime(track.duration) : '--:--'}
+                          </span>
 
-                          {/* Actions */}
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              className="h-8 w-8"
-                              asChild
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <a href={track.audioUrl} download title="Descarcă">
-                                <Download className="h-4 w-4" />
-                              </a>
-                            </Button>
-                            {isAdmin && (
+                          {/* Options menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <Button 
                                 size="icon" 
                                 variant="ghost" 
-                                className="h-8 w-8 text-destructive hover:text-destructive" 
-                                onClick={(e) => { e.stopPropagation(); handleSoftDeleteTrack(track.id); }}
+                                className="h-8 w-8 flex-shrink-0"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <MoreVertical className="h-4 w-4" />
                               </Button>
-                            )}
-                          </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              {isAdmin && (
+                                <DropdownMenuItem onClick={() => openEditTrackDialog(track)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Editează
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem asChild>
+                                <a 
+                                  href={track.audioUrl} 
+                                  download={`${track.title}.mp3`}
+                                  className="flex items-center"
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Descarcă
+                                </a>
+                              </DropdownMenuItem>
+                              {isAdmin && (
+                                <DropdownMenuItem 
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleSoftDeleteTrack(track.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Șterge
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       ))}
                     </div>
@@ -1476,13 +1537,38 @@ export default function Music() {
         </DialogContent>
       </Dialog>
 
-      {/* Track Upload Dialog */}
+      {/* Track Upload/Edit Dialog */}
       <Dialog open={showTrackDialog} onOpenChange={(open) => { if (!open) resetTrackForm(); setShowTrackDialog(open); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Adaugă piesă proprie</DialogTitle>
-            <DialogDescription>Încarcă o piesă cu artwork și versuri</DialogDescription>
+            <DialogTitle>{editingTrack ? 'Editează piesa' : 'Adaugă piesă proprie'}</DialogTitle>
+            <DialogDescription>
+              {editingTrack ? 'Modifică detaliile piesei sau înlocuiește fișierele' : 'Încarcă o piesă cu artwork și versuri'}
+            </DialogDescription>
           </DialogHeader>
+          
+          {/* Current artwork preview when editing */}
+          {editingTrack && (
+            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+              <div className="h-12 w-12 rounded overflow-hidden bg-muted flex-shrink-0">
+                {editingTrack.coverUrl ? (
+                  <img
+                    src={editingTrack.coverUrl}
+                    alt={editingTrack.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <Music2 className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">{editingTrack.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{editingTrack.artist}</p>
+              </div>
+            </div>
+          )}
           
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -1505,33 +1591,42 @@ export default function Music() {
             </div>
 
             <div className="space-y-2">
-              <Label>Fișier audio * (MP3, WAV, etc.)</Label>
+              <Label>Fișier audio {editingTrack ? '(înlocuiește)' : '*'} (MP3, WAV, etc.)</Label>
               <Input
                 type="file"
                 accept="audio/*"
                 onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
               />
               {audioFile && <p className="text-xs text-muted-foreground">{audioFile.name}</p>}
+              {editingTrack && !audioFile && (
+                <p className="text-xs text-muted-foreground">Păstrează fișierul audio existent</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Artwork (imagine, GIF sau video)</Label>
+              <Label>Artwork {editingTrack ? '(înlocuiește)' : ''} (imagine, GIF sau video)</Label>
               <Input
                 type="file"
                 accept="image/*,video/*"
                 onChange={(e) => setArtworkFile(e.target.files?.[0] || null)}
               />
               {artworkFile && <p className="text-xs text-muted-foreground">{artworkFile.name}</p>}
+              {editingTrack && !artworkFile && editingTrack.coverUrl && (
+                <p className="text-xs text-muted-foreground">Păstrează artwork-ul existent</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Versuri (fișier text)</Label>
+              <Label>Versuri {editingTrack ? '(înlocuiește)' : ''} (fișier text)</Label>
               <Input
                 type="file"
                 accept=".txt,.lrc"
                 onChange={(e) => setLyricsFile(e.target.files?.[0] || null)}
               />
               {lyricsFile && <p className="text-xs text-muted-foreground">{lyricsFile.name}</p>}
+              {editingTrack && !lyricsFile && editingTrack.lyricsUrl && (
+                <p className="text-xs text-muted-foreground">Păstrează versurile existente</p>
+              )}
             </div>
           </div>
 
@@ -1544,7 +1639,7 @@ export default function Music() {
                   Se încarcă...
                 </>
               ) : (
-                'Adaugă piesă'
+                editingTrack ? 'Salvează modificările' : 'Adaugă piesă'
               )}
             </Button>
           </DialogFooter>
