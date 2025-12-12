@@ -11,8 +11,8 @@
  * - SPOTIFY_REDIRECT_URI (for OAuth)
  */
 
-import { db } from './db';
-import { spotifyUserTokens } from '@shared/schema';
+import { db } from './db.js';
+import { spotifyUserTokens } from '../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 interface SpotifyToken {

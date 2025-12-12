@@ -1420,7 +1420,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
   app.post("/api/film-genres", async (req, res) => {
     try {
-      const genre = insertFilmGenreSchema.parse(req.body);
+      const genre = insertFilmGenreSchema.parse(req.body as Record<string, unknown>);
       const newGenre = await storage.createFilmGenre(genre);
       res.status(201).json(newGenre);
     } catch (error) {
