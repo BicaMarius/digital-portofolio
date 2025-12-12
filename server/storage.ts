@@ -196,6 +196,7 @@ export class MemStorage implements IStorage {
       additionalFiles: project.additionalFiles ?? [],
       gitUrl: project.gitUrl ?? null,
       projectUrl: project.projectUrl ?? null,
+      deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -498,7 +499,7 @@ export class MemStorage implements IStorage {
       ...device,
       ...updates,
     };
-    return this.photoDevices.set(id, updatedDevice);
+    this.photoDevices.set(id, updatedDevice);
     return updatedDevice;
   }
 
@@ -693,6 +694,39 @@ export class MemStorage implements IStorage {
   }
   async deleteNoteItem(id: number): Promise<boolean> {
     return this.noteItems.delete(id);
+  }
+
+  // Film Genres - MemStorage placeholders
+  private filmGenres: Map<number, FilmGenre> = new Map();
+  private filmGenreIdCounter = 1;
+
+  async getFilmGenres(): Promise<FilmGenre[]> {
+    return Array.from(this.filmGenres.values());
+  }
+
+  async getFilmGenreById(id: number): Promise<FilmGenre | null> {
+    return this.filmGenres.get(id) || null;
+  }
+
+  async createFilmGenre(genre: InsertFilmGenre): Promise<FilmGenre> {
+    const newGenre: FilmGenre = {
+      id: this.filmGenreIdCounter++,
+      name: genre.name,
+    };
+    this.filmGenres.set(newGenre.id, newGenre);
+    return newGenre;
+  }
+
+  async updateFilmGenre(id: number, updates: UpdateFilmGenre): Promise<FilmGenre | null> {
+    const genre = this.filmGenres.get(id);
+    if (!genre) return null;
+    const updated = { ...genre, ...updates };
+    this.filmGenres.set(id, updated);
+    return updated;
+  }
+
+  async deleteFilmGenre(id: number): Promise<boolean> {
+    return this.filmGenres.delete(id);
   }
 }
 

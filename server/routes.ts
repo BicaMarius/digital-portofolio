@@ -936,7 +936,7 @@ export function registerRoutes(app: Express, storage: IStorage) {
 
     try {
       const { db } = await import("./db.js");
-      const { spotifyUserTokens } = await import("@shared/schema");
+      const { spotifyUserTokens } = await import("../shared/schema.js");
       const { eq } = await import("drizzle-orm");
 
       const tokens = await db
