@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine, Check } from 'lucide-react';
+import { PenTool, Plus, Search, Filter, Book, FileText, Heart, Calendar, Eye, Edit, Trash2, Undo2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, RotateCcw, RotateCw, Settings2, Trash, X, Save, Album, Grid3X3, List, ArrowUp, FolderPlus, ChevronLeft, ChevronRight, Pin, ArrowUpFromLine, Check, Download } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogPortal, DialogOverlay, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogPortal, DialogOverlay, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Toggle } from '@/components/ui/toggle';
 import { Switch } from '@/components/ui/switch';
@@ -17,6 +17,8 @@ import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { AlbumNameDialog } from '@/components/AlbumNameDialog';
 import { AlbumCard } from '@/components/AlbumCard';
 import { DragDropIndicator } from '@/components/DragDropIndicator';
+import { Checkbox } from '@/components/ui/checkbox';
+import JSZip from 'jszip';
 import { 
   useWritings, 
   useAlbums, 
@@ -455,6 +457,16 @@ const CreativeWriting: React.FC = () => {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  
+  // Export dialog state
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportWritings, setExportWritings] = useState(true);
+  const [exportAlbums, setExportAlbums] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  
+  // Mobile search expanded state
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
   
   // Mobile view state - add view mode selector for mobile
   const [mobileViewMode, setMobileViewMode] = useState<'writings' | 'albums'>('writings');
@@ -1797,6 +1809,102 @@ const CreativeWriting: React.FC = () => {
     }
   };
 
+  // Export all function - creates ZIP with writings and/or albums
+  const handleExportAll = async () => {
+    if (!exportWritings && !exportAlbums) {
+      toast({ title: 'Selectează ceva', description: 'Alege cel puțin o opțiune de export.', variant: 'destructive' });
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const zip = new JSZip();
+      const timestamp = new Date().toISOString().split('T')[0];
+
+      if (exportWritings) {
+        const writingsFolder = zip.folder('scrieri');
+        
+        // Get writings that are NOT in any album
+        const writingsInAlbums = new Set(albums.flatMap(a => a.itemIds));
+        const standaloneWritings = writings.filter(w => !writingsInAlbums.has(w.id));
+        
+        for (const writing of standaloneWritings) {
+          const fileName = sanitizeFileName(writing.title) + '.txt';
+          const content = formatWritingContent(writing);
+          writingsFolder?.file(fileName, content);
+        }
+      }
+
+      if (exportAlbums) {
+        const albumsFolder = zip.folder('albume');
+        
+        for (const album of visibleAlbums) {
+          const albumFolder = albumsFolder?.folder(sanitizeFileName(album.name));
+          const albumWritings = writings.filter(w => album.itemIds.includes(w.id));
+          
+          for (const writing of albumWritings) {
+            const fileName = sanitizeFileName(writing.title) + '.txt';
+            const content = formatWritingContent(writing);
+            albumFolder?.file(fileName, content);
+          }
+          
+          // Add album metadata
+          const metadata = {
+            name: album.name,
+            color: album.color,
+            icon: album.icon,
+            writingsCount: albumWritings.length
+          };
+          albumFolder?.file('_album_info.json', JSON.stringify(metadata, null, 2));
+        }
+      }
+
+      // Generate ZIP and download
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `creative-writings-${timestamp}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Export reușit!', description: 'Arhiva ZIP a fost descărcată.' });
+      setIsExportDialogOpen(false);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut crea arhiva ZIP.', variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Helper: sanitize filename
+  const sanitizeFileName = (name: string) => {
+    return name
+      .replace(/[<>:"/\\|?*]/g, '')
+      .replace(/\s+/g, '_')
+      .substring(0, 100);
+  };
+
+  // Helper: format writing content for export
+  const formatWritingContent = (writing: WritingPiece) => {
+    const lines = [
+      `Titlu: ${writing.title}`,
+      `Tip: ${writing.type}`,
+      `Stare: ${writing.mood}`,
+      `Cuvinte: ${writing.wordCount}`,
+      `Data: ${writing.dateWritten}`,
+      `Tags: ${writing.tags.filter(t => !t.startsWith('__')).join(', ')}`,
+      '',
+      '---',
+      '',
+      writing.content
+    ];
+    return lines.join('\n');
+  };
+
   return (
     <PageLayout>
       <section className="page-hero-section">
@@ -1821,30 +1929,58 @@ const CreativeWriting: React.FC = () => {
           {/* Controls - responsive: expandable on mobile, normal on desktop */}
           <div className="mb-2">
             {isMobile ? (
-              /* Mobile: Clean search controls */
+              /* Mobile: Clean search controls with expanding animation */
               <div className="p-3">
-                <div className="flex items-center gap-2">
-                  {/* Search Input - More space */}
-                  <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2 relative">
+                  {/* Search Input - expands on focus */}
+                  <div 
+                    className={`relative transition-all duration-300 ease-out ${
+                      isMobileSearchExpanded ? 'flex-1' : 'flex-1'
+                    }`}
+                  >
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                     <Input
+                      ref={mobileSearchRef}
                       placeholder={searchInAlbums ? "Caută în toate..." : "Caută scrieri..."}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className={`pl-10 h-9 border-art-accent/30 focus:border-art-accent/50 ${
+                      onFocus={() => setIsMobileSearchExpanded(true)}
+                      onBlur={() => {
+                        // Delay to allow button clicks to register
+                        setTimeout(() => setIsMobileSearchExpanded(false), 150);
+                      }}
+                      className={`pl-10 h-9 border-art-accent/30 focus:border-art-accent/50 transition-all duration-300 ${
                         searchInAlbums 
                           ? 'bg-background/50 border-art-accent/30' 
                           : 'bg-background/50'
                       }`}
                     />
+                    {/* Close button when expanded */}
+                    {isMobileSearchExpanded && searchTerm && (
+                      <button
+                        onClick={() => {
+                          setSearchTerm('');
+                          mobileSearchRef.current?.focus();
+                        }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                   
-                  {/* Compact Controls */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Compact Controls - hide when search is expanded */}
+                  <div 
+                    className={`flex items-center gap-1.5 transition-all duration-300 overflow-hidden ${
+                      isMobileSearchExpanded 
+                        ? 'w-0 opacity-0 pointer-events-none' 
+                        : 'w-auto opacity-100'
+                    }`}
+                  >
                     {/* Filter Button */}
                     <button
                       onClick={() => setIsFilterModalOpen(true)}
-                      className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center ${
+                      className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center flex-shrink-0 ${
                         (filterType !== 'all' || filterMood !== 'all')
                           ? 'bg-art-accent text-white border-art-accent shadow-sm'
                           : 'bg-background/40 text-muted-foreground border-border hover:text-foreground'
@@ -1857,7 +1993,7 @@ const CreativeWriting: React.FC = () => {
                     {/* Search In Albums Toggle (compact icon) */}
                     <button
                       onClick={() => setSearchInAlbums(v => !v)}
-                      className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center ${
+                      className={`h-8 w-8 rounded-md border transition-colors flex items-center justify-center flex-shrink-0 ${
                         searchInAlbums
                           ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
                           : 'bg-background/40 text-muted-foreground border-border hover:text-foreground'
@@ -2052,13 +2188,24 @@ const CreativeWriting: React.FC = () => {
                 : 'Scrieri'
               }
             </h2>
-            {/* Add total count */}
-            <span className="text-xs text-muted-foreground">
-              Total: {isMobile 
-                ? (mobileViewMode === 'writings' ? allVisibleWritings.length : albums.length)
-                : allVisibleWritings.length
-              }
-            </span>
+            {/* Right side: export button + count */}
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <button
+                  onClick={() => setIsExportDialogOpen(true)}
+                  className="h-8 w-8 rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors flex items-center justify-center"
+                  title="Exportă toate scrierile"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              )}
+              <span className="text-xs text-muted-foreground">
+                Total: {isMobile 
+                  ? (mobileViewMode === 'writings' ? allVisibleWritings.length : albums.length)
+                  : allVisibleWritings.length
+                }
+              </span>
+            </div>
           </div>
 
           {/* Main Content Area */}
@@ -3317,6 +3464,88 @@ const CreativeWriting: React.FC = () => {
           <Plus className="h-6 w-6" />
         </button>
       )}
+
+      {/* Export Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">
+              <div className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-art-accent" />
+                Exportă Scrieri
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              Selectează ce dorești să exporți în arhiva ZIP.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                id="export-writings"
+                checked={exportWritings}
+                onCheckedChange={(checked) => setExportWritings(!!checked)}
+              />
+              <label
+                htmlFor="export-writings"
+                className="text-sm font-medium leading-none cursor-pointer flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Scrieri independente
+                <span className="text-xs text-muted-foreground">
+                  ({writings.filter(w => !albums.some(a => a.itemIds.includes(w.id))).length})
+                </span>
+              </label>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                id="export-albums"
+                checked={exportAlbums}
+                onCheckedChange={(checked) => setExportAlbums(!!checked)}
+              />
+              <label
+                htmlFor="export-albums"
+                className="text-sm font-medium leading-none cursor-pointer flex items-center gap-2"
+              >
+                <Book className="h-4 w-4 text-muted-foreground" />
+                Albume cu scrieri
+                <span className="text-xs text-muted-foreground">
+                  ({visibleAlbums.length} albume, {visibleAlbums.reduce((sum, a) => sum + a.itemIds.length, 0)} scrieri)
+                </span>
+              </label>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsExportDialogOpen(false)}
+              disabled={isExporting}
+            >
+              Anulează
+            </Button>
+            <Button
+              onClick={handleExportAll}
+              disabled={isExporting || (!exportWritings && !exportAlbums)}
+              className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white"
+            >
+              {isExporting ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Se exportă...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Descarcă ZIP
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Trash Dialog */}
       <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>

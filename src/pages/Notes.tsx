@@ -992,7 +992,8 @@ export default function Notes() {
                   <div className="space-y-3">
                     <h3 className="text-xl font-semibold">{activeRecipe.title}</h3>
                     <p className="text-sm text-muted-foreground">{activeRecipe.summary}</p>
-                    <div className="flex flex-wrap gap-2 text-xs">
+                    {/* Mobile only - badges */}
+                    <div className="flex flex-wrap gap-2 text-xs lg:hidden">
                       <Badge variant="outline"><Clock3 className="h-3 w-3 mr-1" /> {formatTime(activeRecipe.time)}</Badge>
                       <Badge variant="outline"><Flame className="h-3 w-3 mr-1" /> {activeRecipe.difficulty}</Badge>
                       <Badge variant="outline"><Users className="h-3 w-3 mr-1" /> {activeRecipe.servings} porții</Badge>
@@ -1023,19 +1024,20 @@ export default function Notes() {
                     <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/50">
                       <img src={activeRecipe.image} alt={activeRecipe.title} className="h-56 w-full object-cover" />
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                    {/* Desktop only - cards */}
+                    <div className="hidden lg:grid grid-cols-3 gap-2 text-sm">
                       <Card className="border-border/60 bg-background/70">
-                        <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
+                        <CardContent className="py-3 flex items-center justify-center gap-2 text-muted-foreground">
                           <Clock3 className="h-4 w-4" /> {formatTime(activeRecipe.time)}
                         </CardContent>
                       </Card>
                       <Card className="border-border/60 bg-background/70">
-                        <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
+                        <CardContent className="py-3 flex items-center justify-center gap-2 text-muted-foreground">
                           <Flame className="h-4 w-4" /> {activeRecipe.difficulty}
                         </CardContent>
                       </Card>
                       <Card className="border-border/60 bg-background/70">
-                        <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
+                        <CardContent className="py-3 flex items-center justify-center gap-2 text-muted-foreground">
                           <Users className="h-4 w-4" /> {activeRecipe.servings} porții
                         </CardContent>
                       </Card>
