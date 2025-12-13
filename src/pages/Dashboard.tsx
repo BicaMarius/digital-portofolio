@@ -49,14 +49,24 @@ const Dashboard: React.FC = () => {
       <section className="hero-section pb-2 sm:pb-4 relative overflow-hidden">
         {/* Background Image */}
         <div 
-          className="absolute inset-0 z-0 opacity-20"
+          className="absolute inset-0 z-0 opacity-20 bg-cover bg-center"
           style={{
             backgroundImage: `url(${heroWorkspace})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            backgroundRepeat: 'no-repeat',
+            //transform: 'scale(1)',
           }}
-        />
+        >
+          <style>{`
+            @media (min-width: 1024px) {
+              .hero-section .bg-cover.bg-center {
+                transform-origin: 20% 20%;
+                transform: scale(1.12) translateY(32%);
+              }
+            }
+          `}</style>
+        </div>
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/80 via-background/60 to-background"></div>
         
         <div className="relative z-10 responsive-container text-center">
