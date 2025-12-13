@@ -19,7 +19,7 @@ import { AdminLogin } from '@/components/AdminLogin';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { PORTFOLIO_CATEGORIES, CONTACT_INFO } from '@/constants';
-import heroWorkspace from '@/assets/hero-workspace.jpg';
+import heroWorkspace from '@/assets/cover.png';
 
 // Tech categories first, then art categories
 const portfolioCategories = PORTFOLIO_CATEGORIES.map(category => ({

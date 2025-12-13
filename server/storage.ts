@@ -25,6 +25,9 @@ import type {
   MusicTrack,
   InsertMusicTrack,
   UpdateMusicTrack,
+  MusicAlbum,
+  InsertMusicAlbum,
+  UpdateMusicAlbum,
   SpotifyFavorite,
   InsertSpotifyFavorite,
   UpdateSpotifyFavorite,
@@ -105,6 +108,14 @@ export interface IStorage {
   createMusicTrack(track: InsertMusicTrack): Promise<MusicTrack>;
   updateMusicTrack(id: number, updates: UpdateMusicTrack): Promise<MusicTrack | null>;
   deleteMusicTrack(id: number): Promise<boolean>;
+
+  // Music Albums
+  getMusicAlbums(): Promise<MusicAlbum[]>;
+  getMusicAlbum(id: number): Promise<MusicAlbum | null>;
+  getTrashedMusicAlbums(): Promise<MusicAlbum[]>;
+  createMusicAlbum(album: InsertMusicAlbum): Promise<MusicAlbum>;
+  updateMusicAlbum(id: number, updates: UpdateMusicAlbum): Promise<MusicAlbum | null>;
+  deleteMusicAlbum(id: number): Promise<boolean>;
 
   // Spotify Favorites
   getSpotifyFavorites(): Promise<SpotifyFavorite[]>;
@@ -551,6 +562,46 @@ export class MemStorage implements IStorage {
     return this.musicTracks.delete(id);
   }
 
+  // Music Albums - MemStorage placeholders
+  private musicAlbums: Map<number, MusicAlbum> = new Map();
+  private musicAlbumIdCounter = 1;
+
+  async getMusicAlbums(): Promise<MusicAlbum[]> {
+    return Array.from(this.musicAlbums.values()).filter(a => !a.deletedAt);
+  }
+  async getMusicAlbum(id: number): Promise<MusicAlbum | null> {
+    return this.musicAlbums.get(id) || null;
+  }
+  async getTrashedMusicAlbums(): Promise<MusicAlbum[]> {
+    return Array.from(this.musicAlbums.values()).filter(a => a.deletedAt !== null);
+  }
+  async createMusicAlbum(album: InsertMusicAlbum): Promise<MusicAlbum> {
+    const newAlbum: MusicAlbum = {
+      id: this.musicAlbumIdCounter++,
+      name: album.name,
+      description: album.description ?? null,
+      coverUrl: album.coverUrl ?? null,
+      color: album.color ?? null,
+      year: album.year ?? null,
+      trackIds: album.trackIds ?? [],
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.musicAlbums.set(newAlbum.id, newAlbum);
+    return newAlbum;
+  }
+  async updateMusicAlbum(id: number, updates: UpdateMusicAlbum): Promise<MusicAlbum | null> {
+    const album = this.musicAlbums.get(id);
+    if (!album) return null;
+    const updated = { ...album, ...updates, updatedAt: new Date() };
+    this.musicAlbums.set(id, updated);
+    return updated;
+  }
+  async deleteMusicAlbum(id: number): Promise<boolean> {
+    return this.musicAlbums.delete(id);
+  }
+
   // Spotify Favorites - MemStorage placeholders
   private spotifyFavorites: Map<number, SpotifyFavorite> = new Map();
   private spotifyFavoriteIdCounter = 1;
@@ -735,7 +786,7 @@ import { db } from "./db.js";
 import * as schema from "../shared/schema.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, spotifyFavorites, filmItems, noteItems, filmGenres } = schema;
+const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, musicAlbums, spotifyFavorites, filmItems, noteItems, filmGenres } = schema;
 
 export class DbStorage implements IStorage {
   // Projects
@@ -1061,6 +1112,43 @@ export class DbStorage implements IStorage {
 
   async deleteMusicTrack(id: number): Promise<boolean> {
     const result = await db.delete(musicTracks).where(eq(musicTracks.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Music Albums
+  async getMusicAlbums(): Promise<MusicAlbum[]> {
+    return await db.select().from(musicAlbums).where(isNull(musicAlbums.deletedAt));
+  }
+
+  async getMusicAlbum(id: number): Promise<MusicAlbum | null> {
+    const result = await db.select().from(musicAlbums).where(eq(musicAlbums.id, id));
+    return result[0] || null;
+  }
+
+  async getTrashedMusicAlbums(): Promise<MusicAlbum[]> {
+    return await db.select().from(musicAlbums).where(sql`"deleted_at" IS NOT NULL`);
+  }
+
+  async createMusicAlbum(album: InsertMusicAlbum): Promise<MusicAlbum> {
+    const result = await db.insert(musicAlbums).values({
+      ...album,
+      trackIds: album.trackIds ?? [],
+      deletedAt: null,
+    }).returning();
+    return result[0];
+  }
+
+  async updateMusicAlbum(id: number, updates: UpdateMusicAlbum): Promise<MusicAlbum | null> {
+    const result = await db
+      .update(musicAlbums)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(musicAlbums.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteMusicAlbum(id: number): Promise<boolean> {
+    const result = await db.delete(musicAlbums).where(eq(musicAlbums.id, id)).returning();
     return result.length > 0;
   }
 

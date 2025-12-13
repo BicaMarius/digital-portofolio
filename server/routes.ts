@@ -845,6 +845,73 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // ============ MUSIC ALBUMS API ============
+  app.get("/api/music-albums", async (_req, res) => {
+    try {
+      const albums = await storage.getMusicAlbums();
+      res.json(albums);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch music albums" });
+    }
+  });
+
+  app.get("/api/music-albums/trash", async (_req, res) => {
+    try {
+      const albums = await storage.getTrashedMusicAlbums();
+      res.json(albums);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch trashed music albums" });
+    }
+  });
+
+  app.get("/api/music-albums/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const album = await storage.getMusicAlbum(id);
+      if (!album) {
+        return res.status(404).json({ error: "Music album not found" });
+      }
+      res.json(album);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch music album" });
+    }
+  });
+
+  app.post("/api/music-albums", async (req, res) => {
+    try {
+      const album = await storage.createMusicAlbum(req.body);
+      res.status(201).json(album);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create music album" });
+    }
+  });
+
+  app.patch("/api/music-albums/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const album = await storage.updateMusicAlbum(id, req.body);
+      if (!album) {
+        return res.status(404).json({ error: "Music album not found" });
+      }
+      res.json(album);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update music album" });
+    }
+  });
+
+  app.delete("/api/music-albums/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteMusicAlbum(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Music album not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete music album" });
+    }
+  });
+
   // Audio file upload endpoint
   app.post("/api/upload/audio", upload.single("file"), async (req, res) => {
     try {

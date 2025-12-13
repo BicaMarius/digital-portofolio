@@ -42,8 +42,10 @@ export default function Music() {
   const [topAlbums, setTopAlbums] = useState<SpotifyFavorite[]>([]);
   const [topTracks, setTopTracks] = useState<SpotifyFavorite[]>([]);
   const [customTracks, setCustomTracks] = useState<MusicTrack[]>([]);
+  const [musicAlbums, setMusicAlbums] = useState<api.MusicAlbum[]>([]);
   const [trashedTracks, setTrashedTracks] = useState<MusicTrack[]>([]);
   const [trashedFavorites, setTrashedFavorites] = useState<SpotifyFavorite[]>([]);
+  const [trashedAlbums, setTrashedAlbums] = useState<api.MusicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [spotifyConfigured, setSpotifyConfigured] = useState(false);
 
@@ -96,11 +98,19 @@ export default function Music() {
 
   // Trash dialog state
   const [showTrashDialog, setShowTrashDialog] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<{ type: 'track' | 'favorite'; id: number } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'track' | 'favorite' | 'album'; id: number } | null>(null);
 
   // Long press state for mobile track menu
   const [longPressTrack, setLongPressTrack] = useState<MusicTrack | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Album dialog state
+  const [showAlbumDialog, setShowAlbumDialog] = useState(false);
+  const [editingAlbum, setEditingAlbum] = useState<api.MusicAlbum | null>(null);
+  const [albumForm, setAlbumForm] = useState({ name: '', description: '', year: '', color: '#6366f1' });
+  const [albumCoverFile, setAlbumCoverFile] = useState<File | null>(null);
+  const [savingAlbum, setSavingAlbum] = useState(false);
+  const [selectedAlbum, setSelectedAlbum] = useState<api.MusicAlbum | null>(null);
 
   // Check Spotify status and auth callback
   useEffect(() => {
@@ -175,16 +185,20 @@ export default function Music() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [tracks, favs, trashedT, trashedF] = await Promise.all([
+      const [tracks, favs, trashedT, trashedF, albums, trashedA] = await Promise.all([
         api.getMusicTracks(),
         api.getSpotifyFavorites(),
         api.getTrashedMusicTracks(),
         api.getTrashedSpotifyFavorites(),
+        api.getMusicAlbums(),
+        api.getTrashedMusicAlbums(),
       ]);
       
       setCustomTracks(tracks);
       setTrashedTracks(trashedT);
       setTrashedFavorites(trashedF);
+      setMusicAlbums(albums);
+      setTrashedAlbums(trashedA);
       
       // Separate favorites by type and sort by rank
       setTopArtists(favs.filter(f => f.type === 'artist' && f.listType === 'top10').sort((a, b) => (a.rank || 0) - (b.rank || 0)));
@@ -715,6 +729,8 @@ export default function Music() {
     try {
       if (confirmDelete.type === 'track') {
         await api.deleteMusicTrack(confirmDelete.id);
+      } else if (confirmDelete.type === 'album') {
+        await api.deleteMusicAlbum(confirmDelete.id);
       } else {
         await api.deleteSpotifyFavorite(confirmDelete.id);
       }
@@ -726,6 +742,119 @@ export default function Music() {
     }
   };
 
+  // Album CRUD functions
+  const openAlbumDialog = (album?: api.MusicAlbum) => {
+    if (album) {
+      setEditingAlbum(album);
+      setAlbumForm({
+        name: album.name,
+        description: album.description || '',
+        year: album.year || '',
+        color: album.color || '#6366f1',
+      });
+    } else {
+      setEditingAlbum(null);
+      setAlbumForm({ name: '', description: '', year: '', color: '#6366f1' });
+    }
+    setAlbumCoverFile(null);
+    setShowAlbumDialog(true);
+  };
+
+  const handleSaveAlbum = async () => {
+    if (!albumForm.name.trim()) {
+      toast({ title: 'Eroare', description: 'Numele albumului este obligatoriu.', variant: 'destructive' });
+      return;
+    }
+
+    setSavingAlbum(true);
+    try {
+      let coverUrl = editingAlbum?.coverUrl || null;
+      
+      // Upload cover if provided
+      if (albumCoverFile) {
+        const formData = new FormData();
+        formData.append('file', albumCoverFile);
+        formData.append('folder', 'portfolio-music-albums');
+        const response = await fetch('/api/upload/image', { method: 'POST', body: formData });
+        const data = await response.json();
+        coverUrl = data.url;
+      }
+
+      if (editingAlbum) {
+        await api.updateMusicAlbum(editingAlbum.id, {
+          name: albumForm.name.trim(),
+          description: albumForm.description.trim() || null,
+          year: albumForm.year.trim() || null,
+          color: albumForm.color,
+          coverUrl,
+        });
+        toast({ title: 'Album actualizat', description: 'Modificările au fost salvate.' });
+      } else {
+        await api.createMusicAlbum({
+          name: albumForm.name.trim(),
+          description: albumForm.description.trim() || null,
+          year: albumForm.year.trim() || null,
+          color: albumForm.color,
+          coverUrl,
+          trackIds: [],
+        });
+        toast({ title: 'Album creat', description: 'Albumul a fost adăugat cu succes.' });
+      }
+      
+      setShowAlbumDialog(false);
+      loadData();
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu am putut salva albumul.', variant: 'destructive' });
+    } finally {
+      setSavingAlbum(false);
+    }
+  };
+
+  const handleDeleteAlbum = async (album: api.MusicAlbum) => {
+    try {
+      await api.softDeleteMusicAlbum(album.id);
+      toast({ title: 'Album mutat în coș', description: 'Albumul poate fi restaurat din coș.' });
+      loadData();
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu am putut șterge albumul.', variant: 'destructive' });
+    }
+  };
+
+  const handleRestoreAlbum = async (album: api.MusicAlbum) => {
+    try {
+      await api.restoreMusicAlbum(album.id);
+      toast({ title: 'Album restaurat', description: 'Albumul a fost restaurat.' });
+      loadData();
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu am putut restaura albumul.', variant: 'destructive' });
+    }
+  };
+
+  const handleAddTrackToAlbum = async (album: api.MusicAlbum, trackId: number) => {
+    if (album.trackIds.includes(trackId)) return;
+    try {
+      await api.updateMusicAlbum(album.id, { trackIds: [...album.trackIds, trackId] });
+      loadData();
+      toast({ title: 'Piesă adăugată', description: 'Piesa a fost adăugată în album.' });
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu am putut adăuga piesa.', variant: 'destructive' });
+    }
+  };
+
+  const handleRemoveTrackFromAlbum = async (album: api.MusicAlbum, trackId: number) => {
+    try {
+      await api.updateMusicAlbum(album.id, { trackIds: album.trackIds.filter(id => id !== trackId) });
+      loadData();
+      toast({ title: 'Piesă eliminată', description: 'Piesa a fost eliminată din album.' });
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu am putut elimina piesa.', variant: 'destructive' });
+    }
+  };
+
+  const getAlbumTracks = (album: api.MusicAlbum) => {
+    return customTracks.filter(track => album.trackIds.includes(track.id));
+  };
+
   const openSearchDialog = (type: SpotifyType) => {
     setSearchType(type);
     setSearchQuery('');
@@ -733,7 +862,7 @@ export default function Music() {
     setSearchDialogOpen(true);
   };
 
-  const trashedCount = trashedTracks.length + trashedFavorites.length;
+  const trashedCount = trashedTracks.length + trashedFavorites.length + trashedAlbums.length;
   const playerVisible = currentTrack !== null;
 
   // TopList component
@@ -1479,18 +1608,177 @@ export default function Music() {
             <TabsContent value="library" className="space-y-4">
               <Card className="border-border/60 bg-muted/20">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2">
-                    <Library className="h-4 w-4" /> Albume proprii
-                  </CardTitle>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <Library className="h-4 w-4" /> Albume proprii
+                    </CardTitle>
+                    {isAdmin && (
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openAlbumDialog()}>
+                        <Plus className="h-4 w-4" /> Creează album
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <Card className="border-dashed border-border/70 bg-background/60">
-                    <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
-                      <Disc3 className="h-8 w-8 text-muted-foreground" />
-                      <p className="font-semibold">În curând</p>
-                      <p className="text-sm text-muted-foreground">Funcționalitatea de albume proprii va fi disponibilă în curând.</p>
-                    </CardContent>
-                  </Card>
+                <CardContent>
+                  {musicAlbums.length === 0 ? (
+                    <Card className="border-dashed border-border/70 bg-background/60">
+                      <CardContent className="p-6 flex flex-col items-center gap-3 text-center">
+                        <Disc3 className="h-10 w-10 text-muted-foreground" />
+                        <p className="font-semibold">Niciun album creat</p>
+                        <p className="text-sm text-muted-foreground">Creează un album pentru a-ți organiza piesele proprii.</p>
+                        {isAdmin && (
+                          <Button size="sm" onClick={() => openAlbumDialog()} className="gap-2 mt-2">
+                            <Plus className="h-4 w-4" /> Creează primul album
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : selectedAlbum ? (
+                    /* Album Detail View */
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedAlbum(null)} className="gap-1">
+                          <ChevronDown className="h-4 w-4 rotate-90" /> Înapoi
+                        </Button>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-4 items-start relative">
+                        {/* Admin Actions - Top Right */}
+                        {isAdmin && (
+                          <div className="absolute top-0 right-0 flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openAlbumDialog(selectedAlbum)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteAlbum(selectedAlbum)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {/* Album Cover */}
+                        <div 
+                          className="w-32 h-32 sm:w-40 sm:h-40 rounded-xl flex-shrink-0 flex items-center justify-center shadow-lg"
+                          style={{ backgroundColor: selectedAlbum.color || '#6366f1' }}
+                        >
+                          {selectedAlbum.coverUrl ? (
+                            <img src={selectedAlbum.coverUrl} alt={selectedAlbum.name} className="w-full h-full object-cover rounded-xl" />
+                          ) : (
+                            <Disc3 className="h-16 w-16 text-white/80" />
+                          )}
+                        </div>
+                        
+                        {/* Album Info */}
+                        <div className="flex-1 min-w-0 pr-16">
+                          <h3 className="text-xl font-bold">{selectedAlbum.name}</h3>
+                          {selectedAlbum.year && <p className="text-sm text-muted-foreground">{selectedAlbum.year}</p>}
+                          {selectedAlbum.description && <p className="text-sm text-muted-foreground mt-2">{selectedAlbum.description}</p>}
+                          <p className="text-xs text-muted-foreground mt-2">{getAlbumTracks(selectedAlbum).length} piese</p>
+                        </div>
+                      </div>
+
+                      {/* Album Tracks */}
+                      <div className="space-y-1 mt-4">
+                        <p className="text-sm font-medium mb-2">Piese în album</p>
+                        {getAlbumTracks(selectedAlbum).length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-4 text-center">Nicio piesă în acest album.</p>
+                        ) : (
+                          getAlbumTracks(selectedAlbum).map((track, index) => (
+                            <div
+                              key={track.id}
+                              className={cn(
+                                "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
+                                currentTrack?.id === track.id ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"
+                              )}
+                              onClick={() => playTrack(track, customTracks.findIndex(t => t.id === track.id))}
+                            >
+                              <div className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">
+                                {currentTrack?.id === track.id && isPlaying ? (
+                                  <div className="flex items-center gap-0.5">
+                                    <span className="w-0.5 h-3 bg-primary animate-pulse rounded-full" />
+                                    <span className="w-0.5 h-4 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.2s' }} />
+                                    <span className="w-0.5 h-2 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.4s' }} />
+                                  </div>
+                                ) : (
+                                  <span>{index + 1}</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{track.title}</p>
+                                <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {track.duration ? `${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}` : '--:--'}
+                              </span>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveTrackFromAlbum(selectedAlbum, track.id);
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Add tracks section */}
+                      {isAdmin && customTracks.filter(t => !selectedAlbum.trackIds.includes(t.id)).length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border/50">
+                          <p className="text-sm font-medium mb-2">Adaugă piese</p>
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {customTracks.filter(t => !selectedAlbum.trackIds.includes(t.id)).map(track => (
+                              <div
+                                key={track.id}
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
+                                onClick={() => handleAddTrackToAlbum(selectedAlbum, track.id)}
+                              >
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm truncate">{track.title}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Album Grid View */
+                    <div className={cn(
+                      "grid gap-4",
+                      isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+                    )}>
+                      {musicAlbums.map(album => (
+                        <div
+                          key={album.id}
+                          className="group cursor-pointer"
+                          onClick={() => setSelectedAlbum(album)}
+                        >
+                          <div 
+                            className="aspect-square rounded-xl flex items-center justify-center shadow-md transition-transform group-hover:scale-105 overflow-hidden"
+                            style={{ backgroundColor: album.color || '#6366f1' }}
+                          >
+                            {album.coverUrl ? (
+                              <img src={album.coverUrl} alt={album.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Disc3 className="h-12 w-12 text-white/80" />
+                            )}
+                          </div>
+                          <p className="font-medium mt-2 truncate">{album.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {getAlbumTracks(album).length} piese {album.year && `• ${album.year}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1885,21 +2173,163 @@ export default function Music() {
         </DialogContent>
       </Dialog>
 
+      {/* Album Dialog */}
+      <Dialog open={showAlbumDialog} onOpenChange={setShowAlbumDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingAlbum ? 'Editează album' : 'Creează album nou'}</DialogTitle>
+            <DialogDescription>
+              {editingAlbum ? 'Modifică detaliile albumului.' : 'Completează informațiile pentru noul album.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="album-name">Nume album *</Label>
+              <Input
+                id="album-name"
+                value={albumForm.name}
+                onChange={(e) => setAlbumForm({ ...albumForm, name: e.target.value })}
+                placeholder="ex: Piese de vară"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="album-description">Descriere</Label>
+              <Input
+                id="album-description"
+                value={albumForm.description}
+                onChange={(e) => setAlbumForm({ ...albumForm, description: e.target.value })}
+                placeholder="O scurtă descriere..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="album-year">An</Label>
+                <Input
+                  id="album-year"
+                  value={albumForm.year}
+                  onChange={(e) => setAlbumForm({ ...albumForm, year: e.target.value })}
+                  placeholder="2024"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="album-color">Culoare</Label>
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    id="album-color"
+                    value={albumForm.color}
+                    onChange={(e) => setAlbumForm({ ...albumForm, color: e.target.value })}
+                    className="w-10 h-10 rounded cursor-pointer border border-border"
+                  />
+                  <Input
+                    value={albumForm.color}
+                    onChange={(e) => setAlbumForm({ ...albumForm, color: e.target.value })}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Copertă album</Label>
+              <div className="flex items-center gap-4">
+                <div 
+                  className="w-20 h-20 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: albumForm.color }}
+                >
+                  {albumCoverFile ? (
+                    <img src={URL.createObjectURL(albumCoverFile)} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+                  ) : editingAlbum?.coverUrl ? (
+                    <img src={editingAlbum.coverUrl} alt="Cover" className="w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    <Disc3 className="h-8 w-8 text-white/80" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setAlbumCoverFile(e.target.files?.[0] || null)}
+                    className="cursor-pointer"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Opțional. Format: JPG, PNG, WebP</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAlbumDialog(false)}>Anulează</Button>
+            <Button onClick={handleSaveAlbum} disabled={savingAlbum}>
+              {savingAlbum ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Se salvează...
+                </>
+              ) : (
+                editingAlbum ? 'Salvează' : 'Creează album'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Trash Dialog */}
       <Dialog open={showTrashDialog} onOpenChange={setShowTrashDialog}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Coș de gunoi ({trashedTracks.length + trashedFavorites.length})</DialogTitle>
+            <DialogTitle>Coș de gunoi ({trashedCount})</DialogTitle>
             <DialogDescription>
               Restaurează sau șterge permanent elementele.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            {trashedTracks.length === 0 && trashedFavorites.length === 0 ? (
+            {trashedTracks.length === 0 && trashedFavorites.length === 0 && trashedAlbums.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">Coșul este gol.</p>
             ) : (
               <>
+                {trashedAlbums.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                      <Library className="h-4 w-4" /> Albume ({trashedAlbums.length})
+                    </p>
+                    {trashedAlbums.map((album) => (
+                      <div
+                        key={`album-${album.id}`}
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition"
+                      >
+                        <div 
+                          className="w-12 h-12 rounded flex items-center justify-center"
+                          style={{ backgroundColor: album.color || '#6366f1' }}
+                        >
+                          {album.coverUrl ? (
+                            <img src={album.coverUrl} alt={album.name} className="w-full h-full rounded object-cover" />
+                          ) : (
+                            <Disc3 className="w-6 h-6 text-white/80" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate">{album.name}</h4>
+                          <p className="text-sm text-muted-foreground truncate">{album.trackIds.length} piese</p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button size="sm" variant="outline" onClick={() => handleRestoreAlbum(album)}>
+                            <RotateCcw className="w-4 h-4 mr-1" /> Restaurează
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => setConfirmDelete({ type: 'album', id: album.id })}>
+                            <Trash2 className="w-4 h-4 mr-1" /> Șterge
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {trashedTracks.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-semibold text-muted-foreground flex items-center gap-2">

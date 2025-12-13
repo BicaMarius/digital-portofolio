@@ -328,6 +328,65 @@ export async function restoreMusicTrack(id: number): Promise<MusicTrack> {
   });
 }
 
+// ============ MUSIC ALBUMS API ============
+
+export interface MusicAlbum {
+  id: number;
+  name: string;
+  description: string | null;
+  coverUrl: string | null;
+  color: string | null;
+  year: string | null;
+  trackIds: number[];
+  deletedAt: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export async function getMusicAlbums(): Promise<MusicAlbum[]> {
+  return apiCall<MusicAlbum[]>('/music-albums');
+}
+
+export async function getMusicAlbum(id: number): Promise<MusicAlbum> {
+  return apiCall<MusicAlbum>(`/music-albums/${id}`);
+}
+
+export async function getTrashedMusicAlbums(): Promise<MusicAlbum[]> {
+  return apiCall<MusicAlbum[]>('/music-albums/trash');
+}
+
+export async function createMusicAlbum(album: Omit<MusicAlbum, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>): Promise<MusicAlbum> {
+  return apiCall<MusicAlbum>('/music-albums', {
+    method: 'POST',
+    body: JSON.stringify(album),
+  });
+}
+
+export async function updateMusicAlbum(id: number, updates: Partial<MusicAlbum>): Promise<MusicAlbum> {
+  return apiCall<MusicAlbum>(`/music-albums/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteMusicAlbum(id: number): Promise<void> {
+  return apiCall<void>(`/music-albums/${id}`, { method: 'DELETE' });
+}
+
+export async function softDeleteMusicAlbum(id: number): Promise<MusicAlbum> {
+  return apiCall<MusicAlbum>(`/music-albums/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: new Date().toISOString() }),
+  });
+}
+
+export async function restoreMusicAlbum(id: number): Promise<MusicAlbum> {
+  return apiCall<MusicAlbum>(`/music-albums/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deletedAt: null }),
+  });
+}
+
 // ============ SPOTIFY API ============
 
 export interface SpotifySearchResult {

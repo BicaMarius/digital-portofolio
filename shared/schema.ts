@@ -1,4 +1,4 @@
-import { pgTable, text, serial, boolean, timestamp, integer, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, boolean, timestamp, integer, varchar, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 // Projects table
@@ -203,6 +203,30 @@ export const updateMusicTrackSchema = insertMusicTrackSchema.partial();
 export type MusicTrack = typeof musicTracks.$inferSelect;
 export type InsertMusicTrack = typeof musicTracks.$inferInsert;
 export type UpdateMusicTrack = Partial<InsertMusicTrack>;
+
+// Music albums table - for organizing custom tracks
+export const musicAlbums = pgTable("music_albums", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  coverUrl: text("cover_url"), // Album cover image
+  color: text("color"), // Theme color for the album
+  year: text("year"),
+  trackIds: json("track_ids").notNull().$type<number[]>().default([]),
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertMusicAlbumSchema = createInsertSchema(musicAlbums).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateMusicAlbumSchema = insertMusicAlbumSchema.partial();
+export type MusicAlbum = typeof musicAlbums.$inferSelect;
+export type InsertMusicAlbum = typeof musicAlbums.$inferInsert;
+export type UpdateMusicAlbum = Partial<InsertMusicAlbum>;
 
 // Spotify favorites table - for saved Spotify items
 export const spotifyFavorites = pgTable("spotify_favorites", {
