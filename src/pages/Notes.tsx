@@ -115,6 +115,11 @@ export default function Notes() {
   const activeRecipeIndex = useMemo(() => recipes.findIndex((r) => r.id === activeRecipeId), [recipes, activeRecipeId]);
   const activeRecipe = activeRecipeIndex >= 0 ? recipes[activeRecipeIndex] : null;
 
+  // Quote fullscreen state
+  const [activeQuoteId, setActiveQuoteId] = useState<number | null>(null);
+  const activeQuoteIndex = useMemo(() => quotes.findIndex((q) => q.id === activeQuoteId), [quotes, activeQuoteId]);
+  const activeQuote = activeQuoteIndex >= 0 ? quotes[activeQuoteIndex] : null;
+
   const [editing, setEditing] = useState<null | { type: 'recipe' | 'shopping' | 'quote'; id: number }>(null);
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [addFormTab, setAddFormTab] = useState<'details' | 'steps'>('details');
@@ -337,6 +342,49 @@ export default function Notes() {
     if (activeRecipeIndex === -1 || activeRecipeIndex === recipes.length - 1) return;
     setActiveRecipeId(recipes[activeRecipeIndex + 1].id);
   };
+
+  const goPrevQuote = () => {
+    if (activeQuoteIndex <= 0) return;
+    setActiveQuoteId(quotes[activeQuoteIndex - 1].id);
+  };
+
+  const goNextQuote = () => {
+    if (activeQuoteIndex === -1 || activeQuoteIndex === quotes.length - 1) return;
+    setActiveQuoteId(quotes[activeQuoteIndex + 1].id);
+  };
+
+  // Keyboard navigation for recipes and quotes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Recipe navigation
+      if (activeRecipeId !== null) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          goPrev();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          goNext();
+        } else if (e.key === 'Escape') {
+          setActiveRecipeId(null);
+        }
+      }
+      // Quote navigation
+      if (activeQuoteId !== null) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          goPrevQuote();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          goNextQuote();
+        } else if (e.key === 'Escape') {
+          setActiveQuoteId(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeRecipeId, activeRecipeIndex, activeQuoteId, activeQuoteIndex, recipes, quotes]);
 
   const startEdit = (type: 'recipe' | 'shopping' | 'quote', payload: Recipe | ShoppingItem | QuoteItem) => {
     setAddType(type);
@@ -605,7 +653,11 @@ export default function Notes() {
                 </div>
                 <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
                   {quotes.map((q) => (
-                    <Card key={q.id} className="border border-border/60 bg-muted/30">
+                    <Card 
+                      key={q.id} 
+                      className="border border-border/60 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setActiveQuoteId(q.id)}
+                    >
                       <CardContent className="py-4 text-sm leading-relaxed flex gap-2">
                         <Quote className="h-4 w-4 text-primary mt-1 flex-shrink-0" />
                         <div className="flex-1">
@@ -907,76 +959,134 @@ export default function Notes() {
 
       {/* Recipe Detail Dialog */}
       <Dialog open={!!activeRecipe} onOpenChange={(open) => !open && setActiveRecipeId(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
           {activeRecipe && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="relative">
+              {/* Left arrow */}
+              {activeRecipeIndex > 0 && (
+                <button
+                  onClick={goPrev}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-12 h-12 rounded-full bg-background/90 border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+              )}
+              
+              {/* Right arrow */}
+              {activeRecipeIndex < recipes.length - 1 && (
+                <button
+                  onClick={goNext}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 w-12 h-12 rounded-full bg-background/90 border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                >
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              )}
+
+              <div className="p-6 space-y-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ChefHat className="h-4 w-4" /> {activeRecipe.title}
+                  <ChefHat className="h-4 w-4" /> 
+                  <span>{activeRecipeIndex + 1} / {recipes.length}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button size="icon" variant="ghost" onClick={goPrev} disabled={activeRecipeIndex <= 0}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={goNext} disabled={activeRecipeIndex === recipes.length - 1}>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+
+                <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-start">
+                  <div className="space-y-3">
+                    <h3 className="text-xl font-semibold">{activeRecipe.title}</h3>
+                    <p className="text-sm text-muted-foreground">{activeRecipe.summary}</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <Badge variant="outline"><Clock3 className="h-3 w-3 mr-1" /> {formatTime(activeRecipe.time)}</Badge>
+                      <Badge variant="outline"><Flame className="h-3 w-3 mr-1" /> {activeRecipe.difficulty}</Badge>
+                      <Badge variant="outline"><Users className="h-3 w-3 mr-1" /> {activeRecipe.servings} porții</Badge>
+                    </div>
+                    
+                    {activeRecipe.ingredients && activeRecipe.ingredients.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">Ingrediente</p>
+                        <ul className="space-y-1 text-sm text-muted-foreground list-disc list-inside">
+                          {activeRecipe.ingredients.map((ing, idx) => (
+                            <li key={idx}>{ing}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold">Mod de preparare</p>
+                      <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+                        {activeRecipe.steps.map((step, idx) => (
+                          <li key={idx}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/50">
+                      <img src={activeRecipe.image} alt={activeRecipe.title} className="h-56 w-full object-cover" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <Card className="border-border/60 bg-background/70">
+                        <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
+                          <Clock3 className="h-4 w-4" /> {formatTime(activeRecipe.time)}
+                        </CardContent>
+                      </Card>
+                      <Card className="border-border/60 bg-background/70">
+                        <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
+                          <Flame className="h-4 w-4" /> {activeRecipe.difficulty}
+                        </CardContent>
+                      </Card>
+                      <Card className="border-border/60 bg-background/70">
+                        <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
+                          <Users className="h-4 w-4" /> {activeRecipe.servings} porții
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-start">
-                <div className="space-y-3">
-                  <h3 className="text-xl font-semibold">{activeRecipe.title}</h3>
-                  <p className="text-sm text-muted-foreground">{activeRecipe.summary}</p>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <Badge variant="outline"><Clock3 className="h-3 w-3 mr-1" /> {formatTime(activeRecipe.time)}</Badge>
-                    <Badge variant="outline"><Flame className="h-3 w-3 mr-1" /> {activeRecipe.difficulty}</Badge>
-                    <Badge variant="outline"><Users className="h-3 w-3 mr-1" /> {activeRecipe.servings} porții</Badge>
-                  </div>
-                  
-                  {activeRecipe.ingredients && activeRecipe.ingredients.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold">Ingrediente</p>
-                      <ul className="space-y-1 text-sm text-muted-foreground list-disc list-inside">
-                        {activeRecipe.ingredients.map((ing, idx) => (
-                          <li key={idx}>{ing}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+      {/* Quote Fullscreen Dialog */}
+      <Dialog open={!!activeQuote} onOpenChange={(open) => !open && setActiveQuoteId(null)}>
+        <DialogContent className="max-w-2xl p-0 bg-gradient-to-br from-background via-background to-muted/30 border-none">
+          {activeQuote && (
+            <div className="relative min-h-[50vh] flex items-center justify-center p-8 sm:p-12">
+              {/* Left arrow */}
+              {activeQuoteIndex > 0 && (
+                <button
+                  onClick={goPrevQuote}
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-background/80 border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                </button>
+              )}
+              
+              {/* Right arrow */}
+              {activeQuoteIndex < quotes.length - 1 && (
+                <button
+                  onClick={goNextQuote}
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-background/80 border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                >
+                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+                </button>
+              )}
 
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold">Mod de preparare</p>
-                    <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
-                      {activeRecipe.steps.map((step, idx) => (
-                        <li key={idx}>{step}</li>
-                      ))}
-                    </ol>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/50">
-                    <img src={activeRecipe.image} alt={activeRecipe.title} className="h-56 w-full object-cover" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <Card className="border-border/60 bg-background/70">
-                      <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
-                        <Clock3 className="h-4 w-4" /> {formatTime(activeRecipe.time)}
-                      </CardContent>
-                    </Card>
-                    <Card className="border-border/60 bg-background/70">
-                      <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
-                        <Flame className="h-4 w-4" /> {activeRecipe.difficulty}
-                      </CardContent>
-                    </Card>
-                    <Card className="border-border/60 bg-background/70">
-                      <CardContent className="py-3 flex items-center gap-2 text-muted-foreground">
-                        <Users className="h-4 w-4" /> {activeRecipe.servings} porții
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
+              {/* Quote content */}
+              <div className="text-center space-y-6 max-w-lg mx-auto px-8">
+                <Quote className="h-10 w-10 sm:h-12 sm:w-12 text-primary/30 mx-auto" />
+                <p className="text-xl sm:text-2xl md:text-3xl font-serif leading-relaxed italic">
+                  "{activeQuote.text}"
+                </p>
+                {activeQuote.author && (
+                  <p className="text-sm sm:text-base text-muted-foreground">
+                    — {activeQuote.author}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground/50 pt-4">
+                  {activeQuoteIndex + 1} / {quotes.length}
+                </p>
               </div>
             </div>
           )}
