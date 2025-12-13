@@ -43,12 +43,21 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Pinch-to-zoom support for mobile
+  // Pinch-to-zoom and pan support for mobile
   const touchDistance = useRef<number | null>(null);
   const lastScale = useRef<number>(1);
+  const [mobileTransform, setMobileTransform] = useState({ scale: 1, x: 0, y: 0 });
+  const [isPinching, setIsPinching] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
+  const pinchCenter = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
     if (e.touches.length === 2) {
+      // Pinch gesture start
+      e.preventDefault();
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const distance = Math.hypot(
@@ -56,12 +65,29 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
         touch2.clientY - touch1.clientY
       );
       touchDistance.current = distance;
-      lastScale.current = scale;
+      lastScale.current = mobileTransform.scale;
+      setIsPinching(true);
+      
+      // Store pinch center
+      pinchCenter.current = {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    } else if (e.touches.length === 1 && mobileTransform.scale > 1) {
+      // Pan gesture start (only when zoomed in)
+      lastTouchPos.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      };
+      setIsPanning(true);
     }
-  }, [scale]);
+  }, [isMobile, mobileTransform.scale]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
     if (e.touches.length === 2 && touchDistance.current !== null) {
+      // Pinch gesture - use CSS transform for smooth zoom
       e.preventDefault();
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
@@ -71,14 +97,75 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
       );
       
       const scaleChange = distance / touchDistance.current;
-      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, lastScale.current * scaleChange));
-      setScale(newScale);
+      const newScale = Math.max(0.5, Math.min(4, lastScale.current * scaleChange));
+      
+      setMobileTransform(prev => ({
+        ...prev,
+        scale: newScale
+      }));
+    } else if (e.touches.length === 1 && isPanning && lastTouchPos.current && mobileTransform.scale > 1) {
+      // Pan gesture - move the content
+      e.preventDefault();
+      const deltaX = e.touches[0].clientX - lastTouchPos.current.x;
+      const deltaY = e.touches[0].clientY - lastTouchPos.current.y;
+      
+      setMobileTransform(prev => ({
+        ...prev,
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+      
+      lastTouchPos.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      };
     }
-  }, []);
+  }, [isMobile, isPanning, mobileTransform.scale]);
 
-  const handleTouchEnd = useCallback(() => {
-    touchDistance.current = null;
-  }, []);
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
+    if (isPinching && e.touches.length < 2) {
+      // Pinch ended - apply zoom level if significantly changed
+      setIsPinching(false);
+      touchDistance.current = null;
+      pinchCenter.current = null;
+      
+      // If scale is close to 1, reset to 1
+      if (mobileTransform.scale < 1.1 && mobileTransform.scale > 0.9) {
+        setMobileTransform({ scale: 1, x: 0, y: 0 });
+      }
+      // If scale went below minimum, reset
+      else if (mobileTransform.scale < 0.8) {
+        setMobileTransform({ scale: 1, x: 0, y: 0 });
+      }
+    }
+    
+    if (isPanning && e.touches.length === 0) {
+      setIsPanning(false);
+      lastTouchPos.current = null;
+    }
+  }, [isMobile, isPinching, isPanning, mobileTransform.scale]);
+
+  // Double tap to reset zoom on mobile
+  const lastTapTime = useRef<number>(0);
+  const handleDoubleTap = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
+    const now = Date.now();
+    if (now - lastTapTime.current < 300) {
+      // Double tap detected
+      e.preventDefault();
+      if (mobileTransform.scale > 1) {
+        // Reset zoom
+        setMobileTransform({ scale: 1, x: 0, y: 0 });
+      } else {
+        // Zoom in to 2x at tap position
+        setMobileTransform({ scale: 2, x: 0, y: 0 });
+      }
+    }
+    lastTapTime.current = now;
+  }, [isMobile, mobileTransform.scale]);
 
   const handleZoomIn = useCallback(() => {
     setZoomLevel((prev) => Math.min(prev + SCALE_STEP, MAX_SCALE));
@@ -378,12 +465,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
 
       <div 
         ref={contentRef}
-        className={`relative flex-1 overflow-auto bg-muted/20 ${isMobile ? 'p-2' : 'p-4'}`}
+        className={`relative flex-1 bg-muted/20 ${isMobile ? 'p-2 overflow-hidden touch-none' : 'p-4 overflow-auto'}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onTouchEnd={(e) => {
+          handleTouchEnd(e);
+          handleDoubleTap(e);
+        }}
       >
-        <div className="flex items-center justify-center min-w-full min-h-full">
+        <div 
+          className="flex items-center justify-center min-w-full min-h-full"
+          style={isMobile ? {
+            transform: `translate(${mobileTransform.x}px, ${mobileTransform.y}px) scale(${mobileTransform.scale})`,
+            transformOrigin: 'center center',
+            transition: isPinching || isPanning ? 'none' : 'transform 0.2s ease-out',
+            willChange: 'transform',
+          } : undefined}
+        >
           <div className="bg-white shadow-2xl rounded-lg overflow-hidden" style={{ margin: 'auto' }}>
             <canvas 
               ref={canvasRef} 
@@ -395,6 +493,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ fileUrl, fileName }) => {
             />
           </div>
         </div>
+
+        {/* Mobile zoom indicator */}
+        {isMobile && mobileTransform.scale !== 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none">
+            {Math.round(mobileTransform.scale * 100)}% • Doublă atingere pentru reset
+          </div>
+        )}
 
         {isRendering && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm">
