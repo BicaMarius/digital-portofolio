@@ -98,6 +98,7 @@ export default function Films() {
   const [form, setForm] = useState({ title: '', genres: [] as string[], year: '' as number | string | '', status: 'todo' as LocalFilmItem['status'], rating: '', category: '', notes: '' });
   const [trashed, setTrashed] = useState<LocalFilmItem[]>([]);
   const [showTrashDialog, setShowTrashDialog] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<number[]>([]);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   // Filter state
   const [filterYears, setFilterYears] = useState<string[]>([]);
@@ -300,13 +301,20 @@ export default function Films() {
   };
 
   const softDeleteFilm = async (film: LocalFilmItem) => {
+    // optimistic UI: mark deleting, move to trashed locally
+    setDeletingIds(prev => [...prev, film.id]);
+    setFilms(prev => prev.filter(f => f.id !== film.id));
+    setTrashed(prev => [film, ...prev]);
     try {
       await apiSoftDeleteFilm(film.id);
-      setFilms(prev => prev.filter(f => f.id !== film.id));
-      setTrashed(prev => [film, ...prev]);
+      setDeletingIds(prev => prev.filter(i => i !== film.id));
       toast({ title: 'Mutat în coș', description: `${film.title} a fost mutat în coșul de gunoi.` });
     } catch (error) {
       console.error('Error soft deleting film:', error);
+      // rollback
+      setTrashed(prev => prev.filter(f => f.id !== film.id));
+      setFilms(prev => [film, ...prev]);
+      setDeletingIds(prev => prev.filter(i => i !== film.id));
       toast({ title: 'Eroare', description: 'Nu s-a putut muta în coș.', variant: 'destructive' });
     }
   };
@@ -585,8 +593,8 @@ export default function Films() {
                     <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); startEdit(film); }} className="hover:text-indigo-500">
                       ✎
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); softDeleteFilm(film); }} className="hover:text-rose-500">
-                      ✕
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); softDeleteFilm(film); }} className="hover:text-rose-500" disabled={deletingIds.includes(film.id)}>
+                      {deletingIds.includes(film.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : '✕'}
                     </Button>
                   </>
                 )}
