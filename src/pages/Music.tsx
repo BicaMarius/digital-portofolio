@@ -888,6 +888,24 @@ export default function Music() {
           {items.slice(0, 10).map((item, idx) => (
             <div
               key={item.id}
+              draggable={isAdmin && !isMobile}
+              onDragStart={(e) => {
+                if (!(isAdmin && !isMobile)) return;
+                e.dataTransfer.setData('text/plain', idx.toString());
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                if (!(isAdmin && !isMobile)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => {
+                if (!(isAdmin && !isMobile)) return;
+                e.preventDefault();
+                const src = Number(e.dataTransfer.getData('text/plain'));
+                const dest = idx;
+                if (!Number.isNaN(src) && src !== dest) reorderTop(type, src, dest);
+              }}
               className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 p-2 cursor-pointer hover:bg-muted/50 transition-colors group"
               onClick={() => item.spotifyUrl && window.open(item.spotifyUrl, '_blank')}
             >
@@ -957,6 +975,31 @@ export default function Music() {
   );
 
   // ========== PLAYER UI COMPONENTS ==========
+  // Reorder top items (desktop admin drag-and-drop)
+  const reorderTop = async (type: SpotifyType, srcIndex: number, destIndex: number) => {
+    const setter = type === 'artist' ? setTopArtists : type === 'album' ? setTopAlbums : setTopTracks;
+    const list = (type === 'artist' ? topArtists : type === 'album' ? topAlbums : topTracks).slice();
+    const [moved] = list.splice(srcIndex, 1);
+    list.splice(destIndex, 0, moved);
+    // update local state immediately
+    setter(list);
+    try {
+      // persist new ranks for entire list (only those with id)
+      await Promise.all(list.map((fav, i) => {
+        const newRank = i + 1;
+        if (fav.rank === newRank) return Promise.resolve(null as any);
+        return api.updateSpotifyFavorite(fav.id, { rank: newRank });
+      }));
+      toast({ title: 'Salvat', description: 'Ordinea a fost actualizată.' });
+      // reload to ensure consistency
+      loadData();
+    } catch (error) {
+      console.error('Failed to reorder top items:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut salva ordinea.', variant: 'destructive' });
+      // rollback by reloading server state
+      loadData();
+    }
+  };
   
   // Mini Player (bottom bar)
   const MiniPlayer = () => (

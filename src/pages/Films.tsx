@@ -521,7 +521,7 @@ export default function Films() {
         >
           {/* GREEN background - Mark as watched (swipe right) */}
           <div 
-            className="absolute inset-0 flex items-center justify-start rounded-lg"
+            className="absolute inset-0 flex items-center justify-start rounded-lg pointer-events-none"
             style={{ 
               backgroundColor: isReady ? '#16a34a' : '#22c55e',
               opacity: isSwipingRight ? 1 : 0,
@@ -539,19 +539,18 @@ export default function Films() {
               </span>
             </div>
           </div>
-          
-          {/* RED background - Delete (swipe left) */}
+
           <div 
-            className="absolute inset-0 flex items-center justify-end rounded-lg"
+            className="absolute inset-0 flex items-center justify-end rounded-lg pointer-events-none"
             style={{ 
-              backgroundColor: isReady ? '#dc2626' : '#ef4444',
+              backgroundColor: isReady ? 'rgba(239, 68, 68, 0.95)' : 'rgba(244, 63, 94, 0.9)',
               opacity: isSwipingLeft ? 1 : 0,
               transition: 'opacity 0.1s, background-color 0.15s',
             }}
           >
             <div className="flex items-center pr-4">
               <span className="mr-2 text-white font-medium text-sm" style={{ opacity: absOffset > 30 ? 1 : 0, transition: 'opacity 0.15s' }}>
-                Șterge
+                Sterge
               </span>
               <Trash2 className="h-6 w-6 text-white" style={{ transform: isReady ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.15s' }} />
             </div>
@@ -590,10 +589,10 @@ export default function Films() {
                 </Button>
                 {isAdmin && (
                   <>
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); startEdit(film); }} className="hover:text-indigo-500">
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); startEdit(film); }} onMouseDown={(e) => { if (!isMobile) e.stopPropagation(); }} className="hover:text-indigo-500">
                       ✎
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); softDeleteFilm(film); }} className="hover:text-rose-500" disabled={deletingIds.includes(film.id)}>
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); softDeleteFilm(film); }} onMouseDown={(e) => { if (!isMobile) e.stopPropagation(); }} className="hover:text-rose-500" disabled={deletingIds.includes(film.id)}>
                       {deletingIds.includes(film.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : '✕'}
                     </Button>
                   </>
