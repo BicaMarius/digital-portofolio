@@ -49,6 +49,10 @@ interface Photo {
 
 type SortOption = 'none' | 'title' | 'device' | 'location' | 'date';
 
+const MAX_UPLOAD_MB = 50;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const UPLOAD_BATCH_SIZE = 4;
+
 const YEAR_REGEX = /\d{4}/;
 
 const getYearNumber = (value?: string) => {
@@ -546,8 +550,15 @@ const Photography: React.FC = () => {
         fd.append('folder', 'photography');
         const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
         if (!uploadRes.ok) {
-          const errorData = await uploadRes.json();
-          throw new Error(errorData.error || 'Upload failed');
+          let errorMsg = 'Upload failed';
+          try {
+            const errorData = await uploadRes.json();
+            errorMsg = errorData.error || errorMsg;
+          } catch (e) {
+            errorMsg = await uploadRes.text();
+          }
+          toast({ title: 'Eroare upload', description: `Fișierul "${file.name}": ${errorMsg}`, variant: 'destructive' });
+          continue;
         }
         const { url } = await uploadRes.json();
 
@@ -569,7 +580,7 @@ const Photography: React.FC = () => {
       await reloadPhotos();
     } catch (error) {
       console.error('[Photography] Add error:', error);
-      toast({ title: 'Eroare', description: 'Nu s-a putut adăuga fotografia.', variant: 'destructive' });
+      toast({ title: 'Eroare', description: error instanceof Error ? error.message : 'Nu s-a putut adăuga fotografia.', variant: 'destructive' });
     } finally {
       setNewPhotoUploading(false);
     }

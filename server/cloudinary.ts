@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 
 let initialized = false;
+const IMAGE_MAX_DIMENSION = 8000;
 
 export function initCloudinary() {
   if (initialized) return;
@@ -113,7 +114,15 @@ export async function uploadImageToCloudinary(
         public_id: `art_${Date.now()}`,
         overwrite: false,
         type: 'upload',
-        access_mode: 'public'
+        access_mode: 'public',
+        quality: 'auto:good',
+        transformation: [
+          {
+            width: IMAGE_MAX_DIMENSION,
+            height: IMAGE_MAX_DIMENSION,
+            crop: 'limit'
+          }
+        ]
       },
       (error, result) => {
         if (error) {

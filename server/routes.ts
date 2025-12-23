@@ -40,9 +40,21 @@ type UploadedFile = {
 };
 
 export function registerRoutes(app: Express, storage: IStorage) {
+  const MAX_UPLOAD_MB = 100;
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 },
+    limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/gif',
+        'image/tiff', 'image/bmp', 'image/x-adobe-dng', 'image/x-canon-cr2', 'image/x-nikon-nef', 'image/x-sony-arw', 'image/x-panasonic-rw2', 'image/x-olympus-orf', 'image/x-fuji-raf', 'image/x-pentax-pef', 'image/x-samsung-srw', 'image/x-leaf-mos', 'image/x-phaseone-iiq', 'image/x-epson-erf', 'image/x-minolta-mrw', 'image/x-kodak-k25', 'image/x-kodak-kdc', 'image/x-kodak-dcr', 'image/x-kodak-raw', 'image/x-raw'
+      ];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Formatul imaginii nu este acceptat!'));
+      }
+    }
   });
 
   // Projects
@@ -1562,5 +1574,21 @@ export function registerRoutes(app: Express, storage: IStorage) {
     } catch (error) {
       res.status(500).json({ error: "Failed to delete genre" });
     }
+  });
+
+  app.use((err: any, req: Request, res: any, next: any) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({
+          error: "Fisier prea mare",
+          details: `Limita este ${MAX_UPLOAD_MB}MB per fisier`,
+        });
+      }
+      return res.status(400).json({
+        error: "Upload invalid",
+        details: err.message,
+      });
+    }
+    return next(err);
   });
 }
