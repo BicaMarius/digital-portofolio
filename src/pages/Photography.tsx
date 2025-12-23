@@ -1,3 +1,14 @@
+  // Location management handler (pentru dialogul de gestionare locații)
+  const handleCreateLocation = async () => {
+    if (!newLocationName.trim()) return;
+    try {
+      await createLocationMutation.mutateAsync({ name: newLocationName.trim() });
+      setNewLocationName('');
+      toast({ title: 'Adăugat', description: 'Locația a fost adăugată.' });
+    } catch (error) {
+      toast({ title: 'Eroare', description: 'Nu s-a putut adăuga locația.', variant: 'destructive' });
+    }
+  };
 import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
