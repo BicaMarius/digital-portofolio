@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Palette, Plus, Search, Grid3X3, List, ChevronLeft, ChevronRight, X, Edit, Trash2, Trash, Undo2, EyeOff } from 'lucide-react';
+import { Palette, Plus, Search, Grid3X3, List, ChevronLeft, ChevronRight, X, Edit, Trash2, Trash, Undo2, EyeOff, Cloud, FolderOpen } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -61,7 +61,10 @@ export default function DigitalArt() {
   
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [addImageFiles, setAddImageFiles] = useState<File[]>([]);
+  const [addImagePreview, setAddImagePreview] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const addImageInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const itemsPerPage = 12;
 
@@ -198,7 +201,8 @@ export default function DigitalArt() {
 
   // Handle add artwork
   const handleAddArtwork = async () => {
-    if (!formData.title || !imageFile) {
+    const isBulk = addImageFiles.length > 1;
+    if ((!isBulk && !formData.title) || addImageFiles.length === 0) {
       toast({
         title: 'Eroare',
         description: 'Titlul și imaginea sunt obligatorii.',
@@ -210,33 +214,35 @@ export default function DigitalArt() {
     try {
       setIsUploading(true);
       
-      // Upload image first
-      const fd = new FormData();
-      fd.append('file', imageFile);
-      fd.append('folder', 'digital-art');
-      const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
-      if (!uploadRes.ok) {
-        const errorData = await uploadRes.json();
-        throw new Error(errorData.error || 'Upload failed');
-      }
-      const { url } = await uploadRes.json();
+      for (const file of addImageFiles) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('folder', 'digital-art');
+        const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json();
+          throw new Error(errorData.error || 'Upload failed');
+        }
+        const { url } = await uploadRes.json();
+        const title = isBulk ? getFileTitle(file) : formData.title;
 
-      await createGalleryItem({
-        category: 'art',
-        subcategory: 'digital-art',
-        title: formData.title,
-        image: url,
-        description: formData.description,
-        materials: [formData.subcategory],
-        medium: formData.medium,
-        dimensions: formData.dimensions,
-        date: formData.date,
-        isPrivate: formData.isPrivate
-      } as any);
+        await createGalleryItem({
+          category: 'art',
+          subcategory: 'digital-art',
+          title,
+          image: url,
+          description: formData.description,
+          materials: [formData.subcategory],
+          medium: formData.medium,
+          dimensions: formData.dimensions,
+          date: formData.date,
+          isPrivate: formData.isPrivate
+        } as any);
+      }
 
       toast({
         title: 'Succes',
-        description: 'Lucrarea a fost adăugată cu succes.'
+        description: isBulk ? 'Lucrările au fost adăugate cu succes.' : 'Lucrarea a fost adăugată cu succes.'
       });
 
       setShowAddDialog(false);
@@ -399,6 +405,11 @@ export default function DigitalArt() {
     });
     setImageFile(null);
     setImagePreview('');
+    setAddImageFiles([]);
+    setAddImagePreview('');
+    if (addImageInputRef.current) {
+      addImageInputRef.current.value = '';
+    }
   };
 
   // Open edit dialog
@@ -435,6 +446,65 @@ export default function DigitalArt() {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const getFileTitle = (file: File) => {
+    const base = file.name.replace(/\.[^/.]+$/, '').trim();
+    return base || 'Fără titlu';
+  };
+
+  const triggerAddFileDialog = () => {
+    addImageInputRef.current?.click();
+  };
+
+  const handleAddImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setAddImageFiles(files);
+    if (files[0]) {
+      const reader = new FileReader();
+      reader.onloadend = () => setAddImagePreview(reader.result as string);
+      reader.readAsDataURL(files[0]);
+    } else {
+      setAddImagePreview('');
+    }
+    if (addImageInputRef.current) {
+      addImageInputRef.current.value = '';
+    }
+  };
+
+  const handleAddCloudPicker = async () => {
+    const picker = (window as any)?.showOpenFilePicker;
+    if (picker) {
+      try {
+        const handles = await picker({
+          multiple: true,
+          types: [
+            {
+              description: 'Imagini',
+              accept: {
+                'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.gif']
+              }
+            }
+          ]
+        });
+        if (!handles || handles.length === 0) return;
+        const files = await Promise.all(handles.map((h: any) => h.getFile()));
+        setAddImageFiles(files as File[]);
+        if (files[0]) {
+          const reader = new FileReader();
+          reader.onloadend = () => setAddImagePreview(reader.result as string);
+          reader.readAsDataURL(files[0]);
+        } else {
+          setAddImagePreview('');
+        }
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
+        console.error('[DigitalArt] Cloud picker error:', error);
+        toast({ title: 'Eroare', description: 'Nu am putut deschide selectorul de fișiere.', variant: 'destructive' });
+      }
+    } else {
+      triggerAddFileDialog();
     }
   };
 
@@ -851,7 +921,7 @@ export default function DigitalArt() {
 
                 <TabsContent value="info" className="space-y-4 mt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add-title">Titlu *</Label>
+                    <Label htmlFor="add-title">{addImageFiles.length > 1 ? 'Titlu (opțional)' : 'Titlu *'}</Label>
                     <Input
                       id="add-title"
                       value={formData.title}
@@ -861,23 +931,47 @@ export default function DigitalArt() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="add-image">Imagine *</Label>
-                    <Input
-                      id="add-image"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="cursor-pointer"
-                    />
-                    {imagePreview && (
-                      <div className="relative w-full aspect-video rounded border overflow-hidden bg-muted">
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          className="w-full h-full object-contain"
-                        />
+                    <Label htmlFor="add-image">{addImageFiles.length > 1 ? 'Imagini (opțional)' : 'Imagine *'}</Label>
+                    <div className="border-2 border-dashed rounded-md p-3 bg-muted/20">
+                      {addImagePreview ? (
+                        <div className="relative w-full aspect-video rounded border overflow-hidden bg-muted">
+                          <img
+                            src={addImagePreview}
+                            alt="Preview"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-44 text-muted-foreground">
+                          <Palette className="h-10 w-10 mb-2 opacity-50" />
+                          <p className="text-sm">Selectează una sau mai multe imagini</p>
+                        </div>
+                      )}
+                      <input
+                        ref={addImageInputRef}
+                        id="add-image"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleAddImagesChange}
+                      />
+                      <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                        <Button type="button" variant="outline" className="inline-flex items-center gap-2" onClick={triggerAddFileDialog}>
+                          <FolderOpen className="h-4 w-4" />
+                          Din dispozitiv
+                        </Button>
+                        <Button type="button" variant="outline" className="inline-flex items-center gap-2" onClick={handleAddCloudPicker}>
+                          <Cloud className="h-4 w-4" />
+                          Drive / Google Photos
+                        </Button>
                       </div>
-                    )}
+                      {addImageFiles.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground truncate">
+                          {addImageFiles.length === 1 ? addImageFiles[0].name : `${addImageFiles.length} fișiere selectate`}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">

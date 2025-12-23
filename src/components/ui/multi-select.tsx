@@ -38,6 +38,7 @@ export function MultiSelect({
   isAdmin = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const [searchValue, setSearchValue] = React.useState('');
   const [newGenre, setNewGenre] = React.useState('');
   const [showManageDialog, setShowManageDialog] = React.useState(false);
   const [editingGenre, setEditingGenre] = React.useState<string | null>(null);
@@ -49,6 +50,7 @@ export function MultiSelect({
     } else {
       onChange([...selected, value]);
     }
+    setSearchValue('');
   };
 
   const handleRemove = (value: string) => {
@@ -88,7 +90,13 @@ export function MultiSelect({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setSearchValue('');
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -121,7 +129,11 @@ export function MultiSelect({
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           <Command>
-            <CommandInput placeholder="Caută gen..." />
+            <CommandInput
+              placeholder="Caută gen..."
+              value={searchValue}
+              onValueChange={setSearchValue}
+            />
             <CommandList 
               className="max-h-48 overscroll-contain"
               onWheel={(e) => e.stopPropagation()}

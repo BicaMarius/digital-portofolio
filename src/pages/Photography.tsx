@@ -136,7 +136,7 @@ const Photography: React.FC = () => {
   // CRUD dialogs
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
-  const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
+  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
   const [newPhotoTitle, setNewPhotoTitle] = useState('');
   const [newPhotoDevice, setNewPhotoDevice] = useState('');
   const [newPhotoDate, setNewPhotoDate] = useState(() => new Date().getFullYear().toString());
@@ -146,9 +146,10 @@ const Photography: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const newPhotoPreviewUrl = React.useMemo(() => {
-    if (!newPhotoFile) return null;
-    return URL.createObjectURL(newPhotoFile);
-  }, [newPhotoFile]);
+    const first = newPhotoFiles[0];
+    if (!first) return null;
+    return URL.createObjectURL(first);
+  }, [newPhotoFiles]);
 
   // Selection mode
   const [selectionMode, setSelectionMode] = useState(false);
@@ -238,7 +239,7 @@ const Photography: React.FC = () => {
 
   // Reset form fields
   const resetForm = () => {
-    setNewPhotoFile(null);
+    setNewPhotoFiles([]);
     setNewPhotoTitle('');
     setNewPhotoDevice('');
     setNewPhotoDate(new Date().getFullYear().toString());
@@ -266,8 +267,8 @@ const Photography: React.FC = () => {
     const picker = (window as any)?.showOpenFilePicker;
     if (picker) {
       try {
-        const [handle] = await picker({
-          multiple: false,
+        const handles = await picker({
+          multiple: true,
           types: [
             {
               description: 'Imagini',
@@ -277,9 +278,9 @@ const Photography: React.FC = () => {
             }
           ]
         });
-        if (!handle) return;
-        const file = await handle.getFile();
-        setNewPhotoFile(file as File);
+        if (!handles || handles.length === 0) return;
+        const files = await Promise.all(handles.map((h: any) => h.getFile()));
+        setNewPhotoFiles(files as File[]);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -524,7 +525,8 @@ const Photography: React.FC = () => {
 
   // Add photo handler
   const handleAddPhoto = async () => {
-    if (!newPhotoFile || !newPhotoTitle.trim()) {
+    const isBulk = newPhotoFiles.length > 1;
+    if (newPhotoFiles.length === 0 || (!isBulk && !newPhotoTitle.trim())) {
       toast({ title: 'Date incomplete', description: 'Selectează o imagine și completează titlul.', variant: 'destructive' });
       return;
     }
@@ -535,28 +537,33 @@ const Photography: React.FC = () => {
       const trimmedDevice = newPhotoDevice.trim();
       const trimmedLocation = newPhotoLocation.trim();
 
-      const fd = new FormData();
-      fd.append('file', newPhotoFile);
-      fd.append('folder', 'photography');
-      const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
-      if (!uploadRes.ok) {
-        const errorData = await uploadRes.json();
-        throw new Error(errorData.error || 'Upload failed');
+      for (const file of newPhotoFiles) {
+        const baseName = file.name.replace(/\.[^/.]+$/, '').trim();
+        const title = isBulk ? (baseName || 'Fără titlu') : trimmedTitle;
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('folder', 'photography');
+        const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json();
+          throw new Error(errorData.error || 'Upload failed');
+        }
+        const { url } = await uploadRes.json();
+
+        await createGalleryItem({
+          title,
+          image: url,
+          category: 'photo',
+          subcategory: newPhotoCategory,
+          isPrivate: false,
+          device: trimmedDevice || null,
+          date: newPhotoDate,
+          location: trimmedLocation || null,
+        } as any);
       }
-      const { url } = await uploadRes.json();
 
-      await createGalleryItem({
-        title: trimmedTitle,
-        image: url,
-        category: 'photo',
-        subcategory: newPhotoCategory,
-        isPrivate: false,
-        device: trimmedDevice || null,
-        date: newPhotoDate,
-        location: trimmedLocation || null,
-      } as any);
-
-      toast({ title: 'Adăugat', description: 'Fotografia a fost adăugată în cloud.' });
+      toast({ title: 'Adăugat', description: isBulk ? 'Fotografiile au fost adăugate în cloud.' : 'Fotografia a fost adăugată în cloud.' });
       setAddingPhoto(false);
       resetForm();
       await reloadPhotos();
@@ -1538,7 +1545,7 @@ const Photography: React.FC = () => {
               {/* Tab Bază - Preview + Titlu + Dispozitiv */}
               <TabsContent value="basic" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                 <div className="border-2 border-dashed rounded-md p-3 sm:p-4 bg-muted/20">
-                  {newPhotoFile ? (
+                  {newPhotoFiles.length > 0 ? (
                     <img 
                       src={newPhotoPreviewUrl || ''} 
                       alt="previzualizare" 
@@ -1554,10 +1561,11 @@ const Photography: React.FC = () => {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setNewPhotoFile(file);
+                      const files = Array.from(e.target.files || []);
+                      setNewPhotoFiles(files);
                       if (fileInputRef.current) {
                         fileInputRef.current.value = '';
                       }
@@ -1583,12 +1591,14 @@ const Photography: React.FC = () => {
                       Drive / Google Photos
                     </Button>
                   </div>
-                  {newPhotoFile && (
-                    <p className="mt-2 text-xs text-muted-foreground truncate">{newPhotoFile.name}</p>
+                  {newPhotoFiles.length > 0 && (
+                    <p className="mt-2 text-xs text-muted-foreground truncate">
+                      {newPhotoFiles.length === 1 ? newPhotoFiles[0].name : `${newPhotoFiles.length} fișiere selectate`}
+                    </p>
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="photo-title">Titlu *</Label>
+                  <Label htmlFor="photo-title">{newPhotoFiles.length > 1 ? 'Titlu (opțional)' : 'Titlu *'}</Label>
                   <Input
                     id="photo-title"
                     value={newPhotoTitle}

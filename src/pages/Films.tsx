@@ -29,10 +29,13 @@ interface LocalFilmItem {
   rating?: number;
   category?: string;
   notes?: string;
+  order: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Convert API FilmItem to local format
-function toLocalFilm(f: ApiFilmItem): LocalFilmItem {
+function toLocalFilm(f: ApiFilmItem, order = 0): LocalFilmItem {
   return {
     id: f.id,
     title: f.title,
@@ -42,6 +45,9 @@ function toLocalFilm(f: ApiFilmItem): LocalFilmItem {
     rating: f.rating ?? undefined,
     category: f.director ?? undefined, // Using director field as category for now
     notes: f.notes ?? undefined,
+    order,
+    createdAt: f.createdAt ? new Date(f.createdAt).toISOString() : undefined,
+    updatedAt: f.updatedAt ? new Date(f.updatedAt).toISOString() : undefined,
   };
 }
 
@@ -82,6 +88,8 @@ const sortOptions: { value: 'none' | 'name' | 'genre' | 'category' | 'year' | 'r
 ];
 
 export default function Films() {
+    // AND/OR filter for genres
+    const [genreAndMode, setGenreAndMode] = useState(false);
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
   const [films, setFilms] = useState<LocalFilmItem[]>([]);
@@ -95,7 +103,7 @@ export default function Films() {
   const [showDialog, setShowDialog] = useState(false);
   const [showDetail, setShowDetail] = useState<LocalFilmItem | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ title: '', genres: [] as string[], year: '' as number | string | '', status: 'todo' as LocalFilmItem['status'], rating: '', category: '', notes: '' });
+  const [form, setForm] = useState({ title: '', genres: [] as string[], year: '' as number | string | '', status: 'todo' as LocalFilmItem['status'], rating: '', category: 'Film', notes: '' });
   const [trashed, setTrashed] = useState<LocalFilmItem[]>([]);
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [deletingIds, setDeletingIds] = useState<number[]>([]);
@@ -109,6 +117,9 @@ export default function Films() {
   // Swipe state - moved to individual cards
   const SWIPE_THRESHOLD = 80; // Pixels needed to trigger action
   const SWIPE_MAX = 120; // Max visual offset
+  const getNextOrder = useCallback((list: LocalFilmItem[]) => {
+    return (list.reduce((max, f) => Math.max(max, f.order), 0) || 0) + 1;
+  }, []);
 
   // Load data from cloud
   const loadData = useCallback(async () => {
@@ -119,8 +130,13 @@ export default function Films() {
         getTrashedFilms(),
         getFilmGenres()
       ]);
-      setFilms(filmsData.map(toLocalFilm));
-      setTrashed(trashedData.map(toLocalFilm));
+      const sortedFilms = [...filmsData].sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : a.id;
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : b.id;
+        return aTime - bTime;
+      });
+      setFilms(sortedFilms.map((film, idx) => toLocalFilm(film, idx)));
+      setTrashed(trashedData.map((film) => toLocalFilm(film)));
       setGenres(genresData);
     } catch (error) {
       console.error('Error loading films:', error);
@@ -222,7 +238,13 @@ export default function Films() {
       copy = copy.filter(f => f.year && filterYears.includes(String(f.year)));
     }
     if (filterGenres.length > 0) {
-      copy = copy.filter(f => f.genres.some(g => filterGenres.includes(g)));
+      if (genreAndMode) {
+        // AND: filmul trebuie să aibă toate genurile selectate
+        copy = copy.filter(f => filterGenres.every(g => f.genres.includes(g)));
+      } else {
+        // OR: filmul are oricare din genurile selectate
+        copy = copy.filter(f => f.genres.some(g => filterGenres.includes(g)));
+      }
     }
     if (filterCategories.length > 0) {
       copy = copy.filter(f => f.category && filterCategories.includes(f.category));
@@ -236,9 +258,8 @@ export default function Films() {
       copy = copy.filter(f => f.rating !== undefined && f.rating <= max);
     }
     
-    // Apply sorting
-    // Default sort by ID (addition order) - oldest first, newest last
-    if (sortBy === 'none') copy.sort((a, b) => a.id - b.id);
+    // Apply sorting when explicitly selected; otherwise keep the existing order (latest added/toggled last)
+    if (sortBy === 'none') copy.sort((a, b) => a.order - b.order);
     if (sortBy === 'name') copy.sort((a, b) => a.title.localeCompare(b.title));
     if (sortBy === 'genre') copy.sort((a, b) => (a.genres[0] || '').localeCompare(b.genres[0] || ''));
     if (sortBy === 'category') copy.sort((a, b) => (a.category || '').localeCompare(b.category || ''));
@@ -255,19 +276,28 @@ export default function Films() {
   }, [films, search, sortBy, filterYears, filterGenres, filterCategories, filterRatingMin, filterRatingMax]);
 
   const toWatch = filteredFilms.filter(f => f.status === 'todo');
-  const watched = filteredFilms.filter(f => f.status === 'watched');
+  // Filmele văzute sortate cu cele mai recent marcate la final
+  // Filmele văzute sortate cu cele mai recent marcate la final (id mai mare = mai nou)
+  // DEBUG: log watched order
+  const watched = filteredFilms
+    .filter(f => f.status === 'watched');
+  if (typeof window !== 'undefined') {
+    console.debug('WATCHED ORDER:', watched.map(f => `${f.title} (id:${f.id})`));
+  }
+
+  // Când marchezi un film ca văzut, mută-l la finalul listei (prin id mai mare)
 
   const handleDialogOpenChange = (open: boolean) => {
     setShowDialog(open);
     if (!open) {
       setEditingId(null);
-      setForm({ title: '', genres: [], year: '', status: 'todo', rating: '', category: '', notes: '' });
+      setForm({ title: '', genres: [], year: '', status: 'todo', rating: '', category: 'Film', notes: '' });
     }
   };
 
   const openAddForStatus = (status: LocalFilmItem['status']) => {
     setEditingId(null);
-    setForm({ title: '', genres: [], year: '', status, rating: '', category: '', notes: '' });
+    setForm({ title: '', genres: [], year: '', status, rating: '', category: 'Film', notes: '' });
     handleDialogOpenChange(true);
   };
 
@@ -286,11 +316,15 @@ export default function Films() {
     try {
       if (editingId) {
         const updated = await updateFilm(editingId, toApiFilm(baseFilm));
-        setFilms(prev => prev.map(f => f.id === editingId ? toLocalFilm(updated) : f));
+        const existingOrder = films.find(f => f.id === editingId)?.order ?? 0;
+        setFilms(prev => prev.map(f => f.id === editingId ? toLocalFilm(updated, existingOrder) : f));
         toast({ title: 'Salvat', description: `${baseFilm.title} a fost actualizat.` });
       } else {
         const created = await createFilm(toApiFilm(baseFilm));
-        setFilms(prev => [...prev, toLocalFilm(created)]);
+        setFilms(prev => {
+          const nextOrder = getNextOrder(prev);
+          return [...prev, toLocalFilm(created, nextOrder)];
+        });
         toast({ title: 'Adăugat', description: `${baseFilm.title} a fost adăugat.` });
       }
       handleDialogOpenChange(false);
@@ -325,7 +359,10 @@ export default function Films() {
     try {
       await apiRestoreFilm(id);
       setTrashed(prev => prev.filter(f => f.id !== id));
-      setFilms(prev => [...prev, film]);
+      setFilms(prev => {
+        const nextOrder = getNextOrder(prev);
+        return [...prev, { ...film, order: nextOrder }];
+      });
       toast({ title: 'Restaurat', description: `${film.title} a fost restaurat.` });
     } catch (error) {
       console.error('Error restoring film:', error);
@@ -362,7 +399,17 @@ export default function Films() {
     const newStatus = film.status === 'todo' ? 'watched' : 'todo';
     try {
       const updated = await updateFilm(id, { status: newStatus === 'watched' ? 'watched' : 'to-watch' });
-      setFilms(prev => prev.map(f => f.id === id ? toLocalFilm(updated) : f));
+      setFilms(prev => {
+        // Remove the film from its current position
+        let others = prev.filter(f => f.id !== id);
+        const updatedFilm = toLocalFilm(updated, getNextOrder(others));
+        // Always move to end of array (regardless of status)
+        const result = [...others, updatedFilm];
+        if (typeof window !== 'undefined') {
+          console.debug('AFTER TOGGLE STATUS:', result.map(f => `${f.title} (${f.status})`));
+        }
+        return result;
+      });
     } catch (error) {
       console.error('Error toggling status:', error);
       toast({ title: 'Eroare', description: 'Nu s-a putut schimba statusul.', variant: 'destructive' });
@@ -377,7 +424,7 @@ export default function Films() {
       year: film.year ?? '',
       status: film.status,
       rating: film.rating ? String(film.rating) : '',
-      category: film.category || '',
+      category: film.category || 'Film',
       notes: film.notes || '',
     });
     setShowDialog(true);
@@ -1107,7 +1154,23 @@ export default function Films() {
 
             {/* Genre filter dropdown */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Gen</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Gen</Label>
+                <button
+                  type="button"
+                  className={cn(
+                    "ml-2 flex items-center gap-1 px-2 py-1 rounded transition border border-input text-xs",
+                    genreAndMode ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
+                  )}
+                  title={genreAndMode ? "Filtrare: filme care au toate genurile selectate (AND)" : "Filtrare: filme care au oricare din genurile selectate (OR)"}
+                  onClick={() => setGenreAndMode(v => !v)}
+                >
+                  <span className="inline-block align-middle">
+                    {genreAndMode ? <CheckCircle2 className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+                  </span>
+                  {genreAndMode ? "Toate (AND)" : "Oricare (OR)"}
+                </button>
+              </div>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button

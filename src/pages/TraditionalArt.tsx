@@ -85,7 +85,7 @@ const TraditionalArt: React.FC = () => {
   const [expandAll, setExpandAll] = useState(true);
   const [editingAlbum, setEditingAlbum] = useState<TraditionalAlbum | null>(null);
   const [addingArtwork, setAddingArtwork] = useState(false);
-  const [newArtworkFile, setNewArtworkFile] = useState<File | null>(null);
+  const [newArtworkFiles, setNewArtworkFiles] = useState<File[]>([]);
   const [newArtworkUploading, setNewArtworkUploading] = useState(false);
   const [newArtworkTitle, setNewArtworkTitle] = useState('');
   const [newArtworkMedium, setNewArtworkMedium] = useState('');
@@ -104,6 +104,7 @@ const TraditionalArt: React.FC = () => {
   const [newArtworkDestination, setNewArtworkDestination] = useState<'individual' | 'existing' | 'new'>('individual');
   const [newArtworkAlbumId, setNewArtworkAlbumId] = useState<number | null>(null);
   const [inlineNewAlbumName, setInlineNewAlbumName] = useState('');
+  const addArtworkInputRef = React.useRef<HTMLInputElement | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'art' | 'album'; albumId?: number; artworkId?: number } | null>(null);
   const [deleteAlbumDialog, setDeleteAlbumDialog] = useState<{ open: boolean; albumId: number | null; albumName: string; deleteArtworks: boolean; artworkCount: number }>({
     open: false,
@@ -1331,17 +1332,64 @@ const TraditionalArt: React.FC = () => {
 
                   <TabsContent value="info" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                     <div className="border-2 border-dashed rounded-md p-3 sm:p-4 bg-muted/20">
-                      {newArtworkFile ? (
-                        <img src={URL.createObjectURL(newArtworkFile)} alt="previzualizare" className="w-full h-44 sm:h-56 object-contain rounded" />
+                      {newArtworkFiles.length > 0 ? (
+                        <img src={URL.createObjectURL(newArtworkFiles[0])} alt="previzualizare" className="w-full h-44 sm:h-56 object-contain rounded" />
                       ) : (
-                        <p className="text-sm text-muted-foreground">Selectează o imagine pentru operă</p>
+                        <p className="text-sm text-muted-foreground">Selectează una sau mai multe imagini pentru operă</p>
                       )}
-                      <label className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border cursor-pointer bg-background hover:bg-muted transition-colors">
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => setNewArtworkFile(e.target.files?.[0] || null)} />
-                        Alege imaginea
-                      </label>
+                      <input
+                        ref={addArtworkInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => setNewArtworkFiles(Array.from(e.target.files || []))}
+                      />
+                      <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                        <Button type="button" variant="outline" className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium" onClick={() => addArtworkInputRef.current?.click()}>
+                          Din dispozitiv
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium"
+                          onClick={async () => {
+                            const picker = (window as any)?.showOpenFilePicker;
+                            if (picker) {
+                              try {
+                                const handles = await picker({
+                                  multiple: true,
+                                  types: [
+                                    {
+                                      description: 'Imagini',
+                                      accept: {
+                                        'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.gif']
+                                      }
+                                    }
+                                  ]
+                                });
+                                if (!handles || handles.length === 0) return;
+                                const files = await Promise.all(handles.map((h: any) => h.getFile()));
+                                setNewArtworkFiles(files as File[]);
+                              } catch (error: any) {
+                                if (error?.name === 'AbortError') return;
+                                toast({ title: 'Eroare', description: 'Nu am putut deschide selectorul de fișiere.', variant: 'destructive' });
+                              }
+                            } else {
+                              addArtworkInputRef.current?.click();
+                            }
+                          }}
+                        >
+                          Drive / Google Photos
+                        </Button>
+                      </div>
+                      {newArtworkFiles.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground truncate">
+                          {newArtworkFiles.length === 1 ? newArtworkFiles[0].name : `${newArtworkFiles.length} fișiere selectate`}
+                        </p>
+                      )}
                     </div>
-                    <Input placeholder="Titlu" value={newArtworkTitle} onChange={(e) => setNewArtworkTitle(e.target.value)} />
+                    <Input placeholder={newArtworkFiles.length > 1 ? 'Titlu (opțional)' : 'Titlu'} value={newArtworkTitle} onChange={(e) => setNewArtworkTitle(e.target.value)} />
                     <Input placeholder="Tehnică" value={newArtworkMedium} onChange={(e) => setNewArtworkMedium(e.target.value)} />
                     <Textarea placeholder="Descriere" value={newArtworkDescription} onChange={(e) => setNewArtworkDescription(e.target.value)} />
                     <Select value={newArtworkCategory} onValueChange={(v) => setNewArtworkCategory(v as TraditionalArtwork['category'])}>
@@ -1463,7 +1511,7 @@ const TraditionalArt: React.FC = () => {
                 <div className="flex items-center justify-end gap-2">
                   <Button variant="outline" onClick={() => { 
                     setAddingArtwork(false); 
-                    setNewArtworkFile(null); 
+                    setNewArtworkFiles([]); 
                     setNewArtworkTitle(''); 
                     setNewArtworkMedium(''); 
                     setNewArtworkDescription(''); 
@@ -1482,53 +1530,64 @@ const TraditionalArt: React.FC = () => {
                   }}>
                     Anulează
                   </Button>
-                  <Button disabled={!newArtworkFile || !newArtworkTitle || newArtworkUploading}
+                  <Button disabled={newArtworkFiles.length === 0 || (newArtworkFiles.length === 1 && !newArtworkTitle) || newArtworkUploading}
                     onClick={async () => {
-                        if (!newArtworkFile) return;
+                        const isBulk = newArtworkFiles.length > 1;
+                        if (newArtworkFiles.length === 0 || (!isBulk && !newArtworkTitle)) {
+                          toast({ title: 'Date incomplete', description: 'Selectează o imagine și completează titlul.', variant: 'destructive' });
+                          return;
+                        }
                         setNewArtworkUploading(true);
                         try {
-                          // Upload to Cloudinary
-                          const fd = new FormData();
-                          fd.append('file', newArtworkFile);
-                          fd.append('folder', 'portfolio-art-items');
-                          const resp = await fetch('/api/upload/image', { method: 'POST', body: fd });
-                          if (!resp.ok) {
-                            const err = await resp.text();
-                            throw new Error(`Upload failed: ${err}`);
-                          }
-                          const data = await resp.json();
-                          console.log('[TraditionalArt] Upload success:', data);
-                          
                           const resolvedMaterials = materialsTags.length ? materialsTags : newArtworkMaterials.split(',').map(m => m.trim()).filter(Boolean);
                           const resolvedDimensions = dimW !== '' && dimH !== '' ? `${dimW}x${dimH}` : (newArtworkDimensions || undefined);
-                          // Persist to DB
-                          const created = await createGalleryItem({
-                            title: newArtworkTitle,
-                            image: data.url,
-                            category: 'art',
-                            subcategory: newArtworkCategory,
-                            isPrivate: false,
-                            medium: newArtworkMedium || 'Nespecificat',
-                            description: newArtworkDescription || undefined,
-                            materials: resolvedMaterials,
-                            dimensions: resolvedDimensions,
-                            date: newArtworkDate,
-                          } as any);
-                          console.log('[TraditionalArt] Created in DB:', created);
+                          const createdIds: number[] = [];
+
+                          for (const file of newArtworkFiles) {
+                            const fd = new FormData();
+                            fd.append('file', file);
+                            fd.append('folder', 'portfolio-art-items');
+                            const resp = await fetch('/api/upload/image', { method: 'POST', body: fd });
+                            if (!resp.ok) {
+                              const err = await resp.text();
+                              throw new Error(`Upload failed: ${err}`);
+                            }
+                            const data = await resp.json();
+                            console.log('[TraditionalArt] Upload success:', data);
+                            
+                            const baseName = file.name.replace(/\.[^/.]+$/, '').trim();
+                            const title = isBulk ? (baseName || 'Fără titlu') : newArtworkTitle;
+                            const created = await createGalleryItem({
+                              title,
+                              image: data.url,
+                              category: 'art',
+                              subcategory: newArtworkCategory,
+                              isPrivate: false,
+                              medium: newArtworkMedium || 'Nespecificat',
+                              description: newArtworkDescription || undefined,
+                              materials: resolvedMaterials,
+                              dimensions: resolvedDimensions,
+                              date: newArtworkDate,
+                            } as any);
+                            console.log('[TraditionalArt] Created in DB:', created);
+                            createdIds.push(created.id);
+                          }
 
                           // Destination handling
                           if (newArtworkDestination === 'existing' && newArtworkAlbumId) {
                             const album = rawAlbums.find(a => a.id === newArtworkAlbumId);
-                            if (album) await addItemToAlbum(album, created.id);
+                            if (album) {
+                              await Promise.all(createdIds.map(id => addItemToAlbum(album, id)));
+                            }
                           } else if (newArtworkDestination === 'new' && inlineNewAlbumName.trim()) {
-                            const newAlb = await createAlbum({ name: inlineNewAlbumName.trim(), color: null, icon: null, itemIds: [created.id], contentType: 'art' } as any);
+                            const newAlb = await createAlbum({ name: inlineNewAlbumName.trim(), color: null, icon: null, itemIds: createdIds, contentType: 'art' } as any);
                             console.log('[TraditionalArt] Created new album', newAlb);
                           }
                           
-                          toast({ title: 'Salvat', description: 'Opera a fost adăugată în cloud.' });
+                          toast({ title: 'Salvat', description: isBulk ? 'Operele au fost adăugate în cloud.' : 'Opera a fost adăugată în cloud.' });
                           setAddingArtwork(false);
                           // Reset all form fields
-                          setNewArtworkFile(null);
+                          setNewArtworkFiles([]);
                           setNewArtworkTitle('');
                           setNewArtworkMedium('');
                           setNewArtworkDescription('');

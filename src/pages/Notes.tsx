@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAdmin } from '@/contexts/AdminContext';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ChefHat, ShoppingBasket, Quote, Clock3, Flame, Users, ArrowLeft, ArrowRight, Sparkles, MoreVertical, Pencil, Trash2, RotateCcw, Loader2, Upload, X, Image as ImageIcon, Trash } from 'lucide-react';
+import { ChefHat, ShoppingBasket, Quote, Clock3, Flame, Users, ArrowLeft, ArrowRight, Sparkles, MoreVertical, Pencil, Trash2, RotateCcw, Loader2, Upload, X, Image as ImageIcon, Trash, Search } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { getNotes, getTrashedNotes, createNote, updateNote, softDeleteNote as apiSoftDeleteNote, restoreNote as apiRestoreNote, deleteNote } from '@/lib/api';
 import type { NoteItem as ApiNoteItem } from '@shared/schema';
@@ -52,6 +52,7 @@ interface QuoteItem {
   id: number;
   text: string;
   author?: string;
+  source?: string;
 }
 
 // Convert API NoteItem to local format
@@ -75,6 +76,7 @@ function toLocalNote(n: ApiNoteItem): Recipe | ShoppingItem | QuoteItem {
       id: n.id,
       text: n.content || n.title,
       author: n.author ?? undefined,
+      source: n.source ?? undefined,
     };
   }
   // shopping
@@ -85,6 +87,8 @@ function toLocalNote(n: ApiNoteItem): Recipe | ShoppingItem | QuoteItem {
 }
 
 export default function Notes() {
+    // Search bar pentru citate
+    const [quoteSearch, setQuoteSearch] = useState('');
   const { isAdmin } = useAdmin();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
@@ -106,6 +110,7 @@ export default function Notes() {
     ingredients: '',
     text: '',
     author: '',
+    source: '',
     image: '',
   });
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -180,6 +185,7 @@ export default function Notes() {
     ingredients: '',
     text: '',
     author: '',
+    source: '',
     image: '',
   });
 
@@ -301,7 +307,7 @@ export default function Notes() {
           difficulty: null,
           cuisine: null,
           author: form.author.trim() || null,
-          source: null,
+          source: form.source.trim() || null,
           completed: false,
           isPrivate: false,
           deletedAt: null,
@@ -409,7 +415,7 @@ export default function Notes() {
     }
     if (type === 'quote') {
       const quote = payload as QuoteItem;
-      setForm({ ...form, text: quote.text, author: quote.author || '' });
+      setForm({ ...form, text: quote.text, author: quote.author || '', source: quote.source || '' });
     }
     setAddOpen(true);
   };
@@ -536,13 +542,25 @@ export default function Notes() {
               </div>
 
               <TabsContent value="recipes" className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1 md:px-2 lg:px-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold mb-2 sm:mb-0">
                     <ChefHat className="h-4 w-4" /> Rețete salvate
                   </div>
+                  {/* Desktop add button */}
                   {isAdmin && (
-                    <Button variant="outline" onClick={() => openAdd('recipe')} className="gap-2">
+                    <Button variant="outline" onClick={() => openAdd('recipe')} className="gap-2 hidden sm:flex ml-2">
                       <ChefHat className="h-4 w-4" /> Adaugă rețetă
+                    </Button>
+                  )}
+                  {/* Floating add button for mobile */}
+                  {isAdmin && (
+                    <Button
+                      className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-amber-500 to-pink-500 text-white shadow-2xl flex sm:hidden items-center justify-center"
+                      size="icon"
+                      onClick={() => openAdd('recipe')}
+                      aria-label="Adaugă rețetă"
+                    >
+                      <ChefHat className="h-6 w-6" />
                     </Button>
                   )}
                 </div>
@@ -579,15 +597,27 @@ export default function Notes() {
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{recipe.summary}</p>
                       </CardHeader>
-                      <CardContent className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="bg-white/50 dark:bg-muted/50">
+                      <CardContent 
+                        className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs text-muted-foreground px-2 py-2"
+                        style={{ minHeight: 40 }}
+                      >
+                        <Badge 
+                          variant="outline" 
+                          className="flex items-center justify-center whitespace-nowrap bg-white/50 dark:bg-muted/50 px-2 py-1 min-w-[90px]"
+                        >
                           <Clock3 className="h-3 w-3 mr-1" /> {formatTime(recipe.time)}
                         </Badge>
-                        <Badge variant="outline" className="bg-white/50 dark:bg-muted/50">
-                          <Flame className="h-3 w-3 mr-1" /> {recipe.difficulty}
-                        </Badge>
-                        <Badge variant="outline" className="bg-white/50 dark:bg-muted/50">
+                        <Badge 
+                          variant="outline" 
+                          className="flex items-center justify-center whitespace-nowrap bg-white/50 dark:bg-muted/50 px-2 py-1 min-w-[90px]"
+                        >
                           <Users className="h-3 w-3 mr-1" /> {recipe.servings} pers.
+                        </Badge>
+                        <Badge 
+                          variant="outline" 
+                          className="flex items-center justify-center whitespace-nowrap bg-white/50 dark:bg-muted/50 px-2 py-1 min-w-[90px]"
+                        >
+                          <Flame className="h-3 w-3 mr-1" /> {recipe.difficulty}
                         </Badge>
                       </CardContent>
                     </Card>
@@ -599,13 +629,25 @@ export default function Notes() {
               </TabsContent>
 
               <TabsContent value="shopping" className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1 md:px-2 lg:px-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold mb-2 sm:mb-0">
                     <ShoppingBasket className="h-4 w-4" /> Listă de cumpărături
                   </div>
+                  {/* Desktop add button */}
                   {isAdmin && (
-                    <Button variant="outline" onClick={() => openAdd('shopping')} className="gap-2">
+                    <Button variant="outline" onClick={() => openAdd('shopping')} className="gap-2 hidden sm:flex ml-2">
                       <ShoppingBasket className="h-4 w-4" /> Adaugă produs
+                    </Button>
+                  )}
+                  {/* Floating add button for mobile */}
+                  {isAdmin && (
+                    <Button
+                      className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-2xl flex sm:hidden items-center justify-center"
+                      size="icon"
+                      onClick={() => openAdd('shopping')}
+                      aria-label="Adaugă produs"
+                    >
+                      <ShoppingBasket className="h-6 w-6" />
                     </Button>
                   )}
                 </div>
@@ -640,19 +682,57 @@ export default function Notes() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="quotes" className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Quote className="h-4 w-4" /> Citate
+              <TabsContent value="quotes" className="space-y-4">
+                <div className="px-1 md:px-2 lg:px-4">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 w-full">
+                    {/* Desktop add button - stânga */}
+                    {isAdmin && (
+                      <Button variant="outline" onClick={() => openAdd('quote')} className="gap-2 hidden sm:flex">
+                        <Quote className="h-4 w-4" /> Adaugă citat
+                      </Button>
+                    )}
+                    {/* Search bar - mijloc */}
+                    <div className="flex-1 flex justify-center">
+                      <div className="relative mx-auto w-full max-w-xs md:max-w-sm lg:max-w-md" style={{ minWidth: 200 }}>
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        <Input
+                          type="text"
+                          value={quoteSearch}
+                          onChange={e => setQuoteSearch(e.target.value)}
+                          placeholder="Caută citat sau autor..."
+                          className="pl-9 pr-3 py-2 text-sm rounded-full border focus:border-primary transition-all w-full bg-background"
+                          style={{ transition: 'width 0.2s', width: quoteSearch ? 320 : 220, maxWidth: '100%' }}
+                          onFocus={e => e.currentTarget.style.width = '320px'}
+                          onBlur={e => { if (!quoteSearch) e.currentTarget.style.width = '220px'; }}
+                        />
+                      </div>
+                    </div>
+                    {/* Titlu citate - dreapta */}
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Quote className="h-4 w-4" /> Citate
+                    </div>
                   </div>
-                  {isAdmin && (
-                    <Button variant="outline" onClick={() => openAdd('quote')} className="gap-2">
-                      <Quote className="h-4 w-4" /> Adaugă citat
-                    </Button>
-                  )}
                 </div>
+                {/* Floating add button for mobile */}
+                {isAdmin && (
+                  <Button
+                    className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-2xl flex sm:hidden items-center justify-center"
+                    size="icon"
+                    onClick={() => openAdd('quote')}
+                    aria-label="Adaugă citat"
+                  >
+                    <Quote className="h-6 w-6" />
+                  </Button>
+                )}
                 <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
-                  {quotes.map((q) => (
+                  {quotes.filter(q => {
+                    const query = quoteSearch.trim().toLowerCase();
+                    if (!query) return true;
+                    return (
+                      (q.text && q.text.toLowerCase().includes(query)) ||
+                      (q.author && q.author.toLowerCase().includes(query))
+                    );
+                  }).map((q) => (
                     <Card 
                       key={q.id} 
                       className="border border-border/60 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -663,6 +743,7 @@ export default function Notes() {
                         <div className="flex-1">
                           <p>{q.text}</p>
                           {q.author && <p className="text-xs text-muted-foreground mt-1">— {q.author}</p>}
+                          {q.source && <p className="text-xs text-muted-foreground">{q.source}</p>}
                         </div>
                         {isAdmin && (
                           <DropdownMenu>
@@ -684,8 +765,15 @@ export default function Notes() {
                       </CardContent>
                     </Card>
                   ))}
-                  {quotes.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Niciun citat încă.</p>
+                  {quotes.filter(q => {
+                    const query = quoteSearch.trim().toLowerCase();
+                    if (!query) return true;
+                    return (
+                      (q.text && q.text.toLowerCase().includes(query)) ||
+                      (q.author && q.author.toLowerCase().includes(query))
+                    );
+                  }).length === 0 && (
+                    <p className="text-sm text-muted-foreground">Niciun citat găsit.</p>
                   )}
                 </div>
               </TabsContent>
@@ -947,6 +1035,10 @@ export default function Notes() {
                   <Label>Autor (opțional)</Label>
                   <Input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} placeholder="ex: Albert Einstein" />
                 </div>
+                <div>
+                  <Label>Unde (opțional)</Label>
+                  <Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} placeholder="ex: titlul cărții, piesa, albumul" />
+                </div>
               </div>
             )}
           </div>
@@ -1024,21 +1116,24 @@ export default function Notes() {
                     <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/50">
                       <img src={activeRecipe.image} alt={activeRecipe.title} className="h-56 w-full object-cover" />
                     </div>
-                    {/* Desktop only - cards */}
-                    <div className="hidden lg:grid grid-cols-3 gap-2 text-sm">
-                      <Card className="border-border/60 bg-background/70">
-                        <CardContent className="py-3 flex items-center justify-center gap-2 text-muted-foreground">
-                          <Clock3 className="h-4 w-4" /> {formatTime(activeRecipe.time)}
+                    {/* Desktop only - cards - improved layout */}
+                    <div className="hidden lg:flex w-full justify-center items-center gap-6 mt-2 mb-1">
+                      <Card className="flex-1 min-w-[140px] max-w-[180px] bg-background/80 border border-border/60 rounded-xl shadow-sm">
+                        <CardContent className="flex flex-col items-center justify-center py-4 px-2 text-muted-foreground">
+                          <span className="flex items-center gap-2 mb-1 text-lg font-medium"><Clock3 className="h-5 w-5" /> <span>{formatTime(activeRecipe.time)}</span></span>
+                          <span className="text-xs text-muted-foreground">min</span>
                         </CardContent>
                       </Card>
-                      <Card className="border-border/60 bg-background/70">
-                        <CardContent className="py-3 flex items-center justify-center gap-2 text-muted-foreground">
-                          <Flame className="h-4 w-4" /> {activeRecipe.difficulty}
+                      <Card className="flex-1 min-w-[140px] max-w-[180px] bg-background/80 border border-border/60 rounded-xl shadow-sm">
+                        <CardContent className="flex flex-col items-center justify-center py-4 px-2 text-muted-foreground">
+                          <span className="flex items-center gap-2 mb-1 text-lg font-medium"><Flame className="h-5 w-5" /> <span>{activeRecipe.difficulty}</span></span>
+                          <span className="text-xs text-muted-foreground">dificultate</span>
                         </CardContent>
                       </Card>
-                      <Card className="border-border/60 bg-background/70">
-                        <CardContent className="py-3 flex items-center justify-center gap-2 text-muted-foreground">
-                          <Users className="h-4 w-4" /> {activeRecipe.servings} porții
+                      <Card className="flex-1 min-w-[140px] max-w-[180px] bg-background/80 border border-border/60 rounded-xl shadow-sm">
+                        <CardContent className="flex flex-col items-center justify-center py-4 px-2 text-muted-foreground">
+                          <span className="flex items-center gap-2 mb-1 text-lg font-medium"><Users className="h-5 w-5" /> <span>{activeRecipe.servings}</span></span>
+                          <span className="text-xs text-muted-foreground">porții</span>
                         </CardContent>
                       </Card>
                     </div>
@@ -1084,6 +1179,11 @@ export default function Notes() {
                 {activeQuote.author && (
                   <p className="text-sm sm:text-base text-muted-foreground">
                     — {activeQuote.author}
+                  </p>
+                )}
+                {activeQuote.source && (
+                  <p className="text-xs sm:text-sm text-muted-foreground/80">
+                    {activeQuote.source}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground/50 pt-4">
