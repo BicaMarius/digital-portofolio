@@ -651,15 +651,28 @@ const Photography: React.FC = () => {
               const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd, signal: undefined });
               let uploadJson = null;
               let errorMsg = 'Upload failed';
+              let bodyRead = false;
               try {
-                uploadJson = await uploadRes.json();
+                uploadJson = await uploadRes.clone().json();
+                bodyRead = true;
               } catch (e) {
-                errorMsg = await uploadRes.text();
+                try {
+                  errorMsg = await uploadRes.clone().text();
+                  bodyRead = true;
+                } catch (e2) {
+                  // fallback
+                }
               }
               if (!uploadRes.ok) {
                 if (uploadJson && uploadJson.error) errorMsg = uploadJson.error;
                 if (attempt < retries) continue; // Retry la erori temporare
                 toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${errorMsg}`, variant: 'destructive' });
+                failedCount++;
+                return null;
+              }
+              // Dacă nu am reușit să citim body-ul, returnăm null
+              if (!bodyRead) {
+                toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": Nu s-a putut citi răspunsul serverului.` , variant: 'destructive' });
                 failedCount++;
                 return null;
               }
@@ -829,6 +842,34 @@ const Photography: React.FC = () => {
                   >
                     <XIcon className="h-4 w-4" />
                     {!isMobile && <span className="ml-2">Anulează</span>}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10"
+                    onClick={() => {
+                      // Gather all filtered photo IDs (all pages)
+                      const allIds = filteredPhotos.map(p => p.id);
+                      const allSelected = allIds.length > 0 && allIds.every(id => selectedIds.has(id));
+                      if (allSelected) {
+                        // Deselect all
+                        setSelectedIds(new Set());
+                      } else {
+                        // Select all
+                        setSelectedIds(new Set(allIds));
+                      }
+                    }}
+                  >
+                    <Check className="h-4 w-4" />
+                    {!isMobile && (
+                      <span className="ml-2">
+                        {(() => {
+                          const allIds = filteredPhotos.map(p => p.id);
+                          const allSelected = allIds.length > 0 && allIds.every(id => selectedIds.has(id));
+                          return allSelected ? 'Deselectează tot' : 'Selectează tot';
+                        })()}
+                      </span>
+                    )}
                   </Button>
                   <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {selectedIds.size} selectate
