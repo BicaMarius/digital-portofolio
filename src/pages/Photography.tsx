@@ -548,19 +548,21 @@ const Photography: React.FC = () => {
         const fd = new FormData();
         fd.append('file', file);
         fd.append('folder', 'photography');
+
         const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
+        let uploadJson: any = null;
+        let errorMsg = 'Upload failed';
+        try {
+          uploadJson = await uploadRes.json();
+        } catch (e) {
+          errorMsg = await uploadRes.text();
+        }
         if (!uploadRes.ok) {
-          let errorMsg = 'Upload failed';
-          try {
-            const errorData = await uploadRes.json();
-            errorMsg = errorData.error || errorMsg;
-          } catch (e) {
-            errorMsg = await uploadRes.text();
-          }
-          toast({ title: 'Eroare upload', description: `Fișierul "${file.name}": ${errorMsg}`, variant: 'destructive' });
+          if (uploadJson && uploadJson.error) errorMsg = uploadJson.error;
+          toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${errorMsg}`, variant: 'destructive' });
           continue;
         }
-        const { url } = await uploadRes.json();
+        const url = uploadJson?.url;
 
         await createGalleryItem({
           title,
@@ -617,56 +619,86 @@ const Photography: React.FC = () => {
       setNewPhotoDevice('');
       setNewPhotoDate(new Date().getFullYear().toString());
       setNewPhotoLocation('');
-      setNewPhotoCategory('landscape');
-      await reloadPhotos();
-    } catch (error) {
-      console.error('[Photography] Edit error:', error);
-      toast({ title: 'Eroare', description: 'Nu s-a putut salva fotografia.', variant: 'destructive' });
-    }
-  };
+      setNewPhotoUploading(true);
+      try {
+        const trimmedTitle = newPhotoTitle.trim();
+        const trimmedDevice = newPhotoDevice.trim();
+        const trimmedLocation = newPhotoLocation.trim();
 
-  // Delete photo handler
-  const handleDeletePhoto = async (photoId: number) => {
-    try {
-      await softDeleteGalleryItem(photoId);
-      toast({ title: 'Șters', description: 'Fotografia a fost mutată în coș.' });
-      setDeletePhotoDialog({ open: false, photoId: null, photoTitle: '' });
-      await reloadPhotos();
-    } catch (error) {
-      console.error('[Photography] Delete error:', error);
-      toast({ title: 'Eroare', description: 'Nu s-a putut șterge fotografia.', variant: 'destructive' });
-    }
-  };
+        const BATCH_SIZE = 5;
+        const files = [...newPhotoFiles];
+        let uploadedCount = 0;
+        let failedCount = 0;
 
-  // Location management handlers
-  const handleCreateLocation = async () => {
-    if (!newLocationName.trim()) return;
-    try {
-      await createLocationMutation.mutateAsync({ name: newLocationName.trim() });
-      setNewLocationName('');
-      toast({ title: 'Adăugat', description: 'Locația a fost adăugată.' });
-    } catch (error) {
-      toast({ title: 'Eroare', description: 'Nu s-a putut adăuga locația.', variant: 'destructive' });
-    }
-  };
+        // Helper pentru upload cu retry
+        const uploadFileWithRetry = async (file, retries = 2) => {
+          for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+              const fd = new FormData();
+              fd.append('file', file);
+              fd.append('folder', 'photography');
+              const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd, signal: undefined });
+              let uploadJson = null;
+              let errorMsg = 'Upload failed';
+              try {
+                uploadJson = await uploadRes.json();
+              } catch (e) {
+                errorMsg = await uploadRes.text();
+              }
+              if (!uploadRes.ok) {
+                if (uploadJson && uploadJson.error) errorMsg = uploadJson.error;
+                if (attempt < retries) continue; // Retry la erori temporare
+                toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${errorMsg}`, variant: 'destructive' });
+                failedCount++;
+                return null;
+              }
+              return uploadJson?.url;
+            } catch (err) {
+              if (attempt < retries) continue;
+              toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${err instanceof Error ? err.message : err}` , variant: 'destructive' });
+              failedCount++;
+              return null;
+            }
+          }
+          return null;
+        };
 
-  const handleUpdateLocation = async () => {
-    if (!editingLocation || !editingLocation.name.trim()) return;
-    try {
-      await updateLocationMutation.mutateAsync({
-        id: editingLocation.id,
-        updates: { name: editingLocation.name.trim() }
-      });
-      setEditingLocation(null);
-      toast({ title: 'Actualizat', description: 'Locația a fost actualizată.' });
-    } catch (error) {
-      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza locația.', variant: 'destructive' });
-    }
-  };
+        for (let i = 0; i < files.length; i += BATCH_SIZE) {
+          const batch = files.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(async (file) => {
+            const baseName = file.name.replace(/\.[^/.]+$/, '').trim();
+            const title = isBulk ? (baseName || 'Fără titlu') : trimmedTitle;
+            const url = await uploadFileWithRetry(file);
+            if (url) {
+              await createGalleryItem({
+                title,
+                image: url,
+                category: 'photo',
+                subcategory: newPhotoCategory,
+                isPrivate: false,
+                device: trimmedDevice || null,
+                date: newPhotoDate,
+                location: trimmedLocation || null,
+              } as any);
+              uploadedCount++;
+            }
+          }));
+        }
 
-  const handleDeleteLocation = async (id: number) => {
-    try {
-      await deleteLocationMutation.mutateAsync(id);
+        toast({
+          title: 'Upload finalizat',
+          description: `Au fost încărcate cu succes ${uploadedCount} fotografii.` + (failedCount > 0 ? ` ${failedCount} au eșuat.` : ''),
+          variant: failedCount > 0 ? 'destructive' : 'default',
+        });
+        setAddingPhoto(false);
+        resetForm();
+        await reloadPhotos();
+      } catch (error) {
+        console.error('[Photography] Add error:', error);
+        toast({ title: 'Eroare', description: error instanceof Error ? error.message : 'Nu s-a putut adăuga fotografia.', variant: 'destructive' });
+      } finally {
+        setNewPhotoUploading(false);
+      }
       toast({ title: 'Șters', description: 'Locația a fost ștearsă.' });
     } catch (error) {
       toast({ title: 'Eroare', description: 'Nu s-a putut șterge locația.', variant: 'destructive' });
