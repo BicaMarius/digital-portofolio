@@ -1259,6 +1259,54 @@ const Photography: React.FC = () => {
                                 </div>
                               )}
                             </div>
+
+                            {/* Bulk Actions */}
+                            {trash.length > 0 && (
+                              <div className="border-t pt-3 flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (!confirm(`Restaurezi toate cele ${trash.length} fotografii din coET?`)) return;
+                                    try {
+                                      for (const photo of trash) {
+                                        await restoreGalleryItem(photo.id);
+                                      }
+                                      toast({ title: 'Restaurat', description: 'Toate fotografiile au fost restaurate.' });
+                                      await reloadPhotos();
+                                    } catch (e) {
+                                      console.error('[Photography] Restore all error:', e);
+                                      toast({ title: 'Eroare', description: 'Nu s-au putut restaura toate fotografiile.', variant: 'destructive' });
+                                    }
+                                  }}
+                                  className="flex-1"
+                                >
+                                  <Undo2 className="h-4 w-4 mr-2" />
+                                  RestaureazŽŸ tot
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (!confirm(`E~tergi permanent toate cele ${trash.length} fotografii din coET? AceastŽŸ acE>iune nu poate fi anulatŽŸ!`)) return;
+                                    try {
+                                      for (const photo of trash) {
+                                        await deleteGalleryItem(photo.id);
+                                      }
+                                      toast({ title: 'CoET golit', description: 'Toate fotografiile au fost ETterse definitiv.' });
+                                      await reloadPhotos();
+                                    } catch (e) {
+                                      console.error('[Photography] Delete all error:', e);
+                                      toast({ title: 'Eroare', description: 'Nu s-au putut ETterge toate fotografiile.', variant: 'destructive' });
+                                    }
+                                  }}
+                                  className="flex-1"
+                                >
+                                  <Trash className="h-4 w-4 mr-2" />
+                                  E~terge tot
+                                </Button>
+                              </div>
+                            )}
                           </DialogContent>
                         </Dialog>
                       )}
