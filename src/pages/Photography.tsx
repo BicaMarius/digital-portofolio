@@ -1,15 +1,4 @@
-  // Location management handler (pentru dialogul de gestionare locații)
-  const handleCreateLocation = async () => {
-    if (!newLocationName.trim()) return;
-    try {
-      await createLocationMutation.mutateAsync({ name: newLocationName.trim() });
-      setNewLocationName('');
-      toast({ title: 'Adăugat', description: 'Locația a fost adăugată.' });
-    } catch (error) {
-      toast({ title: 'Eroare', description: 'Nu s-a putut adăuga locația.', variant: 'destructive' });
-    }
-  };
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -60,9 +49,9 @@ interface Photo {
 
 type SortOption = 'none' | 'title' | 'device' | 'location' | 'date';
 
-const MAX_UPLOAD_MB = 50;
+const MAX_UPLOAD_MB = 95;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-const UPLOAD_BATCH_SIZE = 4;
+const UPLOAD_BATCH_SIZE = 8;
 
 const YEAR_REGEX = /\d{4}/;
 
@@ -77,6 +66,12 @@ const getYearLabel = (value?: string) => {
   const match = value.match(YEAR_REGEX);
   return match ? match[0] : 'Necunoscut';
 };
+
+const DEFAULT_TITLE_PREFIX = 'Fotografie';
+const sanitizeText = (value?: string) => (value || '').replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
+const extractBaseName = (file: File) => sanitizeText(file.name.replace(/\.[^/.]+$/, ''));
+const makeFileKey = (file: File) => `${file.name}|${file.size}|${file.lastModified}`;
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const mockPhotos: Photo[] = [
   {
@@ -160,6 +155,7 @@ const Photography: React.FC = () => {
   const [newPhotoUploading, setNewPhotoUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const recentUploadKeysRef = React.useRef<Set<string>>(new Set());
   const newPhotoPreviewUrl = React.useMemo(() => {
     const first = newPhotoFiles[0];
     if (!first) return null;
@@ -178,6 +174,8 @@ const Photography: React.FC = () => {
   // Long press support
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = React.useRef<{ x: number; y: number } | null>(null);
+  const swipeStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  const swipeLastRef = React.useRef<{ x: number; y: number } | null>(null);
 
   // Photo Options Management (Locations & Devices)
   const { data: photoLocations = [] } = usePhotoLocations();
@@ -509,6 +507,37 @@ const Photography: React.FC = () => {
     touchStartPos.current = null;
   };
 
+  // Fullscreen swipe navigation
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    if (!selectedPhoto) return;
+    const touch = e.touches[0];
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+    swipeLastRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleSwipeMove = (e: React.TouchEvent) => {
+    if (!swipeStartRef.current) return;
+    const touch = e.touches[0];
+    swipeLastRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleSwipeEnd = () => {
+    const start = swipeStartRef.current;
+    const end = swipeLastRef.current;
+    swipeStartRef.current = null;
+    swipeLastRef.current = null;
+    if (!start || !end) return;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      if (dx < 0) {
+        nextPhoto();
+      } else {
+        prevPhoto();
+      }
+    }
+  };
+
   // Selection handlers
   const toggleSelection = (photoId: number) => {
     setSelectedIds(prev => {
@@ -538,42 +567,114 @@ const Photography: React.FC = () => {
     }
   };
 
+  const handleDeletePhoto = async (photoId: number) => {
+    try {
+      await softDeleteGalleryItem(photoId);
+      toast({ title: 'Mutat în coș', description: 'Fotografia a fost mutată în coșul de gunoi.' });
+      setSelectedPhoto((prev) => (prev?.id === photoId ? null : prev));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(photoId);
+        return next;
+      });
+      await reloadPhotos();
+    } catch (error) {
+      console.error('[Photography] Soft delete error:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut ș	erge fotografia.', variant: 'destructive' });
+    }
+  };
+
   // Add photo handler
   const handleAddPhoto = async () => {
     const isBulk = newPhotoFiles.length > 1;
     if (newPhotoFiles.length === 0 || (!isBulk && !newPhotoTitle.trim())) {
-      toast({ title: 'Date incomplete', description: 'Selectează o imagine și completează titlul.', variant: 'destructive' });
+      toast({ title: 'Date incomplete', description: 'Selectează cel puțin o imagine și completează titlul.', variant: 'destructive' });
       return;
     }
 
     setNewPhotoUploading(true);
     try {
-      const trimmedTitle = newPhotoTitle.trim();
-      const trimmedDevice = newPhotoDevice.trim();
-      const trimmedLocation = newPhotoLocation.trim();
+      const trimmedTitle = sanitizeText(newPhotoTitle);
+      const trimmedDevice = sanitizeText(newPhotoDevice);
+      const trimmedLocation = sanitizeText(newPhotoLocation);
+      const existingTitles = new Set(photos.map((p) => sanitizeText(p.title).toLowerCase()));
+      const seenTitles = new Map<string, number>();
+      let uploadedCount = 0;
+      let failedCount = 0;
+      let skippedCount = 0;
 
-      for (const file of newPhotoFiles) {
-        const baseName = file.name.replace(/\.[^/.]+$/, '').trim();
-        const title = isBulk ? (baseName || 'Fără titlu') : trimmedTitle;
+      const buildTitle = (base: string, index: number) => {
+        const safeBase = sanitizeText(base) || `${DEFAULT_TITLE_PREFIX} ${index + 1}`;
+        const baseKey = safeBase.toLowerCase();
+        const duplicateCount = (seenTitles.get(baseKey) ?? 0) + (existingTitles.has(baseKey) ? 1 : 0);
+        const finalTitle = duplicateCount > 0 ? `${safeBase} (${duplicateCount})` : safeBase;
+        seenTitles.set(baseKey, (seenTitles.get(baseKey) ?? 0) + 1);
+        existingTitles.add(finalTitle.toLowerCase());
+        return finalTitle;
+      };
 
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('folder', 'photography');
+      const uploadFileWithRetry = async (file: File, retries = 2) => {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('folder', 'photography');
 
-        const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
-        let uploadJson: any = null;
-        let errorMsg = 'Upload failed';
-        try {
-          uploadJson = await uploadRes.json();
-        } catch (e) {
-          errorMsg = await uploadRes.text();
+            const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
+            const bodyText = await uploadRes.clone().text();
+            let uploadJson: any = null;
+            try {
+              uploadJson = JSON.parse(bodyText);
+            } catch {
+              // body is not JSON; bodyText contains the message
+            }
+            const errorMsg = uploadJson?.error || bodyText || 'Upload failed';
+
+            if (!uploadRes.ok) {
+              throw new Error(errorMsg);
+            }
+
+            if (!uploadJson?.url) {
+              throw new Error('Răspunsul serverului nu conține URL-ul imaginii.');
+            }
+
+            return uploadJson.url as string;
+          } catch (err) {
+            console.error('[Photography] Upload attempt failed', { file: file.name, attempt });
+            if (attempt < retries) {
+              await delay(300 * (attempt + 1));
+              continue;
+            }
+            toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${err instanceof Error ? err.message : err}`, variant: 'destructive' });
+            return null;
+          }
         }
-        if (!uploadRes.ok) {
-          if (uploadJson && uploadJson.error) errorMsg = uploadJson.error;
-          toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${errorMsg}`, variant: 'destructive' });
-          continue;
+        return null;
+      };
+
+      const processFile = async (file: File, index: number) => {
+        const fileKey = makeFileKey(file);
+        if (recentUploadKeysRef.current.has(fileKey)) {
+          skippedCount++;
+          console.debug('[Photography] Skip duplicate selection', { file: file.name, key: fileKey });
+          return;
         }
-        const url = uploadJson?.url;
+
+        if (file.size > MAX_UPLOAD_BYTES) {
+          failedCount++;
+          toast({ title: 'Fișier prea mare', description: `\"${file.name}\" depășeste limita de ${MAX_UPLOAD_MB}MB.`, variant: 'destructive' });
+          return;
+        }
+
+        const baseName = extractBaseName(file);
+        const pickedBase = isBulk ? (baseName || trimmedTitle) : (trimmedTitle || baseName);
+        const title = buildTitle(pickedBase, index);
+
+        const url = await uploadFileWithRetry(file, 3);
+        if (!url) {
+          failedCount++;
+          return;
+        }
 
         await createGalleryItem({
           title,
@@ -585,9 +686,22 @@ const Photography: React.FC = () => {
           date: newPhotoDate,
           location: trimmedLocation || null,
         } as any);
+
+        recentUploadKeysRef.current.add(fileKey);
+        uploadedCount++;
+      };
+
+      console.debug('[Photography] Starting upload', { total: newPhotoFiles.length });
+      for (let i = 0; i < newPhotoFiles.length; i += UPLOAD_BATCH_SIZE) {
+        const batch = newPhotoFiles.slice(i, i + UPLOAD_BATCH_SIZE);
+        await Promise.all(batch.map((file, batchIndex) => processFile(file, i + batchIndex)));
       }
 
-      toast({ title: 'Adăugat', description: isBulk ? 'Fotografiile au fost adăugate în cloud.' : 'Fotografia a fost adăugată în cloud.' });
+      toast({
+        title: uploadedCount > 0 ? 'Upload finalizat' : 'Nimic de încărcat',
+        description: `Încărcate: ${uploadedCount}. ${skippedCount ? `Sărite (duplicat): ${skippedCount}. ` : ''}${failedCount ? `Eșuate: ${failedCount}.` : ''}`,
+        variant: failedCount > 0 ? 'destructive' : 'default',
+            });
       setAddingPhoto(false);
       resetForm();
       await reloadPhotos();
@@ -606,10 +720,11 @@ const Photography: React.FC = () => {
       return;
     }
 
+    setNewPhotoUploading(true);
     try {
-      const trimmedTitle = newPhotoTitle.trim();
-      const trimmedDevice = newPhotoDevice.trim();
-      const trimmedLocation = newPhotoLocation.trim();
+      const trimmedTitle = sanitizeText(newPhotoTitle);
+      const trimmedDevice = sanitizeText(newPhotoDevice);
+      const trimmedLocation = sanitizeText(newPhotoLocation);
 
       const updates = {
         title: trimmedTitle,
@@ -618,118 +733,65 @@ const Photography: React.FC = () => {
         location: trimmedLocation || null,
         subcategory: newPhotoCategory,
       };
-      
+
       console.log('[Photography] Updating photo:', editingPhoto.id, updates);
-      
+
       await updateGalleryItem(editingPhoto.id, updates as any);
 
       toast({ title: 'Salvat', description: 'Modificările au fost salvate în cloud.' });
+
+
       setEditingPhoto(null);
-      // Reset form fields
-      setNewPhotoTitle('');
-      setNewPhotoDevice('');
-      setNewPhotoDate(new Date().getFullYear().toString());
-      setNewPhotoLocation('');
-      setNewPhotoUploading(true);
-      try {
-        const trimmedTitle = newPhotoTitle.trim();
-        const trimmedDevice = newPhotoDevice.trim();
-        const trimmedLocation = newPhotoLocation.trim();
-
-        const BATCH_SIZE = 5;
-        const files = [...newPhotoFiles];
-        let uploadedCount = 0;
-        let failedCount = 0;
-
-        // Helper pentru upload cu retry
-        const uploadFileWithRetry = async (file, retries = 2) => {
-          for (let attempt = 0; attempt <= retries; attempt++) {
-            try {
-              const fd = new FormData();
-              fd.append('file', file);
-              fd.append('folder', 'photography');
-              const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd, signal: undefined });
-              let uploadJson = null;
-              let errorMsg = 'Upload failed';
-              let bodyRead = false;
-              try {
-                uploadJson = await uploadRes.clone().json();
-                bodyRead = true;
-              } catch (e) {
-                try {
-                  errorMsg = await uploadRes.clone().text();
-                  bodyRead = true;
-                } catch (e2) {
-                  // fallback
-                }
-              }
-              if (!uploadRes.ok) {
-                if (uploadJson && uploadJson.error) errorMsg = uploadJson.error;
-                if (attempt < retries) continue; // Retry la erori temporare
-                toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${errorMsg}`, variant: 'destructive' });
-                failedCount++;
-                return null;
-              }
-              // Dacă nu am reușit să citim body-ul, returnăm null
-              if (!bodyRead) {
-                toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": Nu s-a putut citi răspunsul serverului.` , variant: 'destructive' });
-                failedCount++;
-                return null;
-              }
-              return uploadJson?.url;
-            } catch (err) {
-              if (attempt < retries) continue;
-              toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${err instanceof Error ? err.message : err}` , variant: 'destructive' });
-              failedCount++;
-              return null;
-            }
-          }
-          return null;
-        };
-
-        for (let i = 0; i < files.length; i += BATCH_SIZE) {
-          const batch = files.slice(i, i + BATCH_SIZE);
-          await Promise.all(batch.map(async (file) => {
-            const baseName = file.name.replace(/\.[^/.]+$/, '').trim();
-            const title = isBulk ? (baseName || 'Fără titlu') : trimmedTitle;
-            const url = await uploadFileWithRetry(file);
-            if (url) {
-              await createGalleryItem({
-                title,
-                image: url,
-                category: 'photo',
-                subcategory: newPhotoCategory,
-                isPrivate: false,
-                device: trimmedDevice || null,
-                date: newPhotoDate,
-                location: trimmedLocation || null,
-              } as any);
-              uploadedCount++;
-            }
-          }));
-        }
-
-        toast({
-          title: 'Upload finalizat',
-          description: `Au fost încărcate cu succes ${uploadedCount} fotografii.` + (failedCount > 0 ? ` ${failedCount} au eșuat.` : ''),
-          variant: failedCount > 0 ? 'destructive' : 'default',
-        });
-        setAddingPhoto(false);
-        resetForm();
-        await reloadPhotos();
-      } catch (error) {
-        console.error('[Photography] Add error:', error);
-        toast({ title: 'Eroare', description: error instanceof Error ? error.message : 'Nu s-a putut adăuga fotografia.', variant: 'destructive' });
-      } finally {
-        setNewPhotoUploading(false);
-      }
-      toast({ title: 'Șters', description: 'Locația a fost ștearsă.' });
+      resetForm();
+      await reloadPhotos();
     } catch (error) {
-      toast({ title: 'Eroare', description: 'Nu s-a putut șterge locația.', variant: 'destructive' });
+      console.error('[Photography] Edit error:', error);
+      toast({ title: 'Eroare', description: error instanceof Error ? error.message : 'Nu s-a putut salva fotografia.', variant: 'destructive' });
+    } finally {
+      setNewPhotoUploading(false);
     }
   };
 
-  // Device management handlers
+  // Location management handlers
+  const handleCreateLocation = async () => {
+    const name = sanitizeText(newLocationName);
+    if (!name) return;
+    try {
+      await createLocationMutation.mutateAsync({ name });
+      setNewLocationName('');
+      toast({ title: 'Adăugat', description: 'Locația a fost adaugata.' });
+    } catch (error) {
+      console.error('[Photography] Create location error:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut adauga locația.', variant: 'destructive' });
+    }
+  };
+
+  const handleUpdateLocation = async () => {
+    if (!editingLocation || !sanitizeText(editingLocation.name)) return;
+    try {
+      await updateLocationMutation.mutateAsync({
+        id: editingLocation.id,
+        updates: { name: sanitizeText(editingLocation.name) },
+      });
+      setEditingLocation(null);
+      toast({ title: 'Actualizat', description: 'Locația a fost actualizată.' });
+    } catch (error) {
+      console.error('[Photography] Update location error:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza locația.', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteLocation = async (id: number) => {
+    try {
+      await deleteLocationMutation.mutateAsync(id);
+      toast({ title: 'ș	ers', description: 'Locația a fost stearsa.' });
+    } catch (error) {
+      console.error('[Photography] Delete location error:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut ș	erge locația.', variant: 'destructive' });
+    }
+  };
+
+// Device management handlers
   const handleCreateDevice = async () => {
     if (!newDeviceName.trim()) return;
     try {
@@ -758,7 +820,7 @@ const Photography: React.FC = () => {
   const handleDeleteDevice = async (id: number) => {
     try {
       await deleteDeviceMutation.mutateAsync(id);
-      toast({ title: 'Șters', description: 'Dispozitivul a fost șters.' });
+      toast({ title: 'șters', description: 'Dispozitivul a fost șters.' });
     } catch (error) {
       toast({ title: 'Eroare', description: 'Nu s-a putut șterge dispozitivul.', variant: 'destructive' });
     }
@@ -784,7 +846,7 @@ const Photography: React.FC = () => {
 
   const handleDeleteCategory = (value: string) => {
     setCategories(categories.filter(cat => cat.value !== value));
-    toast({ title: 'Șters', description: 'Categoria a fost ștearsă.' });
+    toast({ title: 'șters', description: 'Categoria a fost ștearsă.' });
   };
 
   if (loading) {
@@ -885,7 +947,7 @@ const Photography: React.FC = () => {
                   <Trash2 className="h-4 w-4" />
                   {!isMobile && (
                     <span className="ml-2">
-                      Șterge {selectedIds.size > 0 && `(${selectedIds.size})`}
+                      șterge {selectedIds.size > 0 && `(${selectedIds.size})`}
                     </span>
                   )}
                 </Button>
@@ -962,7 +1024,7 @@ const Photography: React.FC = () => {
                                       if (!confirm(`Ștergi permanent "${photo.title}"? Această acțiune nu poate fi anulată.`)) return;
                                       try {
                                         await deleteGalleryItem(photo.id);
-                                        toast({ title: 'Șters permanent', description: `${photo.title} a fost șters definitiv.` });
+                                        toast({ title: 'șters permanent', description: `${photo.title} a fost șters definitiv.` });
                                         await reloadPhotos();
                                       } catch (e) {
                                         console.error('[Photography] Permanent delete error:', e);
@@ -1057,6 +1119,7 @@ const Photography: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Fără sortare</SelectItem>
+                      
                       <SelectItem value="date">După an</SelectItem>
                       <SelectItem value="title">După nume</SelectItem>
                       <SelectItem value="device">După dispozitiv</SelectItem>
@@ -1259,7 +1322,6 @@ const Photography: React.FC = () => {
                                 </div>
                               )}
                             </div>
-
                             {/* Bulk Actions */}
                             {trash.length > 0 && (
                               <div className="border-t pt-3 flex gap-2">
@@ -1267,7 +1329,7 @@ const Photography: React.FC = () => {
                                   variant="outline"
                                   size="sm"
                                   onClick={async () => {
-                                    if (!confirm(`Restaurezi toate cele ${trash.length} fotografii din coET?`)) return;
+                                    if (!confirm(`Restaurezi toate cele ${trash.length} fotografii din coș?`)) return;
                                     try {
                                       for (const photo of trash) {
                                         await restoreGalleryItem(photo.id);
@@ -1282,28 +1344,28 @@ const Photography: React.FC = () => {
                                   className="flex-1"
                                 >
                                   <Undo2 className="h-4 w-4 mr-2" />
-                                  RestaureazŽŸ tot
+                                  Restaurează tot
                                 </Button>
                                 <Button
                                   variant="destructive"
                                   size="sm"
                                   onClick={async () => {
-                                    if (!confirm(`E~tergi permanent toate cele ${trash.length} fotografii din coET? AceastŽŸ acE>iune nu poate fi anulatŽŸ!`)) return;
+                                    if (!confirm(`Ștergi permanent toate cele ${trash.length} fotografii din coș? Această acțiune nu poate fi anulată!`)) return;
                                     try {
                                       for (const photo of trash) {
                                         await deleteGalleryItem(photo.id);
                                       }
-                                      toast({ title: 'CoET golit', description: 'Toate fotografiile au fost ETterse definitiv.' });
+                                      toast({ title: 'Coș golit', description: 'Toate fotografiile au fost șterse definitiv.' });
                                       await reloadPhotos();
                                     } catch (e) {
                                       console.error('[Photography] Delete all error:', e);
-                                      toast({ title: 'Eroare', description: 'Nu s-au putut ETterge toate fotografiile.', variant: 'destructive' });
+                                      toast({ title: 'Eroare', description: 'Nu s-au putut șterge toate fotografiile.', variant: 'destructive' });
                                     }
                                   }}
                                   className="flex-1"
                                 >
                                   <Trash className="h-4 w-4 mr-2" />
-                                  E~terge tot
+                                  Șterge tot
                                 </Button>
                               </div>
                             )}
@@ -1441,7 +1503,7 @@ const Photography: React.FC = () => {
                                     className="text-destructive focus:text-destructive"
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
-                                    Șterge
+                                    șterge
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1525,7 +1587,7 @@ const Photography: React.FC = () => {
                                         className="text-destructive focus:text-destructive"
                                       >
                                         <Trash2 className="h-4 w-4 mr-2" />
-                                        Șterge
+                                        șterge
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
@@ -1597,11 +1659,16 @@ const Photography: React.FC = () => {
               <div className="flex flex-col h-full">
                 <div className={`flex-1 flex items-center justify-center px-3 sm:px-6 ${isBrowserFullscreen ? 'py-4' : 'pt-6 pb-32 sm:pb-48'}`}>
                   {/* Image wrapper with navigation arrows */}
-                  <div className="relative">
+                  <div
+                    className="relative w-full max-w-6xl mx-auto px-4 sm:px-10"
+                    onTouchStart={handleSwipeStart}
+                    onTouchMove={handleSwipeMove}
+                    onTouchEnd={handleSwipeEnd}
+                  >
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
+                      className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/10 text-white/70 hover:bg-violet-500/70 hover:text-white transition-colors backdrop-blur-sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         prevPhoto();
@@ -1613,7 +1680,7 @@ const Photography: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm"
+                      className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/10 text-white/70 hover:bg-violet-500/70 hover:text-white transition-colors backdrop-blur-sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         nextPhoto();
@@ -1625,7 +1692,7 @@ const Photography: React.FC = () => {
                     <img
                       src={selectedPhoto.image}
                       alt={selectedPhoto.title}
-                      className={`w-auto h-auto max-w-full ${isBrowserFullscreen ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]'} object-contain`}
+                      className={`block mx-auto w-auto h-auto max-w-full ${isBrowserFullscreen ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]'} object-contain`}
                     />
                   </div>
                 </div>
@@ -1712,7 +1779,7 @@ const Photography: React.FC = () => {
                 setDeletePhotoDialog({ open: false, photoId: null, photoTitle: '' });
               }}
             >
-              Șterge
+              șterge
             </Button>
           </div>
         </DialogContent>
@@ -2680,3 +2747,13 @@ const Photography: React.FC = () => {
 };
 
 export default Photography;
+
+
+
+
+
+
+
+
+
+
