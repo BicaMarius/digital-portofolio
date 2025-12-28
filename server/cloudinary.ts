@@ -2,6 +2,7 @@ import { v2 as cloudinary } from 'cloudinary';
 
 let initialized = false;
 const IMAGE_MAX_DIMENSION = 8000;
+const IMAGE_UPLOAD_TRANSFORMATION = `w_${IMAGE_MAX_DIMENSION},h_${IMAGE_MAX_DIMENSION},c_limit,q_auto:good`;
 
 export function initCloudinary() {
   if (initialized) return;
@@ -138,6 +139,39 @@ export async function uploadImageToCloudinary(
 
     uploadStream.end(fileBuffer);
   });
+}
+
+export function getImageUploadSignature(folder: string): {
+  signature: string;
+  timestamp: number;
+  apiKey: string;
+  cloudName: string;
+  transformation: string;
+} {
+  initCloudinary();
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const config = cloudinary.config();
+  const apiSecret = config.api_secret as string | undefined;
+  const apiKey = config.api_key as string | undefined;
+  const cloudName = config.cloud_name as string | undefined;
+
+  if (!apiSecret || !apiKey || !cloudName) {
+    throw new Error('Cloudinary credentials are not configured.');
+  }
+
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder, transformation: IMAGE_UPLOAD_TRANSFORMATION },
+    apiSecret
+  );
+
+  return {
+    signature,
+    timestamp,
+    apiKey,
+    cloudName,
+    transformation: IMAGE_UPLOAD_TRANSFORMATION,
+  };
 }
 
 export async function deleteFromCloudinary(publicId: string): Promise<void> {

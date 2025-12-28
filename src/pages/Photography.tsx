@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,6 +48,14 @@ interface Photo {
 }
 
 type SortOption = 'none' | 'title' | 'device' | 'location' | 'date';
+type CloudinarySignature = {
+  signature: string;
+  timestamp: number;
+  apiKey: string;
+  cloudName: string;
+  folder: string;
+  transformation?: string;
+};
 
 const MAX_UPLOAD_MB = 95;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
@@ -262,6 +270,74 @@ const Photography: React.FC = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const requestUploadSignature = async (folder: string): Promise<CloudinarySignature> => {
+    const signatureRes = await fetch('/api/cloudinary/signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder })
+    });
+    const bodyText = await signatureRes.text();
+    let payload: any = null;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch {
+      // non-json response
+    }
+
+    if (!signatureRes.ok) {
+      throw new Error(payload?.error || bodyText || 'Failed to prepare upload');
+    }
+
+    if (!payload?.signature || !payload?.timestamp || !payload?.apiKey || !payload?.cloudName) {
+      throw new Error('Upload signature missing required fields.');
+    }
+
+    return {
+      signature: payload.signature,
+      timestamp: payload.timestamp,
+      apiKey: payload.apiKey,
+      cloudName: payload.cloudName,
+      folder: payload.folder || folder,
+      transformation: payload.transformation,
+    };
+  };
+
+  const uploadImageToCloudinaryDirect = async (file: File, signature: CloudinarySignature) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('api_key', signature.apiKey);
+    fd.append('timestamp', String(signature.timestamp));
+    fd.append('signature', signature.signature);
+    fd.append('folder', signature.folder);
+    if (signature.transformation) {
+      fd.append('transformation', signature.transformation);
+    }
+
+    const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signature.cloudName}/image/upload`, {
+      method: 'POST',
+      body: fd
+    });
+    const bodyText = await uploadRes.text();
+    let uploadJson: any = null;
+    try {
+      uploadJson = JSON.parse(bodyText);
+    } catch {
+      // non-json response
+    }
+
+    if (!uploadRes.ok) {
+      const errorMessage = uploadJson?.error?.message || uploadJson?.error || bodyText || 'Upload failed';
+      throw new Error(errorMessage);
+    }
+
+    const url = uploadJson?.secure_url || uploadJson?.url;
+    if (!url) {
+      throw new Error('Cloudinary response missing image URL.');
+    }
+
+    return url as string;
   };
 
   const triggerNativeFileDialog = () => {
@@ -613,39 +689,25 @@ const Photography: React.FC = () => {
         return finalTitle;
       };
 
+      let uploadSignature: CloudinarySignature | null = null;
+      const ensureUploadSignature = async () => {
+        if (uploadSignature) return uploadSignature;
+        uploadSignature = await requestUploadSignature('photography');
+        return uploadSignature;
+      };
+
       const uploadFileWithRetry = async (file: File, retries = 2) => {
         for (let attempt = 0; attempt <= retries; attempt++) {
           try {
-            const fd = new FormData();
-            fd.append('file', file);
-            fd.append('folder', 'photography');
-
-            const uploadRes = await fetch('/api/upload/image', { method: 'POST', body: fd });
-            const bodyText = await uploadRes.clone().text();
-            let uploadJson: any = null;
-            try {
-              uploadJson = JSON.parse(bodyText);
-            } catch {
-              // body is not JSON; bodyText contains the message
-            }
-            const errorMsg = uploadJson?.error || bodyText || 'Upload failed';
-
-            if (!uploadRes.ok) {
-              throw new Error(errorMsg);
-            }
-
-            if (!uploadJson?.url) {
-              throw new Error('Răspunsul serverului nu conține URL-ul imaginii.');
-            }
-
-            return uploadJson.url as string;
+            const signature = await ensureUploadSignature();
+            return await uploadImageToCloudinaryDirect(file, signature);
           } catch (err) {
             console.error('[Photography] Upload attempt failed', { file: file.name, attempt });
             if (attempt < retries) {
               await delay(300 * (attempt + 1));
               continue;
             }
-            toast({ title: 'Eroare upload', description: `Fișierul \"${file.name}\": ${err instanceof Error ? err.message : err}`, variant: 'destructive' });
+            toast({ title: 'Eroare upload', description: `Fișierul "${file.name}": ${err instanceof Error ? err.message : err}`, variant: 'destructive' });
             return null;
           }
         }
@@ -692,8 +754,9 @@ const Photography: React.FC = () => {
       };
 
       console.debug('[Photography] Starting upload', { total: newPhotoFiles.length });
-      for (let i = 0; i < newPhotoFiles.length; i += UPLOAD_BATCH_SIZE) {
-        const batch = newPhotoFiles.slice(i, i + UPLOAD_BATCH_SIZE);
+      const uploadBatchSize = isMobile ? 2 : UPLOAD_BATCH_SIZE;
+      for (let i = 0; i < newPhotoFiles.length; i += uploadBatchSize) {
+        const batch = newPhotoFiles.slice(i, i + uploadBatchSize);
         await Promise.all(batch.map((file, batchIndex) => processFile(file, i + batchIndex)));
       }
 

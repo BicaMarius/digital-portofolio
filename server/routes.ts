@@ -30,7 +30,7 @@ import {
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import { extname } from "node:path";
-import { uploadToCloudinary, deleteFromCloudinary, uploadImageToCloudinary } from "./cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary, uploadImageToCloudinary, getImageUploadSignature } from "./cloudinary.js";
 
 type UploadedFile = {
   buffer: Buffer;
@@ -41,6 +41,7 @@ type UploadedFile = {
 
 export function registerRoutes(app: Express, storage: IStorage) {
   const MAX_UPLOAD_MB = 100;
+  const ALLOWED_UPLOAD_FOLDERS = new Set(["photography", "portfolio-art-items", "portfolio-art-covers"]);
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
@@ -301,6 +302,21 @@ export function registerRoutes(app: Express, storage: IStorage) {
       res.json({ url, publicId });
     } catch (error) {
       res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
+  app.post("/api/cloudinary/signature", async (req, res) => {
+    try {
+      const folder = typeof req.body?.folder === "string" ? req.body.folder : "";
+      if (!ALLOWED_UPLOAD_FOLDERS.has(folder)) {
+        return res.status(400).json({ error: "Invalid upload folder" });
+      }
+
+      const signature = getImageUploadSignature(folder);
+      res.json({ ...signature, folder });
+    } catch (error) {
+      console.error("[Routes] Cloudinary signature error:", error);
+      res.status(500).json({ error: "Failed to create upload signature" });
     }
   });
 
