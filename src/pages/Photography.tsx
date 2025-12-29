@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
+import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, ChevronDown, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
@@ -139,12 +139,12 @@ const Photography: React.FC = () => {
     };
   }, []);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [slideDirection, setSlideDirection] = useState<'next' | 'prev'>('next');
+  const [viewMode, setViewMode] = useState<'paged' | 'scroll'>('paged');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('none');
   const [currentPage, setCurrentPage] = useState(0);
-  const photosPerPage = viewMode === 'grid' ? 12 : 6;
 
   // Cloud state
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -173,6 +173,7 @@ const Photography: React.FC = () => {
   // Selection mode
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [deletePhotoDialog, setDeletePhotoDialog] = useState<{ open: boolean; photoId: number | null; photoTitle: string }>({
     open: false,
     photoId: null,
@@ -391,7 +392,11 @@ const Photography: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(0);
-  }, [searchTerm, filterCategory, sortOption]);
+  }, [searchTerm, filterCategory, sortOption, viewMode]);
+
+  useEffect(() => {
+    setCollapsedGroups(new Set());
+  }, [sortOption]);
 
   const filteredPhotos = React.useMemo(() => {
     const base = isAdmin ? photos : photos.filter((photo) => !photo.isPrivate);
@@ -436,12 +441,13 @@ const Photography: React.FC = () => {
     return arr;
   }, [filteredPhotos, sortOption]);
 
-  const totalPages = Math.ceil(sortedPhotos.length / photosPerPage);
-  const safePageIndex = totalPages === 0 ? 0 : Math.min(currentPage, totalPages - 1);
-  const currentPhotos = sortedPhotos.slice(
-    safePageIndex * photosPerPage,
-    (safePageIndex + 1) * photosPerPage
-  );
+  const isPaged = viewMode === 'paged';
+  const pageSize = isMobile ? 16 : 20;
+  const totalPages = isPaged ? Math.ceil(sortedPhotos.length / pageSize) : 1;
+  const safePageIndex = isPaged ? (totalPages === 0 ? 0 : Math.min(currentPage, totalPages - 1)) : 0;
+  const currentPhotos = isPaged
+    ? sortedPhotos.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize)
+    : sortedPhotos;
 
   const groupedCurrentPhotos = React.useMemo(() => {
     if (sortOption === 'none') {
@@ -500,6 +506,7 @@ const Photography: React.FC = () => {
       const currentIndex = sortedPhotos.findIndex((p) => p.id === selectedPhoto.id);
       if (currentIndex === -1) return;
       const nextIndex = (currentIndex + 1) % sortedPhotos.length;
+      setSlideDirection('next');
       setSelectedPhoto(sortedPhotos[nextIndex]);
     }
   };
@@ -509,6 +516,7 @@ const Photography: React.FC = () => {
       const currentIndex = sortedPhotos.findIndex((p) => p.id === selectedPhoto.id);
       if (currentIndex === -1) return;
       const prevIndex = (currentIndex - 1 + sortedPhotos.length) % sortedPhotos.length;
+      setSlideDirection('prev');
       setSelectedPhoto(sortedPhotos[prevIndex]);
     }
   };
@@ -622,6 +630,18 @@ const Photography: React.FC = () => {
         next.delete(photoId);
       } else {
         next.add(photoId);
+      }
+      return next;
+    });
+  };
+
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
       }
       return next;
     });
@@ -1204,18 +1224,20 @@ const Photography: React.FC = () => {
 
                   <div className="flex gap-2 ml-auto">
                     <Button
-                      variant={viewMode === 'grid' ? 'default' : 'outline'}
+                      variant={viewMode === 'paged' ? 'default' : 'outline'}
                       size="icon"
                       className="h-10 w-10"
-                      onClick={() => setViewMode('grid')}
+                      onClick={() => setViewMode('paged')}
+                      title="Paginare"
                     >
                       <Grid3X3 className="h-5 w-5" />
                     </Button>
                     <Button
-                      variant={viewMode === 'list' ? 'default' : 'outline'}
+                      variant={viewMode === 'scroll' ? 'default' : 'outline'}
                       size="icon"
                       className="h-10 w-10"
-                      onClick={() => setViewMode('list')}
+                      onClick={() => setViewMode('scroll')}
+                      title="Scroll"
                     >
                       <List className="h-5 w-5" />
                     </Button>
@@ -1265,18 +1287,20 @@ const Photography: React.FC = () => {
 
                   <div className={`flex gap-2 ${!isAdmin ? 'ml-auto' : ''}`}>
                     <Button
-                      variant={viewMode === 'grid' ? 'default' : 'outline'}
+                      variant={viewMode === 'paged' ? 'default' : 'outline'}
                       size="icon"
                       className="h-10 w-10"
-                      onClick={() => setViewMode('grid')}
+                      onClick={() => setViewMode('paged')}
+                      title="Paginare"
                     >
                       <Grid3X3 className="h-4 w-4" />
                     </Button>
                     <Button
-                      variant={viewMode === 'list' ? 'default' : 'outline'}
+                      variant={viewMode === 'scroll' ? 'default' : 'outline'}
                       size="icon"
                       className="h-10 w-10"
-                      onClick={() => setViewMode('list')}
+                      onClick={() => setViewMode('scroll')}
+                      title="Scroll"
                     >
                       <List className="h-4 w-4" />
                     </Button>
@@ -1443,53 +1467,70 @@ const Photography: React.FC = () => {
           </div>
 
           {/* Photos Grid */}
-          <div className={viewMode === 'grid' 
-            ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8" 
-            : "space-y-6 mb-8"
-          }>
-            {groupedCurrentPhotos.map((group) => (
-              <React.Fragment key={group.key}>
-                {sortOption !== 'none' && group.title && (
-                  <div className={viewMode === 'grid' ? 'col-span-full' : ''}>
-                    <div className="flex items-center gap-3 py-4">
-                      <div className="flex-shrink-0 w-1 h-8 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full" />
-                      <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{group.title}</span>
-                    </div>
-                  </div>
-                )}
-                {group.photos.map((photo) => {
-                  const delay = animationIndex * 50;
-                  animationIndex += 1;
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+            {groupedCurrentPhotos.map((group) => {
+              const isGrouped = sortOption !== 'none' && !!group.title;
+              const groupKey = `${sortOption}:${group.key}`;
+              const isCollapsed = isGrouped ? collapsedGroups.has(groupKey) : false;
 
-                  return (
-                    <Card 
-                      key={photo.id}
-                      className={`group cursor-pointer overflow-hidden transition-all duration-300 animate-scale-in ${
-                        selectionMode
-                          ? selectedIds.has(photo.id)
-                            ? 'ring-2 ring-art-accent scale-95'
-                            : 'hover:scale-95'
-                          : 'hover:shadow-xl hover:scale-105'
-                      }`}
-                      style={{ animationDelay: `${delay}ms` }}
-                      onClick={() => {
-                        if (selectionMode) {
-                          toggleSelection(photo.id);
-                        } else {
-                          setSelectedPhoto(photo);
-                        }
-                      }}
-                      onTouchStart={(e) => !selectionMode && isAdmin && handleTouchStart(e, photo.id)}
-                      onTouchMove={(e) => !selectionMode && isAdmin && handleTouchMove(e)}
-                      onTouchEnd={() => !selectionMode && isAdmin && handleTouchEnd()}
-                      onContextMenu={(e) => {
-                        if (isMobile && !selectionMode) {
-                          e.preventDefault();
-                        }
-                      }}
-                    >
+              return (
+                <React.Fragment key={group.key}>
+                  {isGrouped && (
+                    <div className="col-span-full">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between py-4 text-left"
+                        onClick={() => toggleGroupCollapse(groupKey)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-1 h-8 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full" />
+                          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{group.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {isCollapsed && <span>{group.photos.length}</span>}
+                          {isCollapsed ? (
+                            <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                  {!isCollapsed && group.photos.map((photo) => {
+                    const delay = animationIndex * 50;
+                    animationIndex += 1;
+
+                    return (
+                      <Card
+                        key={photo.id}
+                        className={`group cursor-pointer overflow-hidden transition-all duration-300 animate-scale-in ${
+                          selectionMode
+                            ? selectedIds.has(photo.id)
+                              ? 'ring-2 ring-art-accent scale-95'
+                              : 'hover:scale-95'
+                            : 'hover:shadow-xl hover:scale-105'
+                        }`}
+                        style={{ animationDelay: `${delay}ms` }}
+                        onClick={() => {
+                          if (selectionMode) {
+                            toggleSelection(photo.id);
+                          } else {
+                            setSlideDirection('next');
+                            setSelectedPhoto(photo);
+                          }
+                        }}
+                        onTouchStart={(e) => !selectionMode && isAdmin && handleTouchStart(e, photo.id)}
+                        onTouchMove={(e) => !selectionMode && isAdmin && handleTouchMove(e)}
+                        onTouchEnd={() => !selectionMode && isAdmin && handleTouchEnd()}
+                        onContextMenu={(e) => {
+                          if (isMobile && !selectionMode) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
                       <CardContent className="p-0 relative">
-                        {viewMode === 'grid' ? (
+                        {viewMode === 'paged' || viewMode === 'scroll' ? (
                           <div className="aspect-square relative overflow-hidden">
                             <img 
                               src={photo.image} 
@@ -1679,14 +1720,15 @@ const Photography: React.FC = () => {
                         )}
                       </CardContent>
                     </Card>
-                  );
-                })}
-              </React.Fragment>
-            ))}
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {isPaged && totalPages > 1 && (
             <div className="flex items-center justify-center gap-4">
               <Button
                 variant="outline"
@@ -1720,42 +1762,47 @@ const Photography: React.FC = () => {
           {selectedPhoto && (
             <div className="relative w-full h-full bg-black">
               <div className="flex flex-col h-full">
-                <div className={`flex-1 flex items-center justify-center px-3 sm:px-6 ${isBrowserFullscreen ? 'py-4' : 'pt-6 pb-32 sm:pb-48'}`}>
+                <div className="flex-1 flex items-center justify-center p-0">
                   {/* Image wrapper with navigation arrows */}
                   <div
-                    className="relative w-full max-w-6xl mx-auto px-4 sm:px-10"
+                    className="relative w-full h-full"
                     onTouchStart={handleSwipeStart}
                     onTouchMove={handleSwipeMove}
                     onTouchEnd={handleSwipeEnd}
                   >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/10 text-white/70 hover:bg-violet-500/70 hover:text-white transition-colors backdrop-blur-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        prevPhoto();
-                      }}
-                    >
-                      <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </Button>
+                    {isMobile && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-10 w-10 rounded-full bg-black/10 text-white/70 hover:bg-violet-500/70 hover:text-white transition-colors backdrop-blur-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          prevPhoto();
+                        }}
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </Button>
+                    )}
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/10 text-white/70 hover:bg-violet-500/70 hover:text-white transition-colors backdrop-blur-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        nextPhoto();
-                      }}
-                    >
-                      <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </Button>
+                    {isMobile && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-10 w-10 rounded-full bg-black/10 text-white/70 hover:bg-violet-500/70 hover:text-white transition-colors backdrop-blur-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          nextPhoto();
+                        }}
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </Button>
+                    )}
 
                     <img
+                      key={`${selectedPhoto.id}-${slideDirection}`}
                       src={selectedPhoto.image}
                       alt={selectedPhoto.title}
-                      className={`block mx-auto w-auto h-auto max-w-full ${isBrowserFullscreen ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]'} object-contain`}
+                      className={`photo-viewer-image ${slideDirection === 'next' ? 'photo-viewer-image--next' : 'photo-viewer-image--prev'} block w-full h-full max-w-none max-h-none object-contain`}
                     />
                   </div>
                 </div>
@@ -2810,13 +2857,3 @@ const Photography: React.FC = () => {
 };
 
 export default Photography;
-
-
-
-
-
-
-
-
-
-
