@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Camera, Plus, Search, Filter, Grid3X3, List, ChevronLeft, ChevronRight, ChevronDown, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
+import { Camera, Plus, Search, Filter, BookOpen, ScrollText, ChevronLeft, ChevronRight, ChevronDown, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
@@ -140,7 +140,7 @@ const Photography: React.FC = () => {
   }, []);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev'>('next');
-  const [viewMode, setViewMode] = useState<'paged' | 'scroll'>('paged');
+  const [viewMode, setViewMode] = useState<'paged' | 'scroll'>('scroll');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('none');
@@ -442,19 +442,20 @@ const Photography: React.FC = () => {
   }, [filteredPhotos, sortOption]);
 
   const isPaged = viewMode === 'paged';
-  const pageSize = isMobile ? 16 : 20;
-  const totalPages = isPaged ? Math.ceil(sortedPhotos.length / pageSize) : 1;
-  const safePageIndex = isPaged ? (totalPages === 0 ? 0 : Math.min(currentPage, totalPages - 1)) : 0;
-  const currentPhotos = isPaged
-    ? sortedPhotos.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize)
-    : sortedPhotos;
+  const pageSize = 20;
 
-  const groupedCurrentPhotos = React.useMemo(() => {
+  const groupedPhotos = React.useMemo(() => {
     if (sortOption === 'none') {
-      return [{ key: 'all', title: null as string | null, photos: currentPhotos }];
+      return [{
+        id: 'all',
+        key: 'all',
+        title: null as string | null,
+        photos: sortedPhotos,
+        count: sortedPhotos.length,
+      }];
     }
 
-    const groups: { key: string; title: string; photos: Photo[] }[] = [];
+    const groups: { id: string; key: string; title: string; photos: Photo[]; count: number }[] = [];
 
     const getGroupKey = (photo: Photo): string => {
       switch (sortOption) {
@@ -486,18 +487,89 @@ const Photography: React.FC = () => {
       }
     };
 
-    currentPhotos.forEach((photo) => {
+    sortedPhotos.forEach((photo) => {
       const key = getGroupKey(photo);
       let group = groups.find((g) => g.key === key);
       if (!group) {
-        group = { key, title: getGroupTitle(key), photos: [] };
+        group = { id: `${sortOption}:${key}`, key, title: getGroupTitle(key), photos: [], count: 0 };
         groups.push(group);
       }
       group.photos.push(photo);
+      group.count += 1;
     });
 
     return groups;
-  }, [currentPhotos, sortOption]);
+  }, [sortedPhotos, sortOption]);
+
+  const groupsForScroll = React.useMemo(() => {
+    return groupedPhotos.map((group) => {
+      const isCollapsed = collapsedGroups.has(group.id);
+      return {
+        ...group,
+        isCollapsed,
+        photos: isCollapsed ? [] : group.photos,
+      };
+    });
+  }, [groupedPhotos, collapsedGroups]);
+
+  const pagedGroups = React.useMemo(() => {
+    if (!isPaged) return [];
+    const pages: Array<Array<{ id: string; key: string; title: string | null; photos: Photo[]; count: number; isCollapsed: boolean }>> = [];
+    let currentPage: Array<{ id: string; key: string; title: string | null; photos: Photo[]; count: number; isCollapsed: boolean }> = [];
+    let currentPhotoCount = 0;
+
+    const pushPage = () => {
+      pages.push(currentPage);
+      currentPage = [];
+      currentPhotoCount = 0;
+    };
+
+    groupedPhotos.forEach((group) => {
+      const isCollapsed = collapsedGroups.has(group.id);
+      if (isCollapsed) {
+        currentPage.push({ ...group, isCollapsed, photos: [] });
+        return;
+      }
+
+      let index = 0;
+      while (index < group.photos.length) {
+        if (currentPhotoCount >= pageSize && currentPage.length > 0) {
+          pushPage();
+        }
+
+        const remaining = Math.max(pageSize - currentPhotoCount, 0);
+        const chunkSize = remaining === 0 ? pageSize : remaining;
+        const chunk = group.photos.slice(index, index + chunkSize);
+
+        currentPage.push({ ...group, isCollapsed: false, photos: chunk });
+        currentPhotoCount += chunk.length;
+        index += chunk.length;
+      }
+    });
+
+    if (currentPage.length === 0 && pages.length === 0) {
+      pages.push([]);
+    } else if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
+
+    return pages;
+  }, [groupedPhotos, collapsedGroups, isPaged, pageSize]);
+
+  const totalPages = isPaged ? pagedGroups.length : 1;
+
+  useEffect(() => {
+    if (!isPaged) return;
+    const lastIndex = Math.max(totalPages - 1, 0);
+    if (currentPage > lastIndex) {
+      setCurrentPage(lastIndex);
+    }
+  }, [currentPage, isPaged, totalPages]);
+
+  const safePageIndex = isPaged ? (totalPages === 0 ? 0 : Math.min(currentPage, totalPages - 1)) : 0;
+  const groupedCurrentPhotos = isPaged
+    ? (pagedGroups[safePageIndex] || [])
+    : groupsForScroll;
 
   let animationIndex = 0;
 
@@ -1230,7 +1302,7 @@ const Photography: React.FC = () => {
                       onClick={() => setViewMode('paged')}
                       title="Paginare"
                     >
-                      <Grid3X3 className="h-5 w-5" />
+                      <BookOpen className="h-5 w-5" />
                     </Button>
                     <Button
                       variant={viewMode === 'scroll' ? 'default' : 'outline'}
@@ -1239,7 +1311,7 @@ const Photography: React.FC = () => {
                       onClick={() => setViewMode('scroll')}
                       title="Scroll"
                     >
-                      <List className="h-5 w-5" />
+                      <ScrollText className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
@@ -1293,7 +1365,7 @@ const Photography: React.FC = () => {
                       onClick={() => setViewMode('paged')}
                       title="Paginare"
                     >
-                      <Grid3X3 className="h-4 w-4" />
+                      <BookOpen className="h-4 w-4" />
                     </Button>
                     <Button
                       variant={viewMode === 'scroll' ? 'default' : 'outline'}
@@ -1302,7 +1374,7 @@ const Photography: React.FC = () => {
                       onClick={() => setViewMode('scroll')}
                       title="Scroll"
                     >
-                      <List className="h-4 w-4" />
+                      <ScrollText className="h-4 w-4" />
                     </Button>
                   </div>
 
@@ -1470,24 +1542,26 @@ const Photography: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
             {groupedCurrentPhotos.map((group) => {
               const isGrouped = sortOption !== 'none' && !!group.title;
-              const groupKey = `${sortOption}:${group.key}`;
-              const isCollapsed = isGrouped ? collapsedGroups.has(groupKey) : false;
+              const isCollapsed = isGrouped ? group.isCollapsed : false;
+              const groupRenderKey = group.photos[0]?.id
+                ? `${group.id}:${group.photos[0].id}`
+                : `${group.id}:collapsed`;
 
               return (
-                <React.Fragment key={group.key}>
+                <React.Fragment key={groupRenderKey}>
                   {isGrouped && (
                     <div className="col-span-full">
                       <button
                         type="button"
                         className="w-full flex items-center justify-between py-4 text-left"
-                        onClick={() => toggleGroupCollapse(groupKey)}
+                        onClick={() => toggleGroupCollapse(group.id)}
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex-shrink-0 w-1 h-8 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full" />
                           <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{group.title}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {isCollapsed && <span>{group.photos.length}</span>}
+                          {isCollapsed && <span>{group.count}</span>}
                           {isCollapsed ? (
                             <ChevronRight className="h-4 w-4" />
                           ) : (
@@ -1529,8 +1603,7 @@ const Photography: React.FC = () => {
                           }
                         }}
                       >
-                      <CardContent className="p-0 relative">
-                        {viewMode === 'paged' || viewMode === 'scroll' ? (
+                        <CardContent className="p-0 relative">
                           <div className="aspect-square relative overflow-hidden">
                             <img 
                               src={photo.image} 
@@ -1613,113 +1686,8 @@ const Photography: React.FC = () => {
                               </DropdownMenu>
                             )}
                           </div>
-                        ) : (
-                          <div className="flex gap-3 sm:gap-4 p-3 sm:p-5">
-                            {/* Selection checkbox for list view */}
-                            {isAdmin && (
-                              <div 
-                                className={`flex items-center justify-center transition-opacity ${
-                                  selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!selectionMode) {
-                                    setSelectionMode(true);
-                                  }
-                                  toggleSelection(photo.id);
-                                }}
-                              >
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                  selectedIds.has(photo.id)
-                                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg'
-                                    : 'bg-muted border-2 border-muted-foreground/20 hover:bg-muted/80'
-                                }`}>
-                                  {selectedIds.has(photo.id) && <Check className="h-4 w-4" />}
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="w-24 sm:w-48 h-20 sm:h-32 flex-shrink-0 rounded-lg overflow-hidden">
-                              <img 
-                                src={photo.image} 
-                                alt={photo.title}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start gap-2 mb-1 sm:mb-2">
-                                <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 text-art-accent flex-shrink-0 mt-0.5" />
-                                <h3 className="font-semibold text-base sm:text-lg leading-tight flex-1 truncate">{photo.title}</h3>
-                                
-                                {/* Three-dot dropdown menu for list view */}
-                                {isAdmin && !selectionMode && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-40">
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingPhoto(photo);
-                                          setNewPhotoTitle(photo.title);
-                                          setNewPhotoDevice(photo.device || '');
-                                          setNewPhotoDate(photo.date);
-                                          setNewPhotoLocation(photo.location || '');
-                                          setNewPhotoCategory(photo.category);
-                                        }}
-                                      >
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Editează
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeletePhotoDialog({ 
-                                            open: true, 
-                                            photoId: photo.id, 
-                                            photoTitle: photo.title 
-                                          });
-                                        }}
-                                        className="text-destructive focus:text-destructive"
-                                      >
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        șterge
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
-                              </div>
-                              {photo.device && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
-                                  <Camera className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
-                                  <p className="text-muted-foreground text-xs sm:text-sm truncate">{photo.device}</p>
-                                </div>
-                              )}
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  <Calendar className="h-3 w-3 flex-shrink-0" />
-                                  <span>{photo.date}</span>
-                                </div>
-                                {photo.location && (
-                                  <div className="flex items-center gap-1 min-w-0">
-                                    <MapPin className="h-3 w-3 flex-shrink-0" />
-                                    <span className="truncate">{photo.location}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
                     );
                   })}
                 </React.Fragment>
@@ -1765,7 +1733,7 @@ const Photography: React.FC = () => {
                 <div className="flex-1 flex items-center justify-center p-0">
                   {/* Image wrapper with navigation arrows */}
                   <div
-                    className="relative w-full h-full"
+                    className="relative w-full h-full flex items-center justify-center"
                     onTouchStart={handleSwipeStart}
                     onTouchMove={handleSwipeMove}
                     onTouchEnd={handleSwipeEnd}
@@ -1802,7 +1770,7 @@ const Photography: React.FC = () => {
                       key={`${selectedPhoto.id}-${slideDirection}`}
                       src={selectedPhoto.image}
                       alt={selectedPhoto.title}
-                      className={`photo-viewer-image ${slideDirection === 'next' ? 'photo-viewer-image--next' : 'photo-viewer-image--prev'} block w-full h-full max-w-none max-h-none object-contain`}
+                      className={`photo-viewer-image ${slideDirection === 'next' ? 'photo-viewer-image--next' : 'photo-viewer-image--prev'} block w-auto h-auto max-w-[100vw] ${isBrowserFullscreen ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]'} object-contain`}
                     />
                   </div>
                 </div>
@@ -1811,50 +1779,50 @@ const Photography: React.FC = () => {
                     <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
                       <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-4 sm:p-6 relative">
-                    {/* Edit icon on mobile - top right */}
-                    {isAdmin && isMobile && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 h-8 w-8 text-white hover:bg-white/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingPhoto(selectedPhoto);
-                          setNewPhotoTitle(selectedPhoto.title);
-                          setNewPhotoDevice(selectedPhoto.device || '');
-                          setNewPhotoDate(selectedPhoto.date);
-                          setNewPhotoLocation(selectedPhoto.location || '');
-                          setNewPhotoCategory(selectedPhoto.category);
-                          setActiveTab('basic');
-                          setSelectedPhoto(null);
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    )}
-                    
-                    <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                      <ImageIcon className="h-5 w-5 sm:h-6 sm:w-6 text-art-accent flex-shrink-0 mt-0.5 sm:mt-1" />
-                      <h3 className="text-lg sm:text-3xl font-bold text-white leading-tight pr-8 sm:pr-0">{selectedPhoto.title}</h3>
-                    </div>
-                    {selectedPhoto.device && (
-                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 ml-7 sm:ml-9">
-                        <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
-                        <p className="text-sm sm:text-lg text-gray-300">{selectedPhoto.device}</p>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 sm:gap-4 ml-7 sm:ml-9 flex-wrap">
-                      <div className="flex items-center gap-1 sm:gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
-                        <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.date}</span>
-                      </div>
-                      {selectedPhoto.location && (
-                        <div className="flex items-center gap-1 sm:gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
-                          <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.location}</span>
+                        {/* Edit icon on mobile - top right */}
+                        {isAdmin && isMobile && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-8 w-8 text-white hover:bg-white/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPhoto(selectedPhoto);
+                              setNewPhotoTitle(selectedPhoto.title);
+                              setNewPhotoDevice(selectedPhoto.device || '');
+                              setNewPhotoDate(selectedPhoto.date);
+                              setNewPhotoLocation(selectedPhoto.location || '');
+                              setNewPhotoCategory(selectedPhoto.category);
+                              setActiveTab('basic');
+                              setSelectedPhoto(null);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+                          <ImageIcon className="h-5 w-5 sm:h-6 sm:w-6 text-art-accent flex-shrink-0 mt-0.5 sm:mt-1" />
+                          <h3 className="text-lg sm:text-3xl font-bold text-white leading-tight pr-8 sm:pr-0">{selectedPhoto.title}</h3>
                         </div>
-                      )}
-                    </div>
+                        {selectedPhoto.device && (
+                          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 ml-7 sm:ml-9">
+                            <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
+                            <p className="text-sm sm:text-lg text-gray-300">{selectedPhoto.device}</p>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 sm:gap-4 ml-7 sm:ml-9 flex-wrap">
+                          <div className="flex items-center gap-1 sm:gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
+                            <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.date}</span>
+                          </div>
+                          {selectedPhoto.location && (
+                            <div className="flex items-center gap-1 sm:gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
+                              <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.location}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </>
