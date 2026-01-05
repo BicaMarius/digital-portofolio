@@ -555,12 +555,12 @@ export default function Notes() {
                   {/* Floating add button for mobile */}
                   {isAdmin && (
                     <Button
-                      className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-amber-500 to-pink-500 text-white shadow-2xl flex sm:hidden items-center justify-center"
+                      className="fixed bottom-24 right-4 z-30 h-16 w-16 rounded-full bg-gradient-to-r from-amber-500 to-pink-500 text-white shadow-2xl flex sm:hidden items-center justify-center"
                       size="icon"
                       onClick={() => openAdd('recipe')}
                       aria-label="Adaugă rețetă"
                     >
-                      <ChefHat className="h-6 w-6" />
+                      <ChefHat className="h-8 w-8" />
                     </Button>
                   )}
                 </div>
@@ -642,12 +642,12 @@ export default function Notes() {
                   {/* Floating add button for mobile */}
                   {isAdmin && (
                     <Button
-                      className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-2xl flex sm:hidden items-center justify-center"
+                      className="fixed bottom-24 right-4 z-30 h-16 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-2xl flex sm:hidden items-center justify-center"
                       size="icon"
                       onClick={() => openAdd('shopping')}
                       aria-label="Adaugă produs"
                     >
-                      <ShoppingBasket className="h-6 w-6" />
+                      <ShoppingBasket className="h-8 w-8" />
                     </Button>
                   )}
                 </div>
@@ -716,12 +716,12 @@ export default function Notes() {
                 {/* Floating add button for mobile */}
                 {isAdmin && (
                   <Button
-                    className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-2xl flex sm:hidden items-center justify-center"
+                    className="fixed bottom-24 right-4 z-30 h-16 w-16 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-2xl flex sm:hidden items-center justify-center"
                     size="icon"
                     onClick={() => openAdd('quote')}
                     aria-label="Adaugă citat"
                   >
-                    <Quote className="h-6 w-6" />
+                    <Quote className="h-8 w-8" />
                   </Button>
                 )}
                 <div className="grid gap-2 grid-cols-1 md:grid-cols-2">

@@ -798,10 +798,10 @@ export default function DigitalArt() {
           )}
           <Button
             size="icon"
-            className="h-14 w-14 rounded-full shadow-lg"
+            className="h-16 w-16 rounded-full shadow-lg"
             onClick={() => setShowAddDialog(true)}
           >
-            <Palette className="h-6 w-6" />
+            <Palette className="h-8 w-8" />
           </Button>
         </div>
       )}

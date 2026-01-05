@@ -355,10 +355,10 @@ const Database: React.FC = () => {
             {isAdmin && (
               <Button
                 onClick={openAddDialog}
-                className="md:hidden fixed bottom-6 right-6 h-14 w-14 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 text-white shadow-lg z-50"
+                className="md:hidden fixed bottom-6 right-6 h-16 w-16 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 text-white shadow-lg z-50"
                 size="icon"
               >
-                <Plus className="h-6 w-6" />
+                <Plus className="h-8 w-8" />
               </Button>
             )}
           </div>

@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, Images, Grid3X3, List, ChevronsUpDown, Edit, Trash2, FolderMinus, Trash, Undo2, Calendar as CalendarIcon, PlusCircle } from 'lucide-react';
+import { Pencil, Plus, Search, Filter, ChevronLeft, ChevronRight, Palette, Brush, Images, Grid3X3, List, ChevronsUpDown, Edit, Trash2, FolderMinus, Trash, Undo2, Calendar as CalendarIcon, PlusCircle, Settings2 } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
@@ -36,6 +36,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
+import { useArtDimensions, useArtMaterials, useArtTechniques } from '@/hooks/useArtOptions';
+import { MultiSelect } from '@/components/ui/multi-select';
 import type { GalleryItem } from '@shared/schema';
 
 interface TraditionalArtwork {
@@ -65,6 +67,11 @@ const TraditionalArt: React.FC = () => {
   const { getCount, isLoading } = usePortfolioStats();
   const [selectedArtwork, setSelectedArtwork] = useState<TraditionalArtwork | null>(null);
   
+  // Art options hooks
+  const { dimensions: artDimensions, addDimension, updateDimension, deleteDimension } = useArtDimensions();
+  const { materials: artMaterials, addMaterial, updateMaterial, deleteMaterial } = useArtMaterials();
+  const { techniques: artTechniques, addTechnique, updateTechnique, deleteTechnique } = useArtTechniques();
+  
   // Cloud-only state: albums built from DB
   // Display albums (hydrated from DB albums table)
   const [albums, setAlbums] = useState<TraditionalAlbum[]>([]);
@@ -85,6 +92,8 @@ const TraditionalArt: React.FC = () => {
   const [expandAll, setExpandAll] = useState(true);
   const [editingAlbum, setEditingAlbum] = useState<TraditionalAlbum | null>(null);
   const [addingArtwork, setAddingArtwork] = useState(false);
+  // Slide direction for animations
+  const [slideDirection, setSlideDirection] = useState<'next' | 'prev'>('next');
   const [newArtworkFiles, setNewArtworkFiles] = useState<File[]>([]);
   const [newArtworkUploading, setNewArtworkUploading] = useState(false);
   const [newArtworkTitle, setNewArtworkTitle] = useState('');
@@ -100,7 +109,13 @@ const TraditionalArt: React.FC = () => {
   const [materialsInput, setMaterialsInput] = useState('');
   const [dimW, setDimW] = useState<number | ''>('');
   const [dimH, setDimH] = useState<number | ''>('');
-  // Destination for new artwork
+  // Year/Month selection state
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  // Selected dimension preset
+  const [selectedDimension, setSelectedDimension] = useState<string>('');
+  // Selected technique
+  const [selectedTechnique, setSelectedTechnique] = useState<string>('');  // Destination for new artwork
   const [newArtworkDestination, setNewArtworkDestination] = useState<'individual' | 'existing' | 'new'>('individual');
   const [newArtworkAlbumId, setNewArtworkAlbumId] = useState<number | null>(null);
   const [inlineNewAlbumName, setInlineNewAlbumName] = useState('');
@@ -305,6 +320,7 @@ const TraditionalArt: React.FC = () => {
   
   const nextArtwork = () => {
     if (selectedArtwork && flatVisibleArtworks.length) {
+      setSlideDirection('next');
       const currentIndex = flatVisibleArtworks.findIndex(a => a.id === selectedArtwork.id);
       const nextIndex = (currentIndex + 1) % flatVisibleArtworks.length;
       setSelectedArtwork(flatVisibleArtworks[nextIndex]);
@@ -313,6 +329,7 @@ const TraditionalArt: React.FC = () => {
 
   const prevArtwork = () => {
     if (selectedArtwork && flatVisibleArtworks.length) {
+      setSlideDirection('prev');
       const currentIndex = flatVisibleArtworks.findIndex(a => a.id === selectedArtwork.id);
       const prevIndex = (currentIndex - 1 + flatVisibleArtworks.length) % flatVisibleArtworks.length;
       setSelectedArtwork(flatVisibleArtworks[prevIndex]);
@@ -1261,9 +1278,10 @@ const TraditionalArt: React.FC = () => {
                   </Button>
 
                   <img 
+                    key={`${selectedArtwork.id}-${slideDirection}`}
                     src={selectedArtwork.image} 
                     alt={selectedArtwork.title}
-                    className={`${isBrowserFullscreen ? 'absolute inset-0 w-full h-full object-contain' : 'w-full max-h-[40vh] sm:max-h-[60vh] lg:max-h-[75vh] object-contain rounded-lg shadow-2xl'}`}
+                    className={`art-viewer-image ${slideDirection === 'next' ? 'art-viewer-image--next' : 'art-viewer-image--prev'} ${isBrowserFullscreen ? 'absolute inset-0 w-full h-full object-contain' : 'w-full max-h-[40vh] sm:max-h-[60vh] lg:max-h-[75vh] object-contain rounded-lg shadow-2xl'}`}
                   />
                 </div>
                 {!isBrowserFullscreen && (
@@ -1407,73 +1425,86 @@ const TraditionalArt: React.FC = () => {
                   </TabsContent>
 
                   <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
+                    {/* Year/Month Date Selection */}
                     <div className="space-y-1">
-                      <Label>Data</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start">
-                            <CalendarIcon className="h-4 w-4 mr-2" />
-                            {newArtworkDate}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={new Date(newArtworkDate)}
-                            onSelect={(d: Date | undefined) => d && setNewArtworkDate(d.toISOString().slice(0,10))}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <Label>Data (An / Lună)</Label>
+                      <div className="flex items-center gap-2">
+                        <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                          <SelectTrigger className="w-[120px]">
+                            <SelectValue placeholder="An" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                              <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                          <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Lună" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'].map((month, idx) => (
+                              <SelectItem key={idx + 1} value={String(idx + 1)}>{month}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+
+                    {/* Dimension Preset Selection with Manage */}
                     <div className="space-y-1">
                       <Label>Dimensiuni</Label>
-                      <div className="flex items-center gap-2">
-                        <Input type="number" placeholder="L" value={dimW} onChange={(e) => setDimW(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
-                        <span className="text-muted-foreground">×</span>
-                        <Input type="number" placeholder="l" value={dimH} onChange={(e) => setDimH(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Materiale</Label>
-                      <div className="border rounded-md p-2">
-                        <input
-                          className="w-full bg-transparent outline-none text-sm"
-                          placeholder="Scrie un material..."
-                          value={materialsInput}
-                          onChange={(e) => setMaterialsInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              const parts = materialsInput.split(',').map(m => m.trim()).filter(Boolean);
-                              if (parts.length) {
-                                const next = Array.from(new Set([...materialsTags, ...parts]));
-                                setMaterialsTags(next);
-                                setMaterialsInput('');
-                              }
-                            }
-                          }}
-                          onBlur={() => {
-                            const parts = materialsInput.split(',').map(m => m.trim()).filter(Boolean);
-                            if (parts.length) {
-                              const next = Array.from(new Set([...materialsTags, ...parts]));
-                              setMaterialsTags(next);
-                              setMaterialsInput('');
-                            }
-                          }}
-                        />
-                      </div>
-                      {materialsTags.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {materialsTags.map((m) => (
-                            <Badge key={m} variant="secondary" className="bg-violet-500/20 border-violet-500/30 text-violet-700 dark:text-violet-300">
-                              <span className="mr-1">{m}</span>
-                              <button className="text-xs hover:text-violet-900 dark:hover:text-violet-100" onClick={() => setMaterialsTags(materialsTags.filter(x => x !== m))}>×</button>
-                            </Badge>
-                          ))}
+                      <MultiSelect
+                        options={artDimensions.map(d => ({ value: d.name, label: d.name }))}
+                        selected={selectedDimension ? [selectedDimension] : []}
+                        onChange={(selected) => setSelectedDimension(selected[0] || '')}
+                        onAddOption={addDimension}
+                        onEditOption={updateDimension}
+                        onDeleteOption={deleteDimension}
+                        placeholder="Selectează dimensiune..."
+                        isAdmin={isAdmin}
+                      />
+                      {selectedDimension === 'Dimensiune personalizată' && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Input type="number" placeholder="L (cm)" value={dimW} onChange={(e) => setDimW(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
+                          <span className="text-muted-foreground">×</span>
+                          <Input type="number" placeholder="l (cm)" value={dimH} onChange={(e) => setDimH(e.target.value === '' ? '' : Number(e.target.value))} className="[appearance:textfield]" />
+                          <span className="text-muted-foreground text-sm">cm</span>
                         </div>
                       )}
                     </div>
+
+                    {/* Materials Selection with Manage */}
+                    <div className="space-y-1">
+                      <Label>Materiale</Label>
+                      <MultiSelect
+                        options={artMaterials.map(m => ({ value: m.name, label: m.name }))}
+                        selected={materialsTags}
+                        onChange={setMaterialsTags}
+                        onAddOption={addMaterial}
+                        onEditOption={updateMaterial}
+                        onDeleteOption={deleteMaterial}
+                        placeholder="Selectează materiale..."
+                        isAdmin={isAdmin}
+                      />
+                    </div>
+
+                    {/* Technique Selection with Manage */}
+                    <div className="space-y-1">
+                      <Label>Tehnică</Label>
+                      <MultiSelect
+                        options={artTechniques.map(t => ({ value: t.name, label: t.name }))}
+                        selected={selectedTechnique ? [selectedTechnique] : []}
+                        onChange={(selected) => setSelectedTechnique(selected[0] || '')}
+                        onAddOption={addTechnique}
+                        onEditOption={updateTechnique}
+                        onDeleteOption={deleteTechnique}
+                        placeholder="Selectează tehnică..."
+                        isAdmin={isAdmin}
+                      />
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Destinație</Label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1527,6 +1558,10 @@ const TraditionalArt: React.FC = () => {
                     setInlineNewAlbumName('');
                     setNewArtworkAlbumId(null);
                     setNewArtworkDestination('individual');
+                    setSelectedYear(new Date().getFullYear());
+                    setSelectedMonth(new Date().getMonth() + 1);
+                    setSelectedDimension('');
+                    setSelectedTechnique('');
                   }}>
                     Anulează
                   </Button>
@@ -1540,7 +1575,14 @@ const TraditionalArt: React.FC = () => {
                         setNewArtworkUploading(true);
                         try {
                           const resolvedMaterials = materialsTags.length ? materialsTags : newArtworkMaterials.split(',').map(m => m.trim()).filter(Boolean);
-                          const resolvedDimensions = dimW !== '' && dimH !== '' ? `${dimW}x${dimH}` : (newArtworkDimensions || undefined);
+                          // Use selectedDimension or custom dimensions
+                          const resolvedDimensions = selectedDimension 
+                            ? selectedDimension 
+                            : (dimW !== '' && dimH !== '' ? `${dimW}x${dimH}cm` : (newArtworkDimensions || undefined));
+                          // Build date from year/month selection (format: YYYY-MM)
+                          const resolvedDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+                          // Use selectedTechnique as medium if set
+                          const resolvedMedium = selectedTechnique || newArtworkMedium || 'Nespecificat';
                           const createdIds: number[] = [];
 
                           for (const file of newArtworkFiles) {
@@ -1563,11 +1605,11 @@ const TraditionalArt: React.FC = () => {
                               category: 'art',
                               subcategory: newArtworkCategory,
                               isPrivate: false,
-                              medium: newArtworkMedium || 'Nespecificat',
+                              medium: resolvedMedium,
                               description: newArtworkDescription || undefined,
                               materials: resolvedMaterials,
                               dimensions: resolvedDimensions,
-                              date: newArtworkDate,
+                              date: resolvedDate,
                             } as any);
                             console.log('[TraditionalArt] Created in DB:', created);
                             createdIds.push(created.id);
@@ -1603,6 +1645,10 @@ const TraditionalArt: React.FC = () => {
                           setInlineNewAlbumName('');
                           setNewArtworkAlbumId(null);
                           setNewArtworkDestination('individual');
+                          setSelectedYear(new Date().getFullYear());
+                          setSelectedMonth(new Date().getMonth() + 1);
+                          setSelectedDimension('');
+                          setSelectedTechnique('');
                           
                           // Reload from cloud
                           await reloadArtworks();
@@ -1988,8 +2034,8 @@ const TraditionalArt: React.FC = () => {
           )}
 
           {/* FAB for mobile add */}
-          <Button onClick={() => setAddingArtwork(true)} size="icon" className="sm:hidden fixed bottom-5 right-5 h-12 w-12 rounded-full bg-indigo-600 text-white shadow-lg">
-            <Plus className="h-6 w-6" />
+          <Button onClick={() => setAddingArtwork(true)} size="icon" className="sm:hidden fixed bottom-5 right-5 h-16 w-16 rounded-full bg-indigo-600 text-white shadow-lg">
+            <Plus className="h-8 w-8" />
           </Button>
 
           {/* Album Cover Dialog */}

@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Camera, Plus, Search, Filter, BookOpen, ScrollText, ChevronLeft, ChevronRight, ChevronDown, Image as ImageIcon, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2 } from 'lucide-react';
+import { Camera, Plus, Search, Filter, BookOpen, ScrollText, ChevronLeft, ChevronRight, ChevronDown, MapPin, Calendar, MoreVertical, Edit, Trash2, Trash, Undo2, X as XIcon, Check, ArrowUpDown, Cloud, FolderOpen, Settings2, Image as ImageIcon } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -38,16 +36,16 @@ import type { GalleryItem, PhotoLocation, PhotoDevice } from '@shared/schema';
 
 interface Photo {
   id: number;
-  title: string;
+  title?: string;
   device?: string;
-  category: 'portrait' | 'landscape' | 'street' | 'macro' | 'night';
+  category: string;
   image: string;
   date: string;
   location?: string;
   isPrivate?: boolean;
 }
 
-type SortOption = 'none' | 'title' | 'device' | 'location' | 'date';
+type SortOption = 'none' | 'device' | 'location' | 'date';
 type CloudinarySignature = {
   signature: string;
   timestamp: number;
@@ -60,6 +58,7 @@ type CloudinarySignature = {
 const MAX_UPLOAD_MB = 95;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const UPLOAD_BATCH_SIZE = 8;
+const MIN_YEAR = 2000;
 
 const YEAR_REGEX = /\d{4}/;
 
@@ -73,6 +72,13 @@ const getYearLabel = (value?: string) => {
   if (!value) return 'Necunoscut';
   const match = value.match(YEAR_REGEX);
   return match ? match[0] : 'Necunoscut';
+};
+
+const clampYear = (value: string) => {
+  const parsed = parseInt(value, 10);
+  const currentYear = new Date().getFullYear();
+  if (Number.isNaN(parsed)) return currentYear.toString();
+  return Math.min(currentYear, Math.max(MIN_YEAR, parsed)).toString();
 };
 
 const DEFAULT_TITLE_PREFIX = 'Fotografie';
@@ -104,7 +110,7 @@ const mockPhotos: Photo[] = [
     id: 3,
     title: 'Night City',
     device: 'iPhone 15 Pro',
-    category: 'night',
+    category: 'astro',
     image: '/placeholder.svg',
     date: '2024-03-05',
     location: 'Cluj-Napoca',
@@ -155,11 +161,10 @@ const Photography: React.FC = () => {
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
-  const [newPhotoTitle, setNewPhotoTitle] = useState('');
   const [newPhotoDevice, setNewPhotoDevice] = useState('');
   const [newPhotoDate, setNewPhotoDate] = useState(() => new Date().getFullYear().toString());
   const [newPhotoLocation, setNewPhotoLocation] = useState('');
-  const [newPhotoCategory, setNewPhotoCategory] = useState<Photo['category']>('landscape');
+  const [newPhotoCategory, setNewPhotoCategory] = useState<string>('landscape');
   const [newPhotoUploading, setNewPhotoUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'details'>('basic');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -217,12 +222,30 @@ const Photography: React.FC = () => {
 
   // Categories list (managed by admin)
   const [categories, setCategories] = useState<Array<{ value: string; label: string }>>([
-    { value: 'portrait', label: 'Portret' },
     { value: 'landscape', label: 'Peisaj' },
-    { value: 'street', label: 'Stradă' },
+    { value: 'portrait', label: 'Portret' },
     { value: 'macro', label: 'Macro' },
-    { value: 'night', label: 'Noapte' },
+    { value: 'astro', label: 'Astrofotografie' },
+    { value: 'street', label: 'Street' },
+    { value: 'wildlife', label: 'Faună' },
   ]);
+
+  const getCategoryLabel = (value?: string) => {
+    if (!value) return 'Fără categorie';
+    const match = categories.find((cat) => cat.value === value);
+    return match ? match.label : value;
+  };
+
+  const getPhotoLabel = (photo: Photo) => {
+    const categoryLabel = getCategoryLabel(photo.category);
+    const yearLabel = getYearLabel(photo.date);
+    if (categoryLabel && yearLabel !== 'Necunoscut') {
+      return `${categoryLabel} ${yearLabel}`;
+    }
+    if (categoryLabel) return categoryLabel;
+    if (yearLabel !== 'Necunoscut') return `Fotografie ${yearLabel}`;
+    return 'Fotografie';
+  };
 
   // DB to Photo transformation
   const dbToPhoto = (item: GalleryItem): Photo => {
@@ -262,11 +285,10 @@ const Photography: React.FC = () => {
   // Reset form fields
   const resetForm = () => {
     setNewPhotoFiles([]);
-    setNewPhotoTitle('');
     setNewPhotoDevice('');
     setNewPhotoDate(new Date().getFullYear().toString());
     setNewPhotoLocation('');
-    setNewPhotoCategory('landscape');
+    setNewPhotoCategory(categories[0]?.value || 'landscape');
     setActiveTab('basic');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -397,26 +419,39 @@ const Photography: React.FC = () => {
   useEffect(() => {
     setCollapsedGroups(new Set());
   }, [sortOption]);
+  const currentYear = new Date().getFullYear();
 
   const filteredPhotos = React.useMemo(() => {
     const base = isAdmin ? photos : photos.filter((photo) => !photo.isPrivate);
     const normalizedSearch = searchTerm.trim().toLowerCase();
     return base.filter((photo) => {
-      const matchesSearch =
-        normalizedSearch === '' || photo.title.toLowerCase().includes(normalizedSearch);
       const matchesCategory = filterCategory === 'all' || photo.category === filterCategory;
+      if (normalizedSearch === '') {
+        return matchesCategory;
+      }
+
+      const haystack = [
+        photo.device,
+        photo.location,
+        photo.category,
+        getCategoryLabel(photo.category),
+        photo.date,
+        getYearLabel(photo.date),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      const matchesSearch = haystack.includes(normalizedSearch);
       return matchesSearch && matchesCategory;
     });
-  }, [photos, isAdmin, searchTerm, filterCategory]);
+  }, [photos, isAdmin, searchTerm, filterCategory, getCategoryLabel]);
 
   const sortedPhotos = React.useMemo(() => {
     const collator = new Intl.Collator('ro', { sensitivity: 'base' });
     const arr = [...filteredPhotos];
 
     switch (sortOption) {
-      case 'title':
-        arr.sort((a, b) => collator.compare(a.title, b.title));
-        break;
       case 'device':
         arr.sort((a, b) =>
           collator.compare(a.device?.trim() || 'Fără dispozitiv', b.device?.trim() || 'Fără dispozitiv')
@@ -431,7 +466,7 @@ const Photography: React.FC = () => {
         arr.sort((a, b) => {
           const diff = getYearNumber(b.date) - getYearNumber(a.date);
           if (diff !== 0) return diff;
-          return collator.compare(a.title, b.title);
+          return b.id - a.id;
         });
         break;
       default:
@@ -459,8 +494,6 @@ const Photography: React.FC = () => {
 
     const getGroupKey = (photo: Photo): string => {
       switch (sortOption) {
-        case 'title':
-          return photo.title?.trim()?.charAt(0)?.toUpperCase() || '#';
         case 'device':
           return photo.device?.trim() || 'Fără dispozitiv';
         case 'location':
@@ -474,8 +507,6 @@ const Photography: React.FC = () => {
 
     const getGroupTitle = (key: string): string => {
       switch (sortOption) {
-        case 'title':
-          return key === '#' ? 'Titluri diverse' : `Titluri – ${key}`;
         case 'device':
           return key === 'Fără dispozitiv' ? 'Dispozitiv necunoscut' : `Dispozitiv: ${key}`;
         case 'location':
@@ -570,6 +601,71 @@ const Photography: React.FC = () => {
   const groupedCurrentPhotos = isPaged
     ? (pagedGroups[safePageIndex] || [])
     : groupsForScroll;
+
+  const selectedPhotoCategoryLabel = selectedPhoto ? getCategoryLabel(selectedPhoto.category) : '';
+  const selectedPhotoYearLabel = selectedPhoto ? getYearLabel(selectedPhoto.date) : '';
+  const selectedPhotoDetails = selectedPhoto ? (
+    <>
+      {/* Mobile layout - original style */}
+      <div className="sm:hidden flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-gray-400" />
+          <span className="font-medium text-white">{getPhotoLabel(selectedPhoto)}</span>
+        </div>
+        {selectedPhoto.device && (
+          <div className="flex items-center gap-2 text-sm text-gray-300">
+            <Camera className="h-4 w-4 text-gray-500" />
+            <span>{selectedPhoto.device}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-4 text-sm text-gray-300">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-gray-500" />
+            <span>{selectedPhotoYearLabel || selectedPhoto.date}</span>
+          </div>
+          {selectedPhoto.location && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-gray-500" />
+              <span>{selectedPhoto.location}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Desktop layout - new modern style */}
+      <div className="hidden sm:flex items-center justify-between gap-6">
+        {/* Category badge - left side */}
+        <div className="flex items-center gap-3">
+          <span className="rounded-full bg-gradient-to-r from-violet-500/20 to-indigo-500/20 border border-violet-500/30 px-4 py-1.5 text-xs uppercase tracking-widest font-semibold text-violet-300">
+            {selectedPhotoCategoryLabel || 'Fotografie'}
+          </span>
+        </div>
+        
+        {/* Metadata - center */}
+        <div className="flex items-center gap-6 text-sm text-gray-300">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-violet-400/70" />
+            <span>{selectedPhotoYearLabel || selectedPhoto.date}</span>
+          </div>
+          {selectedPhoto.device && (
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-violet-400/70" />
+              <span>{selectedPhoto.device}</span>
+            </div>
+          )}
+          {selectedPhoto.location && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-violet-400/70" />
+              <span>{selectedPhoto.location}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Spacer for balance */}
+        <div className="w-24" />
+      </div>
+    </>
+  ) : null;
 
   let animationIndex = 0;
 
@@ -754,17 +850,16 @@ const Photography: React.FC = () => {
 
   // Add photo handler
   const handleAddPhoto = async () => {
-    const isBulk = newPhotoFiles.length > 1;
-    if (newPhotoFiles.length === 0 || (!isBulk && !newPhotoTitle.trim())) {
-      toast({ title: 'Date incomplete', description: 'Selectează cel puțin o imagine și completează titlul.', variant: 'destructive' });
+    if (newPhotoFiles.length === 0) {
+      toast({ title: 'Date incomplete', description: 'Selectează cel puțin o imagine.', variant: 'destructive' });
       return;
     }
 
     setNewPhotoUploading(true);
     try {
-      const trimmedTitle = sanitizeText(newPhotoTitle);
       const trimmedDevice = sanitizeText(newPhotoDevice);
       const trimmedLocation = sanitizeText(newPhotoLocation);
+      const normalizedYear = clampYear(newPhotoDate);
       const existingTitles = new Set(photos.map((p) => sanitizeText(p.title).toLowerCase()));
       const seenTitles = new Map<string, number>();
       let uploadedCount = 0;
@@ -821,7 +916,7 @@ const Photography: React.FC = () => {
         }
 
         const baseName = extractBaseName(file);
-        const pickedBase = isBulk ? (baseName || trimmedTitle) : (trimmedTitle || baseName);
+        const pickedBase = baseName || `${DEFAULT_TITLE_PREFIX} ${index + 1}`;
         const title = buildTitle(pickedBase, index);
 
         const url = await uploadFileWithRetry(file, 3);
@@ -837,7 +932,7 @@ const Photography: React.FC = () => {
           subcategory: newPhotoCategory,
           isPrivate: false,
           device: trimmedDevice || null,
-          date: newPhotoDate,
+          date: normalizedYear,
           location: trimmedLocation || null,
         } as any);
 
@@ -870,21 +965,18 @@ const Photography: React.FC = () => {
 
   // Edit photo handler
   const handleEditPhoto = async () => {
-    if (!editingPhoto || !newPhotoTitle.trim()) {
-      toast({ title: 'Date incomplete', description: 'Completează titlul.', variant: 'destructive' });
-      return;
-    }
+    if (!editingPhoto) return;
 
     setNewPhotoUploading(true);
     try {
-      const trimmedTitle = sanitizeText(newPhotoTitle);
       const trimmedDevice = sanitizeText(newPhotoDevice);
       const trimmedLocation = sanitizeText(newPhotoLocation);
+      const normalizedYear = clampYear(newPhotoDate);
 
       const updates = {
-        title: trimmedTitle,
+        title: editingPhoto.title || getPhotoLabel(editingPhoto),
         device: trimmedDevice || null,
-        date: newPhotoDate,
+        date: normalizedYear,
         location: trimmedLocation || null,
         subcategory: newPhotoCategory,
       };
@@ -1147,11 +1239,11 @@ const Photography: React.FC = () => {
                           {trash.map((photo) => (
                             <div key={photo.id} className="p-3 border rounded-lg bg-muted/20">
                               <div className="flex gap-3">
-                                <img src={photo.image} alt={photo.title} className="w-16 h-16 object-cover rounded" />
+                                <img src={photo.image} alt={getPhotoLabel(photo)} className="w-16 h-16 object-cover rounded" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm mb-1 truncate">{photo.title}</p>
+                                  <p className="font-medium text-sm mb-1 truncate">{getPhotoLabel(photo)}</p>
                                   {photo.device && <p className="text-xs text-muted-foreground truncate">{photo.device}</p>}
-                                  <p className="text-xs text-muted-foreground">{photo.category}</p>
+                                  <p className="text-xs text-muted-foreground">{getCategoryLabel(photo.category)}</p>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                   <Button 
@@ -1161,7 +1253,7 @@ const Photography: React.FC = () => {
                                     onClick={async () => {
                                       try {
                                         await restoreGalleryItem(photo.id);
-                                        toast({ title: 'Restaurat', description: `${photo.title} a fost restaurat.` });
+                                        toast({ title: 'Restaurat', description: `${getPhotoLabel(photo)} a fost restaurat.` });
                                         await reloadPhotos();
                                       } catch (e) {
                                         console.error('[Photography] Restore error:', e);
@@ -1176,10 +1268,10 @@ const Photography: React.FC = () => {
                                     variant="destructive" 
                                     className="h-7 w-7" 
                                     onClick={async () => {
-                                      if (!confirm(`Ștergi permanent "${photo.title}"? Această acțiune nu poate fi anulată.`)) return;
+                                      if (!confirm(`Ștergi permanent ${getPhotoLabel(photo)}? Această acțiune nu poate fi anulată.`)) return;
                                       try {
                                         await deleteGalleryItem(photo.id);
-                                        toast({ title: 'șters permanent', description: `${photo.title} a fost șters definitiv.` });
+                                        toast({ title: 'șters permanent', description: `${getPhotoLabel(photo)} a fost șters definitiv.` });
                                         await reloadPhotos();
                                       } catch (e) {
                                         console.error('[Photography] Permanent delete error:', e);
@@ -1273,14 +1365,12 @@ const Photography: React.FC = () => {
                       <ArrowUpDown className="h-5 w-5" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Fără sortare</SelectItem>
-                      
-                      <SelectItem value="date">După an</SelectItem>
-                      <SelectItem value="title">După nume</SelectItem>
-                      <SelectItem value="device">După dispozitiv</SelectItem>
-                      <SelectItem value="location">După locație</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <SelectItem value="none">Fără sortare</SelectItem>
+                    <SelectItem value="date">După an</SelectItem>
+                    <SelectItem value="device">După dispozitiv</SelectItem>
+                    <SelectItem value="location">După locație</SelectItem>
+                  </SelectContent>
+                </Select>
 
                   {isAdmin && (
                     <Button 
@@ -1349,13 +1439,12 @@ const Photography: React.FC = () => {
                       <SelectValue placeholder="Sortare" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Fără sortare</SelectItem>
-                      <SelectItem value="date">După an</SelectItem>
-                      <SelectItem value="title">După nume</SelectItem>
-                      <SelectItem value="device">După dispozitiv</SelectItem>
-                      <SelectItem value="location">După locație</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <SelectItem value="none">Fără sortare</SelectItem>
+                    <SelectItem value="date">După an</SelectItem>
+                    <SelectItem value="device">După dispozitiv</SelectItem>
+                    <SelectItem value="location">După locație</SelectItem>
+                  </SelectContent>
+                </Select>
 
                   <div className={`flex gap-2 ${!isAdmin ? 'ml-auto' : ''}`}>
                     <Button
@@ -1428,11 +1517,11 @@ const Photography: React.FC = () => {
                               {trash.map((photo) => (
                                 <div key={photo.id} className="p-3 border rounded-lg bg-muted/20">
                                   <div className="flex gap-3">
-                                    <img src={photo.image} alt={photo.title} className="w-16 h-16 object-cover rounded" />
+                                    <img src={photo.image} alt={getPhotoLabel(photo)} className="w-16 h-16 object-cover rounded" />
                                     <div className="flex-1 min-w-0">
-                                      <p className="font-medium text-sm mb-1 truncate">{photo.title}</p>
+                                      <p className="font-medium text-sm mb-1 truncate">{getPhotoLabel(photo)}</p>
                                       {photo.device && <p className="text-xs text-muted-foreground truncate">{photo.device}</p>}
-                                      <p className="text-xs text-muted-foreground">{photo.category}</p>
+                                      <p className="text-xs text-muted-foreground">{getCategoryLabel(photo.category)}</p>
                                     </div>
                                     <div className="flex flex-col gap-1">
                                       <Button 
@@ -1442,7 +1531,7 @@ const Photography: React.FC = () => {
                                         onClick={async () => {
                                           try {
                                             await restoreGalleryItem(photo.id);
-                                            toast({ title: 'Restaurat', description: `${photo.title} a fost restaurat.` });
+                                            toast({ title: 'Restaurat', description: `${getPhotoLabel(photo)} a fost restaurat.` });
                                             await reloadPhotos();
                                           } catch (e) {
                                             console.error('[Photography] Restore error:', e);
@@ -1457,10 +1546,10 @@ const Photography: React.FC = () => {
                                         variant="destructive" 
                                         className="h-7 w-7" 
                                         onClick={async () => {
-                                          if (!confirm(`Ștergi permanent "${photo.title}"? Această acțiune nu poate fi anulată.`)) return;
+                                          if (!confirm(`Ștergi permanent ${getPhotoLabel(photo)}? Această acțiune nu poate fi anulată.`)) return;
                                           try {
                                             await deleteGalleryItem(photo.id);
-                                            toast({ title: 'Șters permanent', description: `${photo.title} a fost șters definitiv.` });
+                                            toast({ title: 'Șters permanent', description: `${getPhotoLabel(photo)} a fost șters definitiv.` });
                                             await reloadPhotos();
                                           } catch (e) {
                                             console.error('[Photography] Permanent delete error:', e);
@@ -1607,7 +1696,7 @@ const Photography: React.FC = () => {
                           <div className="aspect-square relative overflow-hidden">
                             <img 
                               src={photo.image} 
-                              alt={photo.title}
+                              alt={getPhotoLabel(photo)}
                               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                             />
                             {photo.isPrivate && !isAdmin && (
@@ -1658,7 +1747,6 @@ const Photography: React.FC = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingPhoto(photo);
-                                      setNewPhotoTitle(photo.title);
                                       setNewPhotoDevice(photo.device || '');
                                       setNewPhotoDate(photo.date);
                                       setNewPhotoLocation(photo.location || '');
@@ -1674,7 +1762,7 @@ const Photography: React.FC = () => {
                                       setDeletePhotoDialog({ 
                                         open: true, 
                                         photoId: photo.id, 
-                                        photoTitle: photo.title 
+                                        photoTitle: getPhotoLabel(photo) 
                                       });
                                     }}
                                     className="text-destructive focus:text-destructive"
@@ -1725,20 +1813,34 @@ const Photography: React.FC = () => {
       {/* Full Screen Modal */}
       <Dialog open={!!selectedPhoto} onOpenChange={(open) => !open && setSelectedPhoto(null)}>
         <DialogContent className="max-w-[100vw] w-full h-full max-h-screen p-0 bg-black/98 border-0 rounded-none">
-          <DialogTitle className="sr-only">{selectedPhoto?.title || 'Fotografie'}</DialogTitle>
+          <DialogTitle className="sr-only">{selectedPhoto ? getPhotoLabel(selectedPhoto) : 'Fotografie'}</DialogTitle>
           <DialogDescription className="sr-only">Vizualizare fullscreen fotografie</DialogDescription>
           {selectedPhoto && (
             <div className="relative w-full h-full bg-black">
               <div className="flex flex-col h-full">
-                <div className="flex-1 flex items-center justify-center p-0">
+                <div className={`relative flex-1 flex items-center justify-center p-0 ${!isMobile && !isBrowserFullscreen ? 'pt-6' : ''}`}>
                   {/* Image wrapper with navigation arrows */}
                   <div
-                    className="relative w-full h-full flex items-center justify-center"
+                    className="relative w-full h-full flex items-center justify-center gap-3 sm:gap-6 px-4 sm:px-8"
                     onTouchStart={handleSwipeStart}
                     onTouchMove={handleSwipeMove}
                     onTouchEnd={handleSwipeEnd}
                   >
-                    {isMobile && (
+                    {!isMobile && !isBrowserFullscreen && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="z-20 h-12 w-12 rounded-full bg-white/5 text-white/80 hover:bg-white/10 hover:text-white transition-colors backdrop-blur-sm flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          prevPhoto();
+                        }}
+                      >
+                        <ChevronLeft className="h-6 w-6" />
+                      </Button>
+                    )}
+
+                    {isMobile && !isBrowserFullscreen && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1752,7 +1854,28 @@ const Photography: React.FC = () => {
                       </Button>
                     )}
 
-                    {isMobile && (
+                    <img
+                      key={`${selectedPhoto.id}-${slideDirection}`}
+                      src={selectedPhoto.image}
+                      alt={getPhotoLabel(selectedPhoto)}
+                      className={`photo-viewer-image ${slideDirection === 'next' ? 'photo-viewer-image--next' : 'photo-viewer-image--prev'} block w-auto h-auto ${isBrowserFullscreen || isMobile ? 'max-w-[100vw]' : 'max-w-[calc(100vw-180px)]'} ${isBrowserFullscreen ? 'max-h-[100vh]' : isMobile ? 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]' : 'max-h-[calc(100vh-120px)]'} object-contain rounded-lg`}
+                    />
+
+                    {!isMobile && !isBrowserFullscreen && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="z-20 h-12 w-12 rounded-full bg-white/5 text-white/80 hover:bg-white/10 hover:text-white transition-colors backdrop-blur-sm flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          nextPhoto();
+                        }}
+                      >
+                        <ChevronRight className="h-6 w-6" />
+                      </Button>
+                    )}
+
+                    {isMobile && !isBrowserFullscreen && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1765,67 +1888,47 @@ const Photography: React.FC = () => {
                         <ChevronRight className="h-5 w-5" />
                       </Button>
                     )}
-
-                    <img
-                      key={`${selectedPhoto.id}-${slideDirection}`}
-                      src={selectedPhoto.image}
-                      alt={selectedPhoto.title}
-                      className={`photo-viewer-image ${slideDirection === 'next' ? 'photo-viewer-image--next' : 'photo-viewer-image--prev'} block w-auto h-auto max-w-[100vw] ${isBrowserFullscreen ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)] sm:max-h-[calc(100vh-260px)]'} object-contain`}
-                    />
                   </div>
-                </div>
-                {!isBrowserFullscreen && (
-                  <>
-                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
-                      <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-4 sm:p-6 relative">
-                        {/* Edit icon on mobile - top right */}
-                        {isAdmin && isMobile && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 h-8 w-8 text-white hover:bg-white/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingPhoto(selectedPhoto);
-                              setNewPhotoTitle(selectedPhoto.title);
-                              setNewPhotoDevice(selectedPhoto.device || '');
-                              setNewPhotoDate(selectedPhoto.date);
-                              setNewPhotoLocation(selectedPhoto.location || '');
-                              setNewPhotoCategory(selectedPhoto.category);
-                              setActiveTab('basic');
-                              setSelectedPhoto(null);
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
 
-                        <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                          <ImageIcon className="h-5 w-5 sm:h-6 sm:w-6 text-art-accent flex-shrink-0 mt-0.5 sm:mt-1" />
-                          <h3 className="text-lg sm:text-3xl font-bold text-white leading-tight pr-8 sm:pr-0">{selectedPhoto.title}</h3>
-                        </div>
-                        {selectedPhoto.device && (
-                          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 ml-7 sm:ml-9">
-                            <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 flex-shrink-0" />
-                            <p className="text-sm sm:text-lg text-gray-300">{selectedPhoto.device}</p>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-3 sm:gap-4 ml-7 sm:ml-9 flex-wrap">
-                          <div className="flex items-center gap-1 sm:gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
-                            <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.date}</span>
-                          </div>
-                          {selectedPhoto.location && (
-                            <div className="flex items-center gap-1 sm:gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
-                              <span className="text-xs sm:text-sm text-gray-300">{selectedPhoto.location}</span>
-                            </div>
+                  {!isBrowserFullscreen && isMobile && (
+                    <>
+                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 sm:h-60 bg-gradient-to-t from-black via-black/85 to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-6">
+                        <div className="mx-auto max-w-4xl bg-black/85 sm:bg-black/75 sm:rounded-2xl rounded-3xl backdrop-blur-sm p-4 sm:p-6 relative">
+                          {/* Edit icon on mobile - top right */}
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="absolute top-2 right-2 h-8 w-8 text-white hover:bg-white/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPhoto(selectedPhoto);
+                                setNewPhotoDevice(selectedPhoto.device || '');
+                                setNewPhotoDate(selectedPhoto.date);
+                                setNewPhotoLocation(selectedPhoto.location || '');
+                                setNewPhotoCategory(selectedPhoto.category);
+                                setActiveTab('basic');
+                                setSelectedPhoto(null);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
                           )}
+
+                          {selectedPhotoDetails}
                         </div>
                       </div>
+                    </>
+                  )}
+                </div>
+
+                {!isBrowserFullscreen && !isMobile && (
+                  <div className="px-8 pb-5 pt-3">
+                    <div className="mx-auto max-w-5xl bg-gradient-to-r from-white/[0.03] via-white/[0.05] to-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.06] px-6 py-3.5">
+                      {selectedPhotoDetails}
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -1877,7 +1980,7 @@ const Photography: React.FC = () => {
                 <TabsTrigger value="details">Detalii</TabsTrigger>
               </TabsList>
 
-              {/* Tab Bază - Preview + Titlu + Dispozitiv */}
+              {/* Tab Bază - Preview + Dispozitiv */}
               <TabsContent value="basic" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                 <div className="border-2 border-dashed rounded-md p-3 sm:p-4 bg-muted/20">
                   {newPhotoFiles.length > 0 ? (
@@ -1931,16 +2034,6 @@ const Photography: React.FC = () => {
                       {newPhotoFiles.length === 1 ? newPhotoFiles[0].name : `${newPhotoFiles.length} fișiere selectate`}
                     </p>
                   )}
-                </div>
-                <div>
-                  <Label htmlFor="photo-title">{newPhotoFiles.length > 1 ? 'Titlu (opțional)' : 'Titlu *'}</Label>
-                  <Input
-                    id="photo-title"
-                    value={newPhotoTitle}
-                    onChange={(e) => setNewPhotoTitle(e.target.value)}
-                    placeholder="ex: Apus de soare în munți"
-                    className="mt-1.5"
-                  />
                 </div>
                 <div>
                   <Label htmlFor="photo-device">Dispozitiv</Label>
@@ -2016,35 +2109,18 @@ const Photography: React.FC = () => {
               {/* Tab Detalii - Anul + Locație + Categorie */}
               <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                 <div>
-                  <Label>Anul</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal mt-1.5"
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {newPhotoDate || 'Selectează anul'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <div className="p-3">
-                        <Label className="text-sm mb-2 block">Selectează anul</Label>
-                        <Select value={newPhotoDate} onValueChange={setNewPhotoDate}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Anul" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map((year) => (
-                              <SelectItem key={year} value={year.toString()}>
-                                {year}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <Label htmlFor="photo-year">Anul</Label>
+                  <Input
+                    id="photo-year"
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_YEAR}
+                    max={currentYear}
+                    value={newPhotoDate}
+                    onChange={(e) => setNewPhotoDate(e.target.value)}
+                    onBlur={() => setNewPhotoDate(clampYear(newPhotoDate))}
+                    className="mt-1.5"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="photo-location">Locație</Label>
@@ -2124,10 +2200,10 @@ const Photography: React.FC = () => {
                         setIsManageCategoriesOpen(true);
                       } else if (val === '__new_category') {
                         setIsAddingNewCategory(true);
-                        setNewPhotoCategory('landscape');
+                        setNewPhotoCategory(categories[0]?.value || 'landscape');
                       } else {
                         setIsAddingNewCategory(false);
-                        setNewPhotoCategory(val as Photo['category']);
+                        setNewPhotoCategory(val);
                       }
                     }}
                   >
@@ -2192,25 +2268,15 @@ const Photography: React.FC = () => {
                   <TabsTrigger value="details">Detalii</TabsTrigger>
                 </TabsList>
 
-                {/* Tab Bază - Preview + Titlu + Dispozitiv */}
+                {/* Tab Bază - Preview + Dispozitiv */}
                 <TabsContent value="basic" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                   <div className="border-2 border-dashed rounded-md p-3 sm:p-4 bg-muted/20">
                     <img 
                       src={editingPhoto.image} 
-                      alt={editingPhoto.title} 
+                      alt={getPhotoLabel(editingPhoto)} 
                       className="w-full h-44 sm:h-56 object-contain rounded" 
                     />
                     <p className="text-xs text-muted-foreground mt-2">Fotografia curentă</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-photo-title">Titlu *</Label>
-                    <Input
-                      id="edit-photo-title"
-                      value={newPhotoTitle}
-                      onChange={(e) => setNewPhotoTitle(e.target.value)}
-                      placeholder="ex: Apus de soare în munți"
-                      className="mt-1.5"
-                    />
                   </div>
                   <div>
                     <Label htmlFor="edit-photo-device">Dispozitiv</Label>
@@ -2286,35 +2352,18 @@ const Photography: React.FC = () => {
                 {/* Tab Detalii - Anul + Locație + Categorie */}
                 <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
                   <div>
-                    <Label>Anul</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal mt-1.5"
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {newPhotoDate || 'Selectează anul'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <div className="p-3">
-                          <Label className="text-sm mb-2 block">Selectează anul</Label>
-                          <Select value={newPhotoDate} onValueChange={setNewPhotoDate}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Anul" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map((year) => (
-                                <SelectItem key={year} value={year.toString()}>
-                                  {year}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="edit-photo-year">Anul</Label>
+                    <Input
+                      id="edit-photo-year"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_YEAR}
+                      max={currentYear}
+                      value={newPhotoDate}
+                      onChange={(e) => setNewPhotoDate(e.target.value)}
+                      onBlur={() => setNewPhotoDate(clampYear(newPhotoDate))}
+                      className="mt-1.5"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="edit-photo-location">Locație</Label>
@@ -2394,10 +2443,10 @@ const Photography: React.FC = () => {
                           setIsManageCategoriesOpen(true);
                         } else if (val === '__new_category') {
                           setIsAddingNewCategory(true);
-                          setNewPhotoCategory('landscape');
+                          setNewPhotoCategory(categories[0]?.value || 'landscape');
                         } else {
                           setIsAddingNewCategory(false);
-                          setNewPhotoCategory(val as Photo['category']);
+                          setNewPhotoCategory(val);
                         }
                       }}
                     >
@@ -2811,13 +2860,13 @@ const Photography: React.FC = () => {
       {isAdmin && (
         <Button
           size="icon"
-          className="sm:hidden fixed bottom-5 right-5 h-12 w-12 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg"
+          className="sm:hidden fixed bottom-5 right-5 h-16 w-16 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg"
           onClick={() => {
             resetForm();
             setAddingPhoto(true);
           }}
         >
-          <Plus className="h-6 w-6" />
+          <Plus className="h-8 w-8" />
         </Button>
       )}
     </PageLayout>

@@ -14,7 +14,7 @@ import { toast } from '@/components/ui/use-toast';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAdmin } from '@/contexts/AdminContext';
-import { Clapperboard, Plus, Film, Search, CheckCircle2, Undo2, Eye, Star, ArrowUpDown, Trash2, RotateCcw, Pencil, Loader2, Trash, Filter, X, ChevronsUpDown, Check } from 'lucide-react';
+import { Clapperboard, Plus, Film, Search, CheckCircle2, Undo2, Eye, Star, ArrowUpDown, Trash2, RotateCcw, Pencil, Loader2, Trash, Filter, X, ChevronsUpDown, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getFilms, createFilm, updateFilm, softDeleteFilm as apiSoftDeleteFilm, restoreFilm as apiRestoreFilm, deleteFilm, getTrashedFilms, getFilmGenres, createFilmGenre, updateFilmGenre, deleteFilmGenre, type FilmGenre } from '@/lib/api';
 import type { FilmItem as ApiFilmItem } from '@shared/schema';
@@ -114,6 +114,8 @@ export default function Films() {
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterRatingMin, setFilterRatingMin] = useState<string>('');
   const [filterRatingMax, setFilterRatingMax] = useState<string>('');
+  // Collapsed groups state for expand/collapse functionality
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   // Swipe state - moved to individual cards
   const SWIPE_THRESHOLD = 80; // Pixels needed to trigger action
   const SWIPE_MAX = 120; // Max visual offset
@@ -657,23 +659,77 @@ export default function Films() {
           <CardTitle className="text-lg flex items-center gap-2">
             <Clapperboard className="h-4 w-4" /> {title}
           </CardTitle>
-          <Badge variant="secondary">{items.length}</Badge>
+          <div className="flex items-center gap-2">
+            {grouped && grouped.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  const allLabels = grouped.map(g => g.label);
+                  const allCollapsed = allLabels.every(label => collapsedGroups.has(label));
+                  if (allCollapsed) {
+                    // Expand all
+                    setCollapsedGroups(prev => {
+                      const next = new Set(prev);
+                      allLabels.forEach(label => next.delete(label));
+                      return next;
+                    });
+                  } else {
+                    // Collapse all
+                    setCollapsedGroups(prev => {
+                      const next = new Set(prev);
+                      allLabels.forEach(label => next.add(label));
+                      return next;
+                    });
+                  }
+                }}
+              >
+                <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
+                {grouped.every(g => collapsedGroups.has(g.label)) ? 'Extinde tot' : 'Restrânge tot'}
+              </Button>
+            )}
+            <Badge variant="secondary">{items.length}</Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-2">
           {items.length === 0 && <p className="text-sm text-muted-foreground">Nimic aici încă.</p>}
           {grouped
-            ? grouped.map((group) => (
-                <div key={group.label} className="space-y-2 pt-2">
-                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-                    <div className="h-px flex-1 rounded-full bg-border/60" />
-                    <span className="px-2 py-1 rounded-full bg-muted/40 border border-border/50">{group.label}</span>
-                    <div className="h-px flex-1 rounded-full bg-border/60" />
+            ? grouped.map((group) => {
+                const isCollapsed = collapsedGroups.has(group.label);
+                return (
+                  <div key={group.label} className="space-y-2 pt-2">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80 hover:text-foreground/80 transition-colors cursor-pointer group"
+                      onClick={() => {
+                        setCollapsedGroups(prev => {
+                          const next = new Set(prev);
+                          if (next.has(group.label)) {
+                            next.delete(group.label);
+                          } else {
+                            next.add(group.label);
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <div className="h-px flex-1 rounded-full bg-border/60 group-hover:bg-border transition-colors" />
+                      <span className="px-2 py-1 rounded-full bg-muted/40 border border-border/50 flex items-center gap-1.5 group-hover:bg-muted/60 transition-colors">
+                        {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        {group.label}
+                        <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 h-4">{group.list.length}</Badge>
+                      </span>
+                      <div className="h-px flex-1 rounded-full bg-border/60 group-hover:bg-border transition-colors" />
+                    </button>
+                    <div 
+                      className={`space-y-2 overflow-hidden transition-all duration-300 ease-in-out ${isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}
+                    >
+                      {group.list.map((film) => <SwipeableCard key={film.id} film={film} />)}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    {group.list.map((film) => <SwipeableCard key={film.id} film={film} />)}
-                  </div>
-                </div>
-              ))
+                );
+              })
             : items.map((film) => <SwipeableCard key={film.id} film={film} />)}
         </CardContent>
       </Card>
@@ -861,11 +917,11 @@ export default function Films() {
 
       {isAdmin && isMobile && (
         <Button
-          className="fixed bottom-24 right-4 z-30 h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-2xl"
+          className="fixed bottom-24 right-4 z-30 h-16 w-16 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-2xl"
           size="icon"
           onClick={() => openAddForStatus(activeTab === 'todo' ? 'todo' : 'watched')}
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="h-8 w-8" />
         </Button>
       )}
 

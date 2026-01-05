@@ -3458,10 +3458,10 @@ const CreativeWriting: React.FC = () => {
       {isMobile && isAdmin && mobileViewMode === 'writings' && !isEditorOpen && (
         <button
           onClick={startNewEditing}
-          className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full shadow-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center active:scale-95 transition-transform"
+          className="fixed bottom-20 right-4 z-40 h-16 w-16 rounded-full shadow-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center active:scale-95 transition-transform"
           title="Adaugă scriere"
         >
-          <Plus className="h-6 w-6" />
+          <Plus className="h-8 w-8" />
         </button>
       )}
 

@@ -19,7 +19,7 @@ import {
   Headphones, Library, ListMusic, Trash2, RotateCcw, X, 
   SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, 
   ChevronUp, ChevronDown, ExternalLink, Loader2, FileText, User, Music as MusicIcon,
-  MoreVertical, Pencil
+  MoreVertical, Pencil, ChevronLeft, ChevronRight, GripVertical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
@@ -111,6 +111,16 @@ export default function Music() {
   const [albumCoverFile, setAlbumCoverFile] = useState<File | null>(null);
   const [savingAlbum, setSavingAlbum] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState<api.MusicAlbum | null>(null);
+
+  // Personal tops state - pagination and mobile collapse
+  const [topArtistsPage, setTopArtistsPage] = useState(0);
+  const [topAlbumsPage, setTopAlbumsPage] = useState(0);
+  const [topTracksPage, setTopTracksPage] = useState(0);
+  const [expandedTops, setExpandedTops] = useState<Set<string>>(new Set(['artists', 'albums', 'tracks'])); // On mobile, tracks which tabs are expanded
+  const ITEMS_PER_PAGE = 5;
+
+  // Swipe state for mobile tops navigation
+  const topSwipeRef = useRef<{ startX: number; startY: number; type: SpotifyType } | null>(null);
 
   // Check Spotify status and auth callback
   useEffect(() => {
@@ -865,114 +875,283 @@ export default function Music() {
   const trashedCount = trashedTracks.length + trashedFavorites.length + trashedAlbums.length;
   const playerVisible = currentTrack !== null;
 
-  // TopList component
+  // TopList component with pagination, mobile collapse, and swipe
   const TopList = ({
     title,
     icon,
     items,
     type,
+    currentPage,
+    setPage,
+    expandedKey,
   }: {
     title: string;
     icon: React.ReactNode;
     items: SpotifyFavorite[];
     badgeLabel?: string;
     type: SpotifyType;
-  }) => (
-    <Card className="border-border/60 bg-background/70">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">{icon} {title}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {items.length === 0 && <p className="text-sm text-muted-foreground">Completează topul.</p>}
-        <div className="space-y-2">
-          {items.slice(0, 10).map((item, idx) => (
-            <div
-              key={item.id}
-              draggable={isAdmin && !isMobile}
-              onDragStart={(e) => {
-                if (!(isAdmin && !isMobile)) return;
-                e.dataTransfer.setData('text/plain', idx.toString());
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-              onDragOver={(e) => {
-                if (!(isAdmin && !isMobile)) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-              }}
-              onDrop={(e) => {
-                if (!(isAdmin && !isMobile)) return;
-                e.preventDefault();
-                const src = Number(e.dataTransfer.getData('text/plain'));
-                const dest = idx;
-                if (!Number.isNaN(src) && src !== dest) reorderTop(type, src, dest);
-              }}
-              className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 p-2 cursor-pointer hover:bg-muted/50 transition-colors group"
-              onClick={() => item.spotifyUrl && window.open(item.spotifyUrl, '_blank')}
-            >
-              <Badge variant="outline" className="px-2 py-1 text-[11px] border-primary/50 text-primary font-bold min-w-[32px] justify-center">
-                {idx + 1}
-              </Badge>
-              <div className="h-10 w-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = FALLBACK_IMAGE;
-                    }}
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <Library className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{item.name}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{item.artist || item.type}</p>
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {item.spotifyUrl && (
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="h-8 w-8"
-                    onClick={(e) => { e.stopPropagation(); window.open(item.spotifyUrl!, '_blank'); }}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                )}
-                {isAdmin && (
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="h-8 w-8 text-destructive hover:text-destructive" 
-                    onClick={(e) => { e.stopPropagation(); removeFromTop(item); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        {isAdmin && items.length < 10 && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full gap-2 mt-2" 
-            onClick={() => openSearchDialog(type)}
-            disabled={!spotifyConfigured}
+    currentPage: number;
+    setPage: (page: number) => void;
+    expandedKey: string;
+  }) => {
+    const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+    const startIndex = currentPage * ITEMS_PER_PAGE;
+    const visibleItems = items.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const isExpanded = expandedTops.has(expandedKey);
+    
+    // Touch swipe handlers for page navigation
+    const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    
+    const handleTouchStart = (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+    };
+    
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      if (!swipeStartRef.current) return;
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - swipeStartRef.current.x;
+      const deltaY = Math.abs(touch.clientY - swipeStartRef.current.y);
+      
+      // Only horizontal swipes, with enough distance and not too much vertical movement
+      if (Math.abs(deltaX) > 50 && deltaY < 50) {
+        if (deltaX < 0 && currentPage < totalPages - 1) {
+          // Swipe left = next page
+          setPage(currentPage + 1);
+        } else if (deltaX > 0 && currentPage > 0) {
+          // Swipe right = previous page
+          setPage(currentPage - 1);
+        }
+      }
+      swipeStartRef.current = null;
+    };
+
+    // Drag state for reordering (with animations)
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+    // Long press for mobile drag
+    const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [longPressItem, setLongPressItem] = useState<number | null>(null);
+
+    const handleLongPressStart = (idx: number) => {
+      if (!isAdmin || !isMobile) return;
+      longPressTimerRef.current = setTimeout(() => {
+        setLongPressItem(idx);
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, 500);
+    };
+
+    const handleLongPressEnd = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    };
+
+    const toggleExpand = () => {
+      setExpandedTops(prev => {
+        const next = new Set(prev);
+        if (next.has(expandedKey)) {
+          next.delete(expandedKey);
+        } else {
+          next.add(expandedKey);
+        }
+        return next;
+      });
+    };
+
+    return (
+      <Card className="border-border/60 bg-background/70 overflow-hidden">
+        {/* Mobile: Collapsible header */}
+        {isMobile ? (
+          <button
+            type="button"
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+            onClick={toggleExpand}
           >
-            <Plus className="h-4 w-4" /> 
-            {spotifyConfigured ? 'Adaugă din Spotify' : 'Spotify neconfigurat'}
-          </Button>
+            <div className="flex items-center gap-2">
+              {icon}
+              <span className="font-semibold text-base">{title}</span>
+              <Badge variant="secondary" className="text-xs">{items.length}/10</Badge>
+            </div>
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        ) : (
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">{icon} {title}</CardTitle>
+          </CardHeader>
         )}
-      </CardContent>
-    </Card>
-  );
+        
+        {/* Content - collapsible on mobile */}
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isMobile && !isExpanded ? 'max-h-0' : 'max-h-[1000px]'}`}>
+          <CardContent 
+            ref={containerRef}
+            className="space-y-2 pt-2"
+            onTouchStart={isMobile ? handleTouchStart : undefined}
+            onTouchEnd={isMobile ? handleTouchEnd : undefined}
+          >
+            {items.length === 0 && <p className="text-sm text-muted-foreground">Completează topul.</p>}
+            <div className="space-y-2">
+              {visibleItems.map((item, localIdx) => {
+                const globalIdx = startIndex + localIdx;
+                const isDragging = draggedIndex === globalIdx;
+                const isDragOver = dragOverIndex === globalIdx;
+                
+                return (
+                  <div
+                    key={item.id}
+                    draggable={isAdmin && !isMobile}
+                    onDragStart={(e) => {
+                      if (!(isAdmin && !isMobile)) return;
+                      setDraggedIndex(globalIdx);
+                      e.dataTransfer.setData('text/plain', globalIdx.toString());
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragEnd={() => {
+                      setDraggedIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    onDragOver={(e) => {
+                      if (!(isAdmin && !isMobile)) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDragOverIndex(globalIdx);
+                    }}
+                    onDragLeave={() => setDragOverIndex(null)}
+                    onDrop={(e) => {
+                      if (!(isAdmin && !isMobile)) return;
+                      e.preventDefault();
+                      const src = Number(e.dataTransfer.getData('text/plain'));
+                      const dest = globalIdx;
+                      if (!Number.isNaN(src) && src !== dest) reorderTop(type, src, dest);
+                      setDraggedIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    onTouchStart={() => handleLongPressStart(globalIdx)}
+                    onTouchEnd={handleLongPressEnd}
+                    onTouchCancel={handleLongPressEnd}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border p-2 cursor-pointer transition-all duration-200 group",
+                      isDragging && "opacity-50 scale-95 shadow-lg",
+                      isDragOver && "border-primary bg-primary/10 scale-[1.02]",
+                      longPressItem === globalIdx && "ring-2 ring-primary scale-[1.02]",
+                      !isDragging && !isDragOver && "border-border/50 bg-muted/30 hover:bg-muted/50"
+                    )}
+                    onClick={() => item.spotifyUrl && window.open(item.spotifyUrl, '_blank')}
+                  >
+                    {isAdmin && !isMobile && (
+                      <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab active:cursor-grabbing" />
+                    )}
+                    <Badge variant="outline" className="px-2 py-1 text-[11px] border-primary/50 text-primary font-bold min-w-[32px] justify-center">
+                      {globalIdx + 1}
+                    </Badge>
+                    <div className="h-10 w-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = FALLBACK_IMAGE;
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center">
+                          <Library className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{item.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{item.artist || item.type}</p>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {item.spotifyUrl && (
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-8 w-8"
+                          onClick={(e) => { e.stopPropagation(); window.open(item.spotifyUrl!, '_blank'); }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {isAdmin && (
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-8 w-8 text-destructive hover:text-destructive" 
+                          onClick={(e) => { e.stopPropagation(); removeFromTop(item); }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={(e) => { e.stopPropagation(); setPage(Math.max(0, currentPage - 1)); }}
+                  disabled={currentPage === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      className={cn(
+                        "w-2 h-2 rounded-full transition-all",
+                        i === currentPage ? "bg-primary w-4" : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); setPage(i); }}
+                    />
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={(e) => { e.stopPropagation(); setPage(Math.min(totalPages - 1, currentPage + 1)); }}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            
+            {isMobile && totalPages > 1 && (
+              <p className="text-[10px] text-center text-muted-foreground">Swipe stânga/dreapta pentru a naviga</p>
+            )}
+            
+            {isAdmin && items.length < 10 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full gap-2 mt-2" 
+                onClick={(e) => { e.stopPropagation(); openSearchDialog(type); }}
+                disabled={!spotifyConfigured}
+              >
+                <Plus className="h-4 w-4" /> 
+                {spotifyConfigured ? 'Adaugă din Spotify' : 'Spotify neconfigurat'}
+              </Button>
+            )}
+          </CardContent>
+        </div>
+      </Card>
+    );
+  };
 
   // ========== PLAYER UI COMPONENTS ==========
   // Reorder top items (desktop admin drag-and-drop)
@@ -1640,9 +1819,9 @@ export default function Music() {
                 </div>
               ) : (
                 <div className={isMobile ? 'space-y-3' : 'grid gap-4 md:grid-cols-2 lg:grid-cols-3'}>
-                  <TopList title="Top 10 artiști" icon={<Mic2 className="h-4 w-4" />} items={topArtists} type="artist" />
-                  <TopList title="Top 10 albume" icon={<Disc3 className="h-4 w-4" />} items={topAlbums} type="album" />
-                  <TopList title="Top 10 piese" icon={<Headphones className="h-4 w-4" />} items={topTracks} type="track" />
+                  <TopList title="Top 10 artiști" icon={<Mic2 className="h-4 w-4" />} items={topArtists} type="artist" currentPage={topArtistsPage} setPage={setTopArtistsPage} expandedKey="artists" />
+                  <TopList title="Top 10 albume" icon={<Disc3 className="h-4 w-4" />} items={topAlbums} type="album" currentPage={topAlbumsPage} setPage={setTopAlbumsPage} expandedKey="albums" />
+                  <TopList title="Top 10 piese" icon={<Headphones className="h-4 w-4" />} items={topTracks} type="track" currentPage={topTracksPage} setPage={setTopTracksPage} expandedKey="tracks" />
                 </div>
               )}
             </TabsContent>
