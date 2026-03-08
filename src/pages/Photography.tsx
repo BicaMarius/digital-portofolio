@@ -161,6 +161,7 @@ const Photography: React.FC = () => {
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
+  const [newPhotoTitle, setNewPhotoTitle] = useState('');
   const [newPhotoDevice, setNewPhotoDevice] = useState('');
   const [newPhotoDate, setNewPhotoDate] = useState(() => new Date().getFullYear().toString());
   const [newPhotoLocation, setNewPhotoLocation] = useState('');
@@ -285,6 +286,7 @@ const Photography: React.FC = () => {
   // Reset form fields
   const resetForm = () => {
     setNewPhotoFiles([]);
+    setNewPhotoTitle('');
     setNewPhotoDevice('');
     setNewPhotoDate(new Date().getFullYear().toString());
     setNewPhotoLocation('');
@@ -431,6 +433,7 @@ const Photography: React.FC = () => {
       }
 
       const haystack = [
+        photo.title,
         photo.device,
         photo.location,
         photo.category,
@@ -857,6 +860,7 @@ const Photography: React.FC = () => {
 
     setNewPhotoUploading(true);
     try {
+      const manualTitle = sanitizeText(newPhotoTitle);
       const trimmedDevice = sanitizeText(newPhotoDevice);
       const trimmedLocation = sanitizeText(newPhotoLocation);
       const normalizedYear = clampYear(newPhotoDate);
@@ -916,7 +920,7 @@ const Photography: React.FC = () => {
         }
 
         const baseName = extractBaseName(file);
-        const pickedBase = baseName || `${DEFAULT_TITLE_PREFIX} ${index + 1}`;
+        const pickedBase = manualTitle || baseName || `${DEFAULT_TITLE_PREFIX} ${index + 1}`;
         const title = buildTitle(pickedBase, index);
 
         const url = await uploadFileWithRetry(file, 3);
@@ -972,9 +976,10 @@ const Photography: React.FC = () => {
       const trimmedDevice = sanitizeText(newPhotoDevice);
       const trimmedLocation = sanitizeText(newPhotoLocation);
       const normalizedYear = clampYear(newPhotoDate);
+      const normalizedTitle = sanitizeText(newPhotoTitle);
 
       const updates = {
-        title: editingPhoto.title || getPhotoLabel(editingPhoto),
+        title: normalizedTitle || editingPhoto.title || getPhotoLabel(editingPhoto),
         device: trimmedDevice || null,
         date: normalizedYear,
         location: trimmedLocation || null,
@@ -1747,6 +1752,7 @@ const Photography: React.FC = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingPhoto(photo);
+                                      setNewPhotoTitle(photo.title || '');
                                       setNewPhotoDevice(photo.device || '');
                                       setNewPhotoDate(photo.date);
                                       setNewPhotoLocation(photo.location || '');
@@ -1904,6 +1910,7 @@ const Photography: React.FC = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingPhoto(selectedPhoto);
+                                setNewPhotoTitle(selectedPhoto.title || '');
                                 setNewPhotoDevice(selectedPhoto.device || '');
                                 setNewPhotoDate(selectedPhoto.date);
                                 setNewPhotoLocation(selectedPhoto.location || '');
@@ -2108,6 +2115,16 @@ const Photography: React.FC = () => {
 
               {/* Tab Detalii - Anul + Locație + Categorie */}
               <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
+                <div>
+                  <Label htmlFor="photo-title">Titlu (opțional)</Label>
+                  <Input
+                    id="photo-title"
+                    value={newPhotoTitle}
+                    onChange={(e) => setNewPhotoTitle(e.target.value)}
+                    placeholder="Ex: Apus în Bucegi"
+                    className="mt-1.5"
+                  />
+                </div>
                 <div>
                   <Label htmlFor="photo-year">Anul</Label>
                   <Input
@@ -2351,6 +2368,16 @@ const Photography: React.FC = () => {
 
                 {/* Tab Detalii - Anul + Locație + Categorie */}
                 <TabsContent value="details" className="space-y-3 min-h-[360px] sm:min-h-[420px]">
+                  <div>
+                    <Label htmlFor="edit-photo-title">Titlu (opțional)</Label>
+                    <Input
+                      id="edit-photo-title"
+                      value={newPhotoTitle}
+                      onChange={(e) => setNewPhotoTitle(e.target.value)}
+                      placeholder="Ex: Apus în Bucegi"
+                      className="mt-1.5"
+                    />
+                  </div>
                   <div>
                     <Label htmlFor="edit-photo-year">Anul</Label>
                     <Input

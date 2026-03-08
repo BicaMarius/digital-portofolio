@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Palette, Plus, Search, Grid3X3, List, ChevronLeft, ChevronRight, X, Edit, Trash2, Trash, Undo2, EyeOff, Cloud, FolderOpen } from 'lucide-react';
+import { Palette, Plus, Search, Grid3X3, List, ChevronLeft, ChevronRight, X, Edit, Trash2, Trash, Undo2, EyeOff, Cloud, FolderOpen, Settings2, Check } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { usePortfolioStats } from '@/hooks/usePortfolioStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -24,13 +24,77 @@ import {
   getTrashedGalleryItemsByCategory
 } from '@/lib/api';
 import type { GalleryItem } from '@shared/schema';
+import { useDigitalArtDimensionOptions, useDigitalArtSoftwareOptions } from '@/hooks/useDigitalArtOptions';
 
 type DigitalArtwork = GalleryItem;
+
+const MIN_YEAR = 1900;
+const MONTH_OPTIONS = [
+  { value: '01', label: 'Ianuarie' },
+  { value: '02', label: 'Februarie' },
+  { value: '03', label: 'Martie' },
+  { value: '04', label: 'Aprilie' },
+  { value: '05', label: 'Mai' },
+  { value: '06', label: 'Iunie' },
+  { value: '07', label: 'Iulie' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'Septembrie' },
+  { value: '10', label: 'Octombrie' },
+  { value: '11', label: 'Noiembrie' },
+  { value: '12', label: 'Decembrie' },
+] as const;
+
+const sanitizeText = (value?: string) => (value || '').replace(/\s+/g, ' ').trim();
+
+const clampYear = (value: string) => {
+  const currentYear = new Date().getFullYear();
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return String(currentYear);
+  return String(Math.max(MIN_YEAR, Math.min(currentYear, parsed)));
+};
+
+const parseDateParts = (value?: string) => {
+  const currentYear = String(new Date().getFullYear());
+  const normalized = sanitizeText(value);
+  if (!normalized) {
+    return { year: currentYear, month: '' };
+  }
+
+  const yearMatch = normalized.match(/\d{4}/);
+  const monthMatch = normalized.match(/\d{4}-(\d{2})/);
+  const year = yearMatch ? clampYear(yearMatch[0]) : currentYear;
+  const month = monthMatch?.[1] && MONTH_OPTIONS.some((opt) => opt.value === monthMatch[1]) ? monthMatch[1] : '';
+  return { year, month };
+};
+
+const parseCustomDimensions = (value?: string) => {
+  const normalized = sanitizeText(value);
+  const match = normalized.match(/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)(?:\s*(.*))?$/);
+  if (!match) return null;
+  return {
+    width: match[1].replace(',', '.'),
+    height: match[2].replace(',', '.'),
+    unit: sanitizeText(match[3] || 'px'),
+  };
+};
 
 export default function DigitalArt() {
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
   const { getCount } = usePortfolioStats();
+  const currentYear = String(new Date().getFullYear());
+  const {
+    options: softwareOptions,
+    addOption: addSoftwareOption,
+    updateOption: updateSoftwareOption,
+    deleteOption: deleteSoftwareOption,
+  } = useDigitalArtSoftwareOptions();
+  const {
+    options: dimensionOptions,
+    addOption: addDimensionOption,
+    updateOption: updateDimensionOption,
+    deleteOption: deleteDimensionOption,
+  } = useDigitalArtDimensionOptions();
   
   // State
   const [artworks, setArtworks] = useState<DigitalArtwork[]>([]);
@@ -46,6 +110,23 @@ export default function DigitalArt() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showTrashDialog, setShowTrashDialog] = useState(false);
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+  const [isManageSoftwareOpen, setIsManageSoftwareOpen] = useState(false);
+  const [isManageDimensionsOpen, setIsManageDimensionsOpen] = useState(false);
+  const [editingSoftwareId, setEditingSoftwareId] = useState<string | null>(null);
+  const [editingSoftwareName, setEditingSoftwareName] = useState('');
+  const [editingDimensionId, setEditingDimensionId] = useState<string | null>(null);
+  const [editingDimensionName, setEditingDimensionName] = useState('');
+  const [newSoftwareName, setNewSoftwareName] = useState('');
+  const [newDimensionName, setNewDimensionName] = useState('');
+  const [isAddingNewSoftware, setIsAddingNewSoftware] = useState(false);
+  const [softwareInputValue, setSoftwareInputValue] = useState('');
+  const [isCustomDimension, setIsCustomDimension] = useState(false);
+  const [selectedDimensionPreset, setSelectedDimensionPreset] = useState('');
+  const [customDimensionWidth, setCustomDimensionWidth] = useState('');
+  const [customDimensionHeight, setCustomDimensionHeight] = useState('');
+  const [customDimensionUnit, setCustomDimensionUnit] = useState('px');
+  const [creationYear, setCreationYear] = useState(currentYear);
+  const [creationMonth, setCreationMonth] = useState('');
   
   // Form state for add/edit
   const [formData, setFormData] = useState({
@@ -55,7 +136,7 @@ export default function DigitalArt() {
     subcategory: 'illustration',
     medium: '',
     dimensions: '',
-    date: new Date().toISOString().split('T')[0],
+    date: currentYear,
     isPrivate: false
   });
   
@@ -98,6 +179,76 @@ export default function DigitalArt() {
     { value: 'banner', label: 'Bannere' },
     { value: 'social-media', label: 'Social Media' }
   ];
+
+  const softwareSelectOptions = React.useMemo(() => {
+    const names = softwareOptions.map((opt) => opt.name);
+    const currentMedium = sanitizeText(formData.medium);
+    if (currentMedium && !names.includes(currentMedium)) {
+      return [currentMedium, ...names];
+    }
+    return names;
+  }, [softwareOptions, formData.medium]);
+
+  const dimensionSelectOptions = React.useMemo(() => {
+    const names = dimensionOptions.map((opt) => opt.name);
+    if (selectedDimensionPreset && !names.includes(selectedDimensionPreset)) {
+      return [selectedDimensionPreset, ...names];
+    }
+    return names;
+  }, [dimensionOptions, selectedDimensionPreset]);
+
+  const buildDateValue = () => {
+    const year = clampYear(creationYear || currentYear);
+    return creationMonth ? `${year}-${creationMonth}` : year;
+  };
+
+  const buildDimensionsValue = () => {
+    if (isCustomDimension) {
+      const width = sanitizeText(customDimensionWidth);
+      const height = sanitizeText(customDimensionHeight);
+      if (!width || !height) return '';
+      const unit = sanitizeText(customDimensionUnit);
+      return `${width} x ${height}${unit ? ` ${unit}` : ''}`;
+    }
+    return sanitizeText(selectedDimensionPreset || formData.dimensions);
+  };
+
+  const syncDimensionStateFromValue = React.useCallback((value?: string) => {
+    const normalized = sanitizeText(value);
+    if (!normalized) {
+      setIsCustomDimension(false);
+      setSelectedDimensionPreset('');
+      setCustomDimensionWidth('');
+      setCustomDimensionHeight('');
+      setCustomDimensionUnit('px');
+      return;
+    }
+
+    if (dimensionOptions.some((opt) => opt.name === normalized)) {
+      setIsCustomDimension(false);
+      setSelectedDimensionPreset(normalized);
+      setCustomDimensionWidth('');
+      setCustomDimensionHeight('');
+      setCustomDimensionUnit('px');
+      return;
+    }
+
+    const parsed = parseCustomDimensions(normalized);
+    if (parsed) {
+      setIsCustomDimension(true);
+      setSelectedDimensionPreset('');
+      setCustomDimensionWidth(parsed.width);
+      setCustomDimensionHeight(parsed.height);
+      setCustomDimensionUnit(parsed.unit || 'px');
+      return;
+    }
+
+    setIsCustomDimension(false);
+    setSelectedDimensionPreset(normalized);
+    setCustomDimensionWidth('');
+    setCustomDimensionHeight('');
+    setCustomDimensionUnit('px');
+  }, [dimensionOptions]);
 
   // Load artworks from cloud
   const reloadArtworks = async () => {
@@ -210,9 +361,20 @@ export default function DigitalArt() {
       });
       return;
     }
+    if (isCustomDimension && (!sanitizeText(customDimensionWidth) || !sanitizeText(customDimensionHeight))) {
+      toast({
+        title: 'Eroare',
+        description: 'Pentru dimensiunea personalizata completeaza lungimea si latimea.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
       setIsUploading(true);
+      const resolvedMedium = sanitizeText(formData.medium);
+      const resolvedDimensions = buildDimensionsValue();
+      const resolvedDate = buildDateValue();
       
       for (const file of addImageFiles) {
         const fd = new FormData();
@@ -233,9 +395,9 @@ export default function DigitalArt() {
           image: url,
           description: formData.description,
           materials: [formData.subcategory],
-          medium: formData.medium,
-          dimensions: formData.dimensions,
-          date: formData.date,
+          medium: resolvedMedium || null,
+          dimensions: resolvedDimensions || null,
+          date: resolvedDate,
           isPrivate: formData.isPrivate
         } as any);
       }
@@ -270,9 +432,20 @@ export default function DigitalArt() {
       });
       return;
     }
+    if (isCustomDimension && (!sanitizeText(customDimensionWidth) || !sanitizeText(customDimensionHeight))) {
+      toast({
+        title: 'Eroare',
+        description: 'Pentru dimensiunea personalizata completeaza lungimea si latimea.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
       setIsUploading(true);
+      const resolvedMedium = sanitizeText(formData.medium);
+      const resolvedDimensions = buildDimensionsValue();
+      const resolvedDate = buildDateValue();
       
       let imageUrl = formData.image;
       
@@ -295,9 +468,9 @@ export default function DigitalArt() {
         image: imageUrl,
         description: formData.description,
         materials: [formData.subcategory],
-        medium: formData.medium,
-        dimensions: formData.dimensions,
-        date: formData.date,
+        medium: resolvedMedium || null,
+        dimensions: resolvedDimensions || null,
+        date: resolvedDate,
         isPrivate: formData.isPrivate
       } as any);
 
@@ -400,9 +573,18 @@ export default function DigitalArt() {
       subcategory: 'illustration',
       medium: '',
       dimensions: '',
-      date: new Date().toISOString().split('T')[0],
+      date: currentYear,
       isPrivate: false
     });
+    setCreationYear(currentYear);
+    setCreationMonth('');
+    setIsAddingNewSoftware(false);
+    setSoftwareInputValue('');
+    setIsCustomDimension(false);
+    setSelectedDimensionPreset('');
+    setCustomDimensionWidth('');
+    setCustomDimensionHeight('');
+    setCustomDimensionUnit('px');
     setImageFile(null);
     setImagePreview('');
     setAddImageFiles([]);
@@ -414,17 +596,23 @@ export default function DigitalArt() {
 
   // Open edit dialog
   const openEditDialog = (artwork: DigitalArtwork) => {
+    const parsedDate = parseDateParts(artwork.date || currentYear);
     setSelectedArtwork(artwork);
     setFormData({
       title: artwork.title,
       image: artwork.image,
       description: artwork.description || '',
       subcategory: artwork.materials?.[0] || 'illustration',
-      medium: artwork.medium || '',
-      dimensions: artwork.dimensions || '',
-      date: artwork.date || new Date().toISOString().split('T')[0],
+      medium: sanitizeText(artwork.medium || ''),
+      dimensions: sanitizeText(artwork.dimensions || ''),
+      date: artwork.date || currentYear,
       isPrivate: artwork.isPrivate || false
     });
+    setCreationYear(parsedDate.year);
+    setCreationMonth(parsedDate.month);
+    setSoftwareInputValue('');
+    setIsAddingNewSoftware(false);
+    syncDimensionStateFromValue(artwork.dimensions || '');
     setImageFile(null);
     setImagePreview(artwork.image);
     setShowEditDialog(true);
@@ -506,6 +694,70 @@ export default function DigitalArt() {
     } else {
       triggerAddFileDialog();
     }
+  };
+
+  const handleCreateSoftwareOption = async () => {
+    const normalized = sanitizeText(newSoftwareName);
+    if (!normalized) return;
+    await addSoftwareOption(normalized);
+    setNewSoftwareName('');
+    toast({ title: 'Adaugat', description: 'Software-ul a fost adaugat.' });
+  };
+
+  const handleUpdateSoftwareOption = async () => {
+    if (!editingSoftwareId) return;
+    const normalized = sanitizeText(editingSoftwareName);
+    if (!normalized) return;
+    const oldSoftware = softwareOptions.find((opt) => opt.id === editingSoftwareId)?.name;
+    await updateSoftwareOption(editingSoftwareId, normalized);
+    if (oldSoftware && sanitizeText(formData.medium) === oldSoftware) {
+      setFormData({ ...formData, medium: normalized });
+    }
+    setEditingSoftwareId(null);
+    setEditingSoftwareName('');
+    toast({ title: 'Actualizat', description: 'Software-ul a fost actualizat.' });
+  };
+
+  const handleDeleteSoftwareOption = async (optionId: string) => {
+    const option = softwareOptions.find((item) => item.id === optionId);
+    await deleteSoftwareOption(optionId);
+    if (option && sanitizeText(formData.medium) === option.name) {
+      setFormData({ ...formData, medium: '' });
+    }
+    toast({ title: 'Sters', description: 'Software-ul a fost sters din lista.' });
+  };
+
+  const handleCreateDimensionOption = async () => {
+    const normalized = sanitizeText(newDimensionName);
+    if (!normalized) return;
+    await addDimensionOption(normalized);
+    setNewDimensionName('');
+    toast({ title: 'Adaugata', description: 'Dimensiunea a fost adaugata.' });
+  };
+
+  const handleUpdateDimensionOption = async () => {
+    if (!editingDimensionId) return;
+    const normalized = sanitizeText(editingDimensionName);
+    if (!normalized) return;
+    const oldDimension = dimensionOptions.find((opt) => opt.id === editingDimensionId)?.name;
+    await updateDimensionOption(editingDimensionId, normalized);
+    if (oldDimension && selectedDimensionPreset === oldDimension) {
+      setSelectedDimensionPreset(normalized);
+      setFormData({ ...formData, dimensions: normalized });
+    }
+    setEditingDimensionId(null);
+    setEditingDimensionName('');
+    toast({ title: 'Actualizata', description: 'Dimensiunea a fost actualizata.' });
+  };
+
+  const handleDeleteDimensionOption = async (optionId: string) => {
+    const option = dimensionOptions.find((item) => item.id === optionId);
+    await deleteDimensionOption(optionId);
+    if (option && selectedDimensionPreset === option.name) {
+      setSelectedDimensionPreset('');
+      setFormData({ ...formData, dimensions: '' });
+    }
+    toast({ title: 'Stearsa', description: 'Dimensiunea a fost stearsa din lista.' });
   };
 
   const artworkCount = getCount('digital-art') ?? filteredArtworks.length;
@@ -616,7 +868,7 @@ export default function DigitalArt() {
             
             {/* Add button (admin only, desktop) */}
             {isAdmin && !isMobile && (
-              <Button onClick={() => setShowAddDialog(true)} className="ml-auto">
+              <Button onClick={() => { resetForm(); setShowAddDialog(true); }} className="ml-auto">
                 <Palette className="w-4 h-4 mr-2" />
                 Adaugă Operă
               </Button>
@@ -799,7 +1051,7 @@ export default function DigitalArt() {
           <Button
             size="icon"
             className="h-16 w-16 rounded-full shadow-lg"
-            onClick={() => setShowAddDialog(true)}
+            onClick={() => { resetForm(); setShowAddDialog(true); }}
           >
             <Palette className="h-8 w-8" />
           </Button>
@@ -904,7 +1156,13 @@ export default function DigitalArt() {
       {isAdmin && (
         <>
           {/* Add Dialog */}
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <Dialog
+            open={showAddDialog}
+            onOpenChange={(open) => {
+              setShowAddDialog(open);
+              if (!open) resetForm();
+            }}
+          >
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Adaugă Lucrare Nouă</DialogTitle>
@@ -1008,32 +1266,191 @@ export default function DigitalArt() {
                 <TabsContent value="details" className="space-y-4 mt-4 min-h-[400px]">
                   <div className="space-y-2">
                     <Label htmlFor="add-software">Software</Label>
-                    <Input
-                      id="add-software"
-                      value={formData.medium}
-                      onChange={(e) => setFormData({ ...formData, medium: e.target.value })}
-                      placeholder="ex: Adobe Illustrator, Photoshop"
-                    />
+                    <Select
+                      value={isAddingNewSoftware ? '__new_software' : (formData.medium || '__none_software')}
+                      onValueChange={(value) => {
+                        if (value === '__manage_software') {
+                          setIsManageSoftwareOpen(true);
+                          return;
+                        }
+                        if (value === '__new_software') {
+                          setIsAddingNewSoftware(true);
+                          setSoftwareInputValue('');
+                          return;
+                        }
+                        if (value === '__none_software') {
+                          setIsAddingNewSoftware(false);
+                          setSoftwareInputValue('');
+                          setFormData({ ...formData, medium: '' });
+                          return;
+                        }
+                        setIsAddingNewSoftware(false);
+                        setSoftwareInputValue('');
+                        setFormData({ ...formData, medium: value });
+                      }}
+                    >
+                      <SelectTrigger id="add-software">
+                        <SelectValue placeholder="Selecteaza software..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none_software">Nesetat</SelectItem>
+                        {softwareSelectOptions.map((softwareName) => (
+                          <SelectItem key={softwareName} value={softwareName}>
+                            {softwareName}
+                          </SelectItem>
+                        ))}
+                        {isAdmin && <div className="h-px bg-border my-1" />}
+                        <SelectItem value="__new_software">
+                          <span className="text-muted-foreground italic">+ Adauga software nou...</span>
+                        </SelectItem>
+                        {isAdmin && (
+                          <SelectItem value="__manage_software">
+                            <div className="flex items-center gap-2">
+                              <Settings2 className="h-3 w-3" />
+                              <span>Gestioneaza software</span>
+                            </div>
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {isAddingNewSoftware && (
+                      <Input
+                        value={softwareInputValue}
+                        onChange={(e) => setSoftwareInputValue(e.target.value)}
+                        placeholder="ex: Clip Studio Paint"
+                        className="mt-2"
+                        autoFocus
+                        onBlur={async () => {
+                          const normalized = sanitizeText(softwareInputValue);
+                          if (!normalized) return;
+                          await addSoftwareOption(normalized);
+                          setFormData({ ...formData, medium: normalized });
+                          setIsAddingNewSoftware(false);
+                          setSoftwareInputValue('');
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            const normalized = sanitizeText(softwareInputValue);
+                            if (!normalized) return;
+                            await addSoftwareOption(normalized);
+                            setFormData({ ...formData, medium: normalized });
+                            setIsAddingNewSoftware(false);
+                            setSoftwareInputValue('');
+                          }
+                          if (e.key === 'Escape') {
+                            setIsAddingNewSoftware(false);
+                            setSoftwareInputValue('');
+                          }
+                        }}
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="add-dimensions">Dimensiuni</Label>
-                    <Input
-                      id="add-dimensions"
-                      value={formData.dimensions}
-                      onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                      placeholder="ex: 2480x3508px, Vector"
-                    />
+                    <Select
+                      value={isCustomDimension ? '__custom_dimension' : (selectedDimensionPreset || '__none_dimension')}
+                      onValueChange={(value) => {
+                        if (value === '__manage_dimensions') {
+                          setIsManageDimensionsOpen(true);
+                          return;
+                        }
+                        if (value === '__custom_dimension') {
+                          setIsCustomDimension(true);
+                          setSelectedDimensionPreset('');
+                          return;
+                        }
+                        if (value === '__none_dimension') {
+                          setIsCustomDimension(false);
+                          setSelectedDimensionPreset('');
+                          setCustomDimensionWidth('');
+                          setCustomDimensionHeight('');
+                          setFormData({ ...formData, dimensions: '' });
+                          return;
+                        }
+                        setIsCustomDimension(false);
+                        setSelectedDimensionPreset(value);
+                        setCustomDimensionWidth('');
+                        setCustomDimensionHeight('');
+                        setFormData({ ...formData, dimensions: value });
+                      }}
+                    >
+                      <SelectTrigger id="add-dimensions">
+                        <SelectValue placeholder="Selecteaza dimensiuni..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none_dimension">Nesetat</SelectItem>
+                        {dimensionSelectOptions.map((dimensionName) => (
+                          <SelectItem key={dimensionName} value={dimensionName}>
+                            {dimensionName}
+                          </SelectItem>
+                        ))}
+                        <div className="h-px bg-border my-1" />
+                        <SelectItem value="__custom_dimension">Custom (lungime x latime)</SelectItem>
+                        {isAdmin && (
+                          <SelectItem value="__manage_dimensions">
+                            <div className="flex items-center gap-2">
+                              <Settings2 className="h-3 w-3" />
+                              <span>Gestioneaza dimensiuni</span>
+                            </div>
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {isCustomDimension && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Input
+                          value={customDimensionWidth}
+                          onChange={(e) => setCustomDimensionWidth(e.target.value)}
+                          placeholder="Lungime"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          value={customDimensionHeight}
+                          onChange={(e) => setCustomDimensionHeight(e.target.value)}
+                          placeholder="Latime"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          value={customDimensionUnit}
+                          onChange={(e) => setCustomDimensionUnit(e.target.value)}
+                          placeholder="Unitate (px/mm)"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="add-date">Data Creării</Label>
-                    <Input
-                      id="add-date"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        id="add-date"
+                        type="number"
+                        min={MIN_YEAR}
+                        max={new Date().getFullYear()}
+                        value={creationYear}
+                        onChange={(e) => setCreationYear(e.target.value)}
+                        onBlur={() => setCreationYear(clampYear(creationYear))}
+                        placeholder="An"
+                      />
+                      <Select
+                        value={creationMonth || '__none_month'}
+                        onValueChange={(value) => setCreationMonth(value === '__none_month' ? '' : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Luna (opțional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none_month">Fara luna</SelectItem>
+                          {MONTH_OPTIONS.map((month) => (
+                            <SelectItem key={month.value} value={month.value}>
+                              {month.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Format salvat: {buildDateValue()}</p>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -1059,7 +1476,16 @@ export default function DigitalArt() {
           </Dialog>
 
           {/* Edit Dialog */}
-          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <Dialog
+            open={showEditDialog}
+            onOpenChange={(open) => {
+              setShowEditDialog(open);
+              if (!open) {
+                setSelectedArtwork(null);
+                resetForm();
+              }
+            }}
+          >
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Editează Lucrarea</DialogTitle>
@@ -1139,32 +1565,191 @@ export default function DigitalArt() {
                 <TabsContent value="details" className="space-y-4 mt-4 min-h-[400px]">
                   <div className="space-y-2">
                     <Label htmlFor="edit-software">Software</Label>
-                    <Input
-                      id="edit-software"
-                      value={formData.medium}
-                      onChange={(e) => setFormData({ ...formData, medium: e.target.value })}
-                      placeholder="ex: Adobe Illustrator, Photoshop"
-                    />
+                    <Select
+                      value={isAddingNewSoftware ? '__new_software' : (formData.medium || '__none_software')}
+                      onValueChange={(value) => {
+                        if (value === '__manage_software') {
+                          setIsManageSoftwareOpen(true);
+                          return;
+                        }
+                        if (value === '__new_software') {
+                          setIsAddingNewSoftware(true);
+                          setSoftwareInputValue('');
+                          return;
+                        }
+                        if (value === '__none_software') {
+                          setIsAddingNewSoftware(false);
+                          setSoftwareInputValue('');
+                          setFormData({ ...formData, medium: '' });
+                          return;
+                        }
+                        setIsAddingNewSoftware(false);
+                        setSoftwareInputValue('');
+                        setFormData({ ...formData, medium: value });
+                      }}
+                    >
+                      <SelectTrigger id="edit-software">
+                        <SelectValue placeholder="Selecteaza software..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none_software">Nesetat</SelectItem>
+                        {softwareSelectOptions.map((softwareName) => (
+                          <SelectItem key={softwareName} value={softwareName}>
+                            {softwareName}
+                          </SelectItem>
+                        ))}
+                        {isAdmin && <div className="h-px bg-border my-1" />}
+                        <SelectItem value="__new_software">
+                          <span className="text-muted-foreground italic">+ Adauga software nou...</span>
+                        </SelectItem>
+                        {isAdmin && (
+                          <SelectItem value="__manage_software">
+                            <div className="flex items-center gap-2">
+                              <Settings2 className="h-3 w-3" />
+                              <span>Gestioneaza software</span>
+                            </div>
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {isAddingNewSoftware && (
+                      <Input
+                        value={softwareInputValue}
+                        onChange={(e) => setSoftwareInputValue(e.target.value)}
+                        placeholder="ex: Clip Studio Paint"
+                        className="mt-2"
+                        autoFocus
+                        onBlur={async () => {
+                          const normalized = sanitizeText(softwareInputValue);
+                          if (!normalized) return;
+                          await addSoftwareOption(normalized);
+                          setFormData({ ...formData, medium: normalized });
+                          setIsAddingNewSoftware(false);
+                          setSoftwareInputValue('');
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            const normalized = sanitizeText(softwareInputValue);
+                            if (!normalized) return;
+                            await addSoftwareOption(normalized);
+                            setFormData({ ...formData, medium: normalized });
+                            setIsAddingNewSoftware(false);
+                            setSoftwareInputValue('');
+                          }
+                          if (e.key === 'Escape') {
+                            setIsAddingNewSoftware(false);
+                            setSoftwareInputValue('');
+                          }
+                        }}
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="edit-dimensions">Dimensiuni</Label>
-                    <Input
-                      id="edit-dimensions"
-                      value={formData.dimensions}
-                      onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                      placeholder="ex: 2480x3508px, Vector"
-                    />
+                    <Select
+                      value={isCustomDimension ? '__custom_dimension' : (selectedDimensionPreset || '__none_dimension')}
+                      onValueChange={(value) => {
+                        if (value === '__manage_dimensions') {
+                          setIsManageDimensionsOpen(true);
+                          return;
+                        }
+                        if (value === '__custom_dimension') {
+                          setIsCustomDimension(true);
+                          setSelectedDimensionPreset('');
+                          return;
+                        }
+                        if (value === '__none_dimension') {
+                          setIsCustomDimension(false);
+                          setSelectedDimensionPreset('');
+                          setCustomDimensionWidth('');
+                          setCustomDimensionHeight('');
+                          setFormData({ ...formData, dimensions: '' });
+                          return;
+                        }
+                        setIsCustomDimension(false);
+                        setSelectedDimensionPreset(value);
+                        setCustomDimensionWidth('');
+                        setCustomDimensionHeight('');
+                        setFormData({ ...formData, dimensions: value });
+                      }}
+                    >
+                      <SelectTrigger id="edit-dimensions">
+                        <SelectValue placeholder="Selecteaza dimensiuni..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none_dimension">Nesetat</SelectItem>
+                        {dimensionSelectOptions.map((dimensionName) => (
+                          <SelectItem key={dimensionName} value={dimensionName}>
+                            {dimensionName}
+                          </SelectItem>
+                        ))}
+                        <div className="h-px bg-border my-1" />
+                        <SelectItem value="__custom_dimension">Custom (lungime x latime)</SelectItem>
+                        {isAdmin && (
+                          <SelectItem value="__manage_dimensions">
+                            <div className="flex items-center gap-2">
+                              <Settings2 className="h-3 w-3" />
+                              <span>Gestioneaza dimensiuni</span>
+                            </div>
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {isCustomDimension && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Input
+                          value={customDimensionWidth}
+                          onChange={(e) => setCustomDimensionWidth(e.target.value)}
+                          placeholder="Lungime"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          value={customDimensionHeight}
+                          onChange={(e) => setCustomDimensionHeight(e.target.value)}
+                          placeholder="Latime"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          value={customDimensionUnit}
+                          onChange={(e) => setCustomDimensionUnit(e.target.value)}
+                          placeholder="Unitate (px/mm)"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="edit-date">Data Creării</Label>
-                    <Input
-                      id="edit-date"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        id="edit-date"
+                        type="number"
+                        min={MIN_YEAR}
+                        max={new Date().getFullYear()}
+                        value={creationYear}
+                        onChange={(e) => setCreationYear(e.target.value)}
+                        onBlur={() => setCreationYear(clampYear(creationYear))}
+                        placeholder="An"
+                      />
+                      <Select
+                        value={creationMonth || '__none_month'}
+                        onValueChange={(value) => setCreationMonth(value === '__none_month' ? '' : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Luna (opțional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none_month">Fara luna</SelectItem>
+                          {MONTH_OPTIONS.map((month) => (
+                            <SelectItem key={month.value} value={month.value}>
+                              {month.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Format salvat: {buildDateValue()}</p>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -1251,6 +1836,188 @@ export default function DigitalArt() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isManageSoftwareOpen} onOpenChange={setIsManageSoftwareOpen}>
+            <DialogContent className="max-w-[95vw] w-full sm:max-w-md max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Gestioneaza software</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col gap-4">
+                {softwareOptions.map((option) => {
+                  const isEditing = editingSoftwareId === option.id;
+                  return (
+                    <Card key={option.id} className="p-3 sm:p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {isEditing ? (
+                            <Input
+                              value={editingSoftwareName}
+                              onChange={(e) => setEditingSoftwareName(e.target.value)}
+                              className="text-sm"
+                              autoFocus
+                            />
+                          ) : (
+                            <div className="font-medium text-sm sm:text-base truncate">{option.name}</div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {isEditing ? (
+                            <>
+                              <Button size="sm" onClick={handleUpdateSoftwareOption} className="h-8 px-3 text-xs">
+                                <Check className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingSoftwareId(null);
+                                  setEditingSoftwareName('');
+                                }}
+                                className="h-8 px-3 text-xs"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingSoftwareId(option.id);
+                                  setEditingSoftwareName(option.name);
+                                }}
+                                className="h-8 px-3 text-xs"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteSoftwareOption(option.id)}
+                                className="h-8 px-3 text-xs"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+
+                <Card className="p-3 sm:p-4 border-dashed">
+                  <div className="text-sm font-medium mb-3">Software nou</div>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Nume software"
+                      value={newSoftwareName}
+                      onChange={(e) => setNewSoftwareName(e.target.value)}
+                      className="text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreateSoftwareOption();
+                      }}
+                    />
+                    <Button onClick={handleCreateSoftwareOption} className="w-full" disabled={!sanitizeText(newSoftwareName)}>
+                      Adauga software
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isManageDimensionsOpen} onOpenChange={setIsManageDimensionsOpen}>
+            <DialogContent className="max-w-[95vw] w-full sm:max-w-md max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Gestioneaza dimensiuni</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col gap-4">
+                {dimensionOptions.map((option) => {
+                  const isEditing = editingDimensionId === option.id;
+                  return (
+                    <Card key={option.id} className="p-3 sm:p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {isEditing ? (
+                            <Input
+                              value={editingDimensionName}
+                              onChange={(e) => setEditingDimensionName(e.target.value)}
+                              className="text-sm"
+                              autoFocus
+                            />
+                          ) : (
+                            <div className="font-medium text-sm sm:text-base truncate">{option.name}</div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {isEditing ? (
+                            <>
+                              <Button size="sm" onClick={handleUpdateDimensionOption} className="h-8 px-3 text-xs">
+                                <Check className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingDimensionId(null);
+                                  setEditingDimensionName('');
+                                }}
+                                className="h-8 px-3 text-xs"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingDimensionId(option.id);
+                                  setEditingDimensionName(option.name);
+                                }}
+                                className="h-8 px-3 text-xs"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteDimensionOption(option.id)}
+                                className="h-8 px-3 text-xs"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+
+                <Card className="p-3 sm:p-4 border-dashed">
+                  <div className="text-sm font-medium mb-3">Dimensiune noua</div>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Ex: A0 (841 x 1189 mm)"
+                      value={newDimensionName}
+                      onChange={(e) => setNewDimensionName(e.target.value)}
+                      className="text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreateDimensionOption();
+                      }}
+                    />
+                    <Button onClick={handleCreateDimensionOption} className="w-full" disabled={!sanitizeText(newDimensionName)}>
+                      Adauga dimensiune
+                    </Button>
+                  </div>
+                </Card>
               </div>
             </DialogContent>
           </Dialog>

@@ -189,7 +189,7 @@ const Dashboard: React.FC = () => {
                 <h3 className="text-base font-bold gradient-text">{CONTACT_INFO.name}</h3>
               </div>
               <p className="text-xs text-muted-foreground/80">
-                © 2024 {CONTACT_INFO.name}. Toate drepturile rezervate.
+                © 2025 {CONTACT_INFO.name}. Toate drepturile rezervate.
               </p>
             </div>
 

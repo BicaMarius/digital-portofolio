@@ -83,7 +83,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] sm:w-[90vw] sm:max-w-4xl max-h-[90vh]">
+      <DialogContent className="w-[96vw] sm:w-[90vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editează album</DialogTitle>
         </DialogHeader>
@@ -100,7 +100,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               <TabsTrigger value="content">Conținut</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="cover" className="space-y-3 min-h-[400px]">
+            <TabsContent value="cover" className="space-y-3 min-h-0">
               <div className="flex flex-wrap items-center gap-3 justify-between">
                 <input
                   id="cover-file"
@@ -253,7 +253,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
                   </div>
 
                   {/* SM+: portrait like album card (11/15 ratio ≈ 220x300). Made wider for a better editing surface */}
-                  <div className="hidden sm:block w-full max-w-[420px]">
+                  <div className="hidden sm:block w-full max-w-[360px]">
                     <AspectRatio ratio={11/15}>
                       <div
                         className="relative w-full h-full rounded border border-border overflow-hidden select-none"
@@ -312,7 +312,7 @@ export const AlbumCoverDialog: React.FC<AlbumCoverDialogProps> = ({
               {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
             </TabsContent>
 
-            <TabsContent value="content" className="min-h-[400px]">
+            <TabsContent value="content" className="min-h-0">
               <div className="max-h-[50vh] md:max-h-[55vh] overflow-auto space-y-2 pr-1">
                 {album.artworks.map((art) => (
                   <Card key={art.id}>
