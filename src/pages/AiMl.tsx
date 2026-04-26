@@ -1,1033 +1,2019 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { PageLayout } from '@/components/PageLayout';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bot, Plus, Search, Filter, Brain, Code, BarChart3, Zap, MoreVertical, ChevronLeft, ChevronRight, Trash2, Trash, RotateCcw } from 'lucide-react';
-import { useAdmin } from '@/contexts/AdminContext';
-import { usePortfolioStats } from '@/hooks/usePortfolioStats';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useToast } from '@/hooks/use-toast';
-import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, useSoftDeleteProject, useRestoreProject, usePermanentDeleteProject } from '@/hooks/useProjects';
-import type { Project } from '@shared/schema';
+import React, { useState, useEffect, useCallback } from "react";
+import { PageLayout } from "@/components/PageLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import {
+  Search,
+  Filter,
+  EyeOff,
+  ExternalLink,
+  Edit,
+  Trash2,
+  Trash,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Plus,
+  Monitor,
+  Grid3x3,
+  List,
+  Target,
+  Layers,
+  Zap,
+  CheckCircle2,
+  ImagePlus,
+  BarChart3,
+  Check,
+  Settings2,
+  Lock,
+  Unlock,
+  ChevronDown,
+  BrainCircuit,
+  Database,
+  Network,
+  Cpu,
+  Github,
+  Activity,
+  Terminal,
+} from "lucide-react";
+import { useAdmin } from "@/contexts/AdminContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import {
+  getGalleryItemsByCategory,
+  createGalleryItem,
+  updateGalleryItem,
+  deleteGalleryItem,
+  softDeleteGalleryItem,
+  restoreGalleryItem,
+  getTrashedGalleryItemsByCategory,
+} from "@/lib/api";
+import type { GalleryItem } from "@shared/schema";
 
-function getTypeIcon(type: string) {
-  switch (type) {
-    case 'ml-model': return <Brain className="h-4 w-4" />;
-    case 'ai-application': return <Bot className="h-4 w-4" />;
-    case 'data-analysis': return <BarChart3 className="h-4 w-4" />;
-    case 'automation': return <Zap className="h-4 w-4" />;
-    default: return <Code className="h-4 w-4" />;
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type AiMlProject = GalleryItem;
+
+interface AIMLMeta {
+  brief: string;
+  problem: string;
+  dataset: string;
+  architecture: string;
+  metrics: string;
+  repoUrl: string;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const INITIAL_STACK = [
+  "Python",
+  "PyTorch",
+  "TensorFlow",
+  "Scikit-learn",
+  "Pandas",
+  "HuggingFace",
+  "FastAPI",
+  "Streamlit",
+  "CUDA",
+  "OpenCV",
+];
+
+const AI_TYPES: Record<
+  string,
+  { label: string; color: string; bg: string; icon: React.ReactNode }
+> = {
+  nlp: {
+    label: "NLP & LLMs",
+    color: "text-blue-400",
+    bg: "bg-blue-400/15 border-blue-400/30",
+    icon: <Terminal className="w-3.5 h-3.5" />,
+  },
+  cv: {
+    label: "Computer Vision",
+    color: "text-emerald-400",
+    bg: "bg-emerald-400/15 border-emerald-400/30",
+    icon: <EyeOff className="w-3.5 h-3.5" />,
+  },
+  predictive: {
+    label: "Predictive Modeling",
+    color: "text-amber-400",
+    bg: "bg-amber-400/15 border-amber-400/30",
+    icon: <Activity className="w-3.5 h-3.5" />,
+  },
+  "gen-ai": {
+    label: "Generative AI",
+    color: "text-purple-400",
+    bg: "bg-purple-400/15 border-purple-400/30",
+    icon: <BrainCircuit className="w-3.5 h-3.5" />,
+  },
+  "data-science": {
+    label: "Data Science / EDA",
+    color: "text-cyan-400",
+    bg: "bg-cyan-400/15 border-cyan-400/30",
+    icon: <Database className="w-3.5 h-3.5" />,
+  },
+};
+
+const STATUSES: Record<string, { label: string; color: string }> = {
+  experiment: {
+    label: "Experiment / Notebook",
+    color: "text-slate-400 bg-slate-400/10 border-slate-400/20",
+  },
+  model: {
+    label: "Model Antrenat",
+    color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+  },
+  deployed: {
+    label: "Produs Lansat (API)",
+    color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  },
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function parseMeta(desc: string | null | undefined): AIMLMeta {
+  const empty: AIMLMeta = {
+    brief: "",
+    problem: "",
+    dataset: "",
+    architecture: "",
+    metrics: "",
+    repoUrl: "",
+  };
+  if (!desc) return empty;
+  try {
+    const p = JSON.parse(desc);
+    if (typeof p === "object" && p !== null) return { ...empty, ...p };
+  } catch {
+    /* legacy */
   }
+  return { ...empty, brief: desc };
 }
 
-function getTypeLabel(type: string) {
-  switch (type) {
-    case 'ml-model': return 'ML Model';
-    case 'ai-application': return 'AI App';
-    case 'data-analysis': return 'Data Analysis';
-    case 'automation': return 'Automation';
-    default: return type;
+function encodeMeta(m: AIMLMeta): string {
+  return JSON.stringify(m);
+}
+
+function getImages(project: AiMlProject): string[] {
+  if (project.date?.includes("|"))
+    return project.date.split("|").filter(Boolean);
+  return [project.image].filter(Boolean);
+}
+
+// ─── Sub-component: Project Card ─────────────────────────────────────────────
+
+interface ProjectCardProps {
+  project: AiMlProject;
+  index: number;
+  isAdmin: boolean;
+  viewMode: "grid" | "list";
+  onClick: () => void;
+  onEdit: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
+}
+
+const ProjectCard: React.FC<ProjectCardProps> = ({
+  project,
+  index,
+  isAdmin,
+  viewMode,
+  onClick,
+  onEdit,
+  onDelete,
+}) => {
+  const meta = parseMeta(project.description);
+  const typeInfo = AI_TYPES[project.subcategory || "nlp"] || AI_TYPES["nlp"];
+  const statusInfo =
+    STATUSES[(project as any).medium || "experiment"] || STATUSES.experiment;
+  const stack: string[] = (project as any).materials || [];
+  const images = getImages(project);
+  const isDeployed = (project as any).medium === "deployed";
+
+  if (viewMode === "list") {
+    return (
+      <div
+        className="group flex gap-4 p-4 rounded-xl border border-border/50 hover:border-blue-500/40 bg-card/50 hover:bg-card/80 transition-all duration-300 cursor-pointer animate-scale-in"
+        style={{ animationDelay: `${index * 40}ms` }}
+        onClick={onClick}
+      >
+        <div className="relative w-32 sm:w-48 flex-shrink-0 aspect-[4/3] rounded-lg overflow-hidden bg-muted border border-border/50">
+          <img
+            src={project.image}
+            alt={project.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+          {images.length > 1 && (
+            <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+              +{images.length - 1}
+            </div>
+          )}
+          {project.isPrivate && (
+            <div className="absolute top-1.5 left-1.5 bg-black/70 p-1 rounded">
+              <EyeOff className="w-3 h-3 text-white" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+          <div className="space-y-1.5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span
+                  className={`text-[11px] font-semibold uppercase tracking-widest flex items-center gap-1.5 ${typeInfo.color}`}
+                >
+                  {typeInfo.icon} {typeInfo.label}
+                </span>
+                <h3 className="font-semibold text-base leading-tight mt-1 line-clamp-1">
+                  {project.title}
+                </h3>
+              </div>
+              {isAdmin && (
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 hover:bg-blue-500/10 hover:text-blue-400"
+                    onClick={onEdit}
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 hover:bg-red-500/10 hover:text-red-400"
+                    onClick={onDelete}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm line-clamp-2">
+              {meta.brief || meta.problem || "Fără descriere"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap pt-2 mt-auto">
+            <Badge
+              variant="outline"
+              className={`text-[10px] h-5 ${statusInfo.color}`}
+            >
+              {statusInfo.label}
+            </Badge>
+            {(project as any).dimensions && (
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Database className="w-3 h-3" /> {(project as any).dimensions}
+              </span>
+            )}
+            {stack.slice(0, 3).map((t) => (
+              <span
+                key={t}
+                className="text-[10px] text-muted-foreground border border-border/40 px-1.5 py-0.5 rounded"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
+
+  return (
+    <div
+      className="group relative rounded-xl overflow-hidden border border-border/40 hover:border-blue-500/50 bg-card/60 hover:bg-card/90 transition-all duration-300 cursor-pointer animate-scale-in hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 flex flex-col h-full"
+      style={{ animationDelay: `${index * 60}ms` }}
+      onClick={onClick}
+    >
+      <div
+        className={`absolute top-0 left-0 right-0 h-[3px] z-10 ${typeInfo.bg.replace("bg-", "bg-").replace("/15", "/80").split(" ")[0]}`}
+      />
+
+      <div className="relative aspect-[16/10] overflow-hidden bg-muted border-b border-border/20">
+        <img
+          src={project.image}
+          alt={project.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        <div className="absolute top-3 left-3 flex gap-2">
+          {images.length > 1 && (
+            <div className="bg-black/70 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md font-mono flex items-center gap-1 border border-white/10">
+              <ImagePlus className="h-3 w-3" /> {images.length}
+            </div>
+          )}
+          {project.isPrivate && (
+            <div className="bg-black/70 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
+              <EyeOff className="w-3 h-3 text-white" />
+            </div>
+          )}
+        </div>
+
+        <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <div className="flex gap-2">
+            {(project as any).location && (
+              <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-none gap-1">
+                <ExternalLink className="w-3 h-3" /> Demo
+              </Badge>
+            )}
+            {meta.repoUrl && (
+              <Badge className="bg-slate-700 hover:bg-slate-600 text-white border-none gap-1">
+                <Github className="w-3 h-3" /> Repo
+              </Badge>
+            )}
+          </div>
+          {isAdmin && (
+            <div className="flex gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-black/60 hover:bg-blue-500/80 text-white rounded-md backdrop-blur-sm"
+                onClick={onEdit}
+              >
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-black/60 hover:bg-red-500/80 text-white rounded-md backdrop-blur-sm"
+                onClick={onDelete}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">
+        <div>
+          <span
+            className={`text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5 ${typeInfo.color}`}
+          >
+            {typeInfo.icon} {typeInfo.label}
+          </span>
+          <h3 className="font-bold text-base mt-1.5 leading-snug line-clamp-1">
+            {project.title}
+          </h3>
+          <p className="text-muted-foreground text-xs mt-2 line-clamp-2 leading-relaxed">
+            {meta.brief || meta.problem || "Nicio descriere adăugată."}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
+            <Badge
+              variant="outline"
+              className={`text-[10px] h-5 px-2 ${statusInfo.color}`}
+            >
+              {statusInfo.label}
+            </Badge>
+            <div className="flex items-center gap-1.5">
+              {stack.slice(0, 2).map((t) => (
+                <span
+                  key={t}
+                  className="text-[10px] font-medium text-muted-foreground border border-border/60 px-1.5 py-0.5 rounded bg-muted/20"
+                >
+                  {t}
+                </span>
+              ))}
+              {stack.length > 2 && (
+                <span className="text-[10px] text-muted-foreground">
+                  +{stack.length - 2}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Sub-component: Project Modal (Tabbed, Artistic, Clean) ──────────────────
+
+interface ProjectModalProps {
+  project: AiMlProject;
+  projects: AiMlProject[];
+  onClose: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isAdmin: boolean;
 }
 
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'completed': return 'bg-green-500/20 text-green-400';
-    case 'in-progress': return 'bg-yellow-500/20 text-yellow-400';
-    case 'experimental': return 'bg-purple-500/20 text-purple-400';
-    default: return 'bg-muted text-muted-foreground';
-  }
-}
+const ProjectModal: React.FC<ProjectModalProps> = ({
+  project,
+  projects,
+  onClose,
+  onEdit,
+  onDelete,
+  isAdmin,
+}) => {
+  const [imgIdx, setImgIdx] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const meta = parseMeta(project.description);
+  const images = getImages(project);
+  const typeInfo = AI_TYPES[project.subcategory || "nlp"] || AI_TYPES["nlp"];
+  const statusInfo =
+    STATUSES[(project as any).medium || "experiment"] || STATUSES.experiment;
+  const stack: string[] = (project as any).materials || [];
 
-function parseTagValue(tags: string[] | undefined, key: string, fallback: string = ''): string {
-  const entry = (tags || []).find(t => t.toLowerCase().startsWith(`${key}:`));
-  if (!entry) return fallback;
-  const parts = entry.split(':');
-  return parts.slice(1).join(':').trim();
-}
+  useEffect(() => {
+    if (!autoPlay || images.length <= 1) return;
+    const t = setInterval(
+      () => setImgIdx((i) => (i + 1) % images.length),
+      4000,
+    );
+    return () => clearInterval(t);
+  }, [autoPlay, images.length]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && images.length > 1) {
+        setAutoPlay(false);
+        setImgIdx((i) => (i - 1 + images.length) % images.length);
+      }
+      if (e.key === "ArrowRight" && images.length > 1) {
+        setAutoPlay(false);
+        setImgIdx((i) => (i + 1) % images.length);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [images.length, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col lg:flex-row rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-card border border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* LEFT: Image Gallery */}
+        <div className="relative h-[40vh] lg:h-full lg:w-[50%] xl:w-[55%] flex flex-col bg-[#0a0a0a] border-b lg:border-b-0 lg:border-r border-border">
+          <div className="relative flex-1 flex items-center justify-center p-2 sm:p-8 overflow-hidden">
+            <img
+              src={images[imgIdx] || project.image}
+              alt={`${project.title} — slide ${imgIdx + 1}`}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            {images.length > 1 && (
+              <>
+                <button
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/60 hover:bg-black border border-white/10 flex items-center justify-center text-white transition-all shadow-md"
+                  onClick={() => {
+                    setAutoPlay(false);
+                    setImgIdx((i) => (i - 1 + images.length) % images.length);
+                  }}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/60 hover:bg-black border border-white/10 flex items-center justify-center text-white transition-all shadow-md"
+                  onClick={() => {
+                    setAutoPlay(false);
+                    setImgIdx((i) => (i + 1) % images.length);
+                  }}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            )}
+          </div>
+          {images.length > 1 && (
+            <div className="flex gap-2 px-4 pb-4 overflow-x-auto custom-scrollbar flex-shrink-0 bg-[#0a0a0a]">
+              {images.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setAutoPlay(false);
+                    setImgIdx(i);
+                  }}
+                  className={`h-14 w-20 flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${i === imgIdx ? "border-blue-500 opacity-100" : "border-transparent opacity-50 hover:opacity-100"}`}
+                >
+                  <img
+                    src={img}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Tabbed Details Panel */}
+        <div className="flex-1 flex flex-col min-h-0 bg-card/80 backdrop-blur-sm relative">
+          {/* Header Sticky */}
+          <div className="z-20 bg-card/50 px-6 py-5 flex items-start justify-between gap-4 border-b border-border/50">
+            <div>
+              <span
+                className={`text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5 ${typeInfo.color}`}
+              >
+                {typeInfo.icon} {typeInfo.label}
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold leading-tight mt-1">
+                {project.title}
+              </h2>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {isAdmin && onEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-blue-500/10 hover:text-blue-400"
+                  onClick={onEdit}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              )}
+              {isAdmin && onDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-red-500/10 hover:text-red-400"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-muted hover:bg-muted/80 rounded-full ml-1"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <Tabs
+            defaultValue="overview"
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <TabsList className="mx-6 justify-start border-b border-border/50 rounded-none bg-transparent p-0 h-auto gap-6 mt-2">
+              <TabsTrigger
+                value="overview"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent px-1 py-3 text-sm"
+              >
+                Prezentare
+              </TabsTrigger>
+              <TabsTrigger
+                value="arch"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent px-1 py-3 text-sm"
+              >
+                Model & Date
+              </TabsTrigger>
+              <TabsTrigger
+                value="stack"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent px-1 py-3 text-sm"
+              >
+                Stack Tehnic
+              </TabsTrigger>
+            </TabsList>
+
+            {/* TAB: Overview */}
+            <TabsContent
+              value="overview"
+              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-6"
+            >
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "px-3 py-1 bg-background shadow-sm",
+                    statusInfo.color,
+                  )}
+                >
+                  {statusInfo.label}
+                </Badge>
+                {(project as any).dimensions && (
+                  <Badge
+                    variant="outline"
+                    className="px-3 py-1 border-border text-muted-foreground gap-1.5 shadow-sm bg-background"
+                  >
+                    <Database className="w-3.5 h-3.5 text-blue-400" /> Size:{" "}
+                    {(project as any).dimensions}
+                  </Badge>
+                )}
+                {(project as any).device && (
+                  <Badge
+                    variant="outline"
+                    className="px-3 py-1 border-border text-muted-foreground gap-1.5 shadow-sm bg-background"
+                  >
+                    <Cpu className="w-3.5 h-3.5 text-purple-400" /> Compute:{" "}
+                    {(project as any).device}
+                  </Badge>
+                )}
+              </div>
+
+              {meta.brief && (
+                <p className="text-lg text-foreground/90 leading-relaxed font-medium">
+                  {meta.brief}
+                </p>
+              )}
+
+              {meta.problem && (
+                <div className="p-5 rounded-xl bg-blue-500/5 border border-blue-500/20 mt-4 relative overflow-hidden">
+                  <BrainCircuit className="absolute -right-4 -bottom-4 w-32 h-32 text-blue-500/5 pointer-events-none" />
+                  <h4 className="text-[11px] font-bold uppercase tracking-widest text-blue-400 mb-2 flex items-center gap-1.5">
+                    <Target className="h-3.5 w-3.5" /> Problema / Obiectivul
+                  </h4>
+                  <p className="text-sm font-medium text-foreground/90 whitespace-pre-wrap relative z-10">
+                    {meta.problem}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                {(project as any).location && (
+                  <Button
+                    className="flex-1 gap-2 bg-blue-500 hover:bg-blue-600 text-white font-bold h-12 rounded-xl transition-transform hover:-translate-y-0.5 shadow-lg shadow-blue-500/20"
+                    onClick={() =>
+                      window.open((project as any).location, "_blank")
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" /> Live Demo
+                  </Button>
+                )}
+                {meta.repoUrl && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2 h-12 rounded-xl border-border bg-background hover:bg-muted transition-transform hover:-translate-y-0.5"
+                    onClick={() => window.open(meta.repoUrl, "_blank")}
+                  >
+                    <Github className="h-4 w-4" /> Cod Sursă (Repo)
+                  </Button>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* TAB: Arch & Data */}
+            <TabsContent
+              value="arch"
+              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-6"
+            >
+              {meta.dataset && (
+                <div className="relative pl-4 border-l-2 border-emerald-500/50 py-1">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2 flex items-center gap-1.5">
+                    <Database className="h-4 w-4" /> Setul de Date (Dataset)
+                  </h4>
+                  <p className="text-[14px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                    {meta.dataset}
+                  </p>
+                </div>
+              )}
+
+              {meta.architecture && (
+                <div className="relative pl-4 border-l-2 border-purple-500/50 py-1">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2 flex items-center gap-1.5">
+                    <Network className="h-4 w-4" /> Arhitectură & Model
+                  </h4>
+                  <p className="text-[14px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                    {meta.architecture}
+                  </p>
+                </div>
+              )}
+
+              {meta.metrics && (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-5 mt-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3 flex items-center gap-1.5">
+                    <BarChart3 className="h-4 w-4" /> Performanță / Metrici
+                  </h4>
+                  <p className="text-sm leading-relaxed text-foreground font-medium whitespace-pre-wrap">
+                    {meta.metrics}
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* TAB: Stack */}
+            <TabsContent
+              value="stack"
+              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0"
+            >
+              {stack.length > 0 ? (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-blue-400" /> Tehnologii
+                    Utilizate
+                  </h4>
+                  <div className="flex flex-wrap gap-2.5">
+                    {stack.map((t) => (
+                      <div
+                        key={t}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-border shadow-sm"
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="font-semibold text-sm">{t}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground italic text-sm">
+                  Niciun tool specificat.
+                </p>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Form state type ──────────────────────────────────────────────────────────
+
+const EMPTY_FORM = {
+  title: "",
+  brief: "",
+  problem: "",
+  dataset: "",
+  architecture: "",
+  metrics: "",
+  type: "nlp",
+  modelSize: "",
+  compute: "",
+  status: "experiment",
+  tools: [] as string[],
+  demoUrl: "",
+  repoUrl: "",
+  isPrivate: false,
+};
+
+type FormState = typeof EMPTY_FORM;
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AiMl() {
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
-  const toast = useToast();
-  const { getCount, isLoading } = usePortfolioStats();
-  const { data: allProjects = [], isLoading: loadingProjects } = useProjects();
-  const createProject = useCreateProject();
-  const updateProject = useUpdateProject();
-  const deleteProject = useDeleteProject();
-  const softDeleteProject = useSoftDeleteProject();
-  const restoreProject = useRestoreProject();
-  const permanentDeleteProject = usePermanentDeleteProject();
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [projects, setProjects] = useState<AiMlProject[]>([]);
+  const [trashed, setTrashed] = useState<AiMlProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState<Project | null>(null);
-  const [showTrashDialog, setShowTrashDialog] = useState(false);
-  const [trashedProjects, setTrashedProjects] = useState<Project[]>([]);
+  // Dialog state
+  const [selected, setSelected] = useState<AiMlProject | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [toDelete, setToDelete] = useState<AiMlProject | null>(null);
 
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isAutoRotating, setIsAutoRotating] = useState(true);
+  // Tools Manager State
+  const [availableTools, setAvailableTools] = useState<string[]>(INITIAL_STACK);
+  const [showToolManager, setShowToolManager] = useState(false);
+  const [newToolInput, setNewToolInput] = useState("");
+  const [toolSearch, setToolSearch] = useState("");
+  const [showToolDropdown, setShowToolDropdown] = useState(false);
 
-  const [isUploading, setIsUploading] = useState(false);
+  // Form
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [iconFile, setIconFile] = useState<File | null>(null);
-  const [iconPreview, setIconPreview] = useState<string>('');
+  const [singleFile, setSingleFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    type: 'ml-model',
-    status: 'completed',
-    technologies: '',
-    framework: '',
-    accuracy: '',
-    dataset: '',
-    isPrivate: false,
+  // ── Init Tools ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const savedTools = localStorage.getItem("aiml_tools");
+    if (savedTools) {
+      try {
+        setAvailableTools(JSON.parse(savedTools));
+      } catch (e) {}
+    }
+  }, []);
+
+  const saveTools = (newTools: string[]) => {
+    setAvailableTools(newTools);
+    localStorage.setItem("aiml_tools", JSON.stringify(newTools));
+  };
+
+  const handleAddGlobalTool = () => {
+    const t = newToolInput.trim();
+    if (t && !availableTools.includes(t)) {
+      saveTools([...availableTools, t]);
+      setNewToolInput("");
+    }
+  };
+
+  const handleRemoveGlobalTool = (tool: string) => {
+    saveTools(availableTools.filter((x) => x !== tool));
+  };
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+
+  const reload = useCallback(async () => {
+    try {
+      setLoading(true);
+      const items = await getGalleryItemsByCategory("ai-ml");
+      setProjects(isAdmin ? items : items.filter((p) => !p.isPrivate));
+    } catch {
+      toast({
+        title: "Eroare",
+        description: "Nu s-au putut încărca proiectele.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin]);
+
+  const reloadTrash = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const items = await getTrashedGalleryItemsByCategory("ai-ml");
+      setTrashed(items as AiMlProject[]);
+    } catch {
+      /* silent */
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    reload();
+    reloadTrash();
+  }, [reload, reloadTrash]);
+
+  // ── Filtered list ─────────────────────────────────────────────────────────
+
+  const visible = projects.filter((p) => {
+    const mSearch =
+      p.title.toLowerCase().includes(search.toLowerCase()) ||
+      (p.description || "").toLowerCase().includes(search.toLowerCase());
+    const mType = filterType === "all" || p.subcategory === filterType;
+    const mStatus =
+      filterStatus === "all" || (p as any).medium === filterStatus;
+    return mSearch && mType && mStatus;
   });
 
-  // Visible projects filtered by subcategory and admin visibility
-  const projects = useMemo(() => {
-    const base = allProjects.filter(p => p.subcategory === 'ai-ml' && !p.deletedAt);
-    return isAdmin ? base : base.filter(p => !p.isPrivate);
-  }, [allProjects, isAdmin]);
-
-  const projectCount = getCount('ai-ml-projects');
-
-  // Load trashed projects
-  useEffect(() => {
-    const loadTrashed = async () => {
-      if (!isAdmin) return;
-      try {
-        const trashed = allProjects.filter(p => p.subcategory === 'ai-ml' && p.deletedAt);
-        setTrashedProjects(trashed);
-      } catch (error) {
-        console.error('Error loading trashed projects:', error);
-      }
-    };
-    loadTrashed();
-  }, [allProjects, isAdmin]);
-
-  const visibleProjects = useMemo(() => {
-    return projects.filter(project => {
-      const status = parseTagValue(project.tags, 'status', '');
-      const type = project.projectType || '';
-      const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (project.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesType = filterType === 'all' || type === filterType;
-      const matchesStatus = filterStatus === 'all' || status === filterStatus;
-      return matchesSearch && matchesType && matchesStatus;
-    });
-  }, [projects, searchTerm, filterType, filterStatus]);
-
-  // Keyboard navigation in fullscreen
-  useEffect(() => {
-    if (!selectedProject) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedProject(null);
-        setCurrentImageIndex(0);
-      } else if (e.key === 'ArrowLeft') {
-        const idx = visibleProjects.findIndex(p => p.id === selectedProject.id);
-        if (idx > 0) {
-          setSelectedProject(visibleProjects[idx - 1]);
-          setCurrentImageIndex(0);
-          setIsAutoRotating(true);
-        }
-      } else if (e.key === 'ArrowRight') {
-        const idx = visibleProjects.findIndex(p => p.id === selectedProject.id);
-        if (idx < visibleProjects.length - 1) {
-          setSelectedProject(visibleProjects[idx + 1]);
-          setCurrentImageIndex(0);
-          setIsAutoRotating(true);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [selectedProject, visibleProjects]);
-
-  // Auto-rotate images in fullscreen
-  useEffect(() => {
-    if (!selectedProject || !isAutoRotating) return;
-    const imgs = selectedProject.images && selectedProject.images.length > 0 ? selectedProject.images : [selectedProject.image];
-    if (imgs.length <= 1) return;
-    const t = setInterval(() => {
-      setCurrentImageIndex(prev => (prev + 1) % imgs.length);
-    }, 4000);
-    return () => clearInterval(t);
-  }, [selectedProject, isAutoRotating]);
-
-  const getProjectFramework = (p: Project) => parseTagValue(p.tags, 'framework', '');
-  const getProjectAccuracy = (p: Project) => parseTagValue(p.tags, 'accuracy', '');
-  const getProjectDataset = (p: Project) => parseTagValue(p.tags, 'dataset', '');
-  const getProjectStatus = (p: Project) => parseTagValue(p.tags, 'status', '');
-
-  const handleMultipleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const arr = Array.from(files);
-    setImageFiles(arr);
-    const previews: string[] = [];
-    let done = 0;
-    arr.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        previews.push(reader.result as string);
-        done++;
-        if (done === arr.length) setImagePreviews(previews);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIconFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setIconPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  async function uploadFile(file: File, folder: string): Promise<string> {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('folder', folder);
-    const res = await fetch('/api/upload/image', { method: 'POST', body: fd });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Upload failed');
-    }
-    const { url } = await res.json();
-    return url as string;
-  }
+  // ── Form helpers ──────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      type: 'ml-model',
-      status: 'completed',
-      technologies: '',
-      framework: '',
-      accuracy: '',
-      dataset: '',
-      isPrivate: false,
-    });
+    setForm({ ...EMPTY_FORM });
     setImageFiles([]);
     setImagePreviews([]);
-    setIconFile(null);
-    setIconPreview('');
+    setSingleFile(null);
+    setToolSearch("");
   };
 
-  const openEdit = (p: Project) => {
-    setSelectedProject(p);
-    setFormData({
+  const populateForm = (p: AiMlProject) => {
+    const meta = parseMeta(p.description);
+    const tools: string[] = (p as any).materials || [];
+    setForm({
       title: p.title,
-      description: p.description || '',
-      type: p.projectType || 'ml-model',
-      status: getProjectStatus(p) || 'completed',
-      technologies: (p.frontendTech || []).join(', '),
-      framework: getProjectFramework(p) || '',
-      accuracy: getProjectAccuracy(p) || '',
-      dataset: getProjectDataset(p) || '',
-      isPrivate: !!p.isPrivate,
+      brief: meta.brief,
+      problem: meta.problem,
+      dataset: meta.dataset,
+      architecture: meta.architecture,
+      metrics: meta.metrics,
+      type: p.subcategory || "nlp",
+      status: (p as any).medium || "experiment",
+      modelSize: (p as any).dimensions || "",
+      compute: (p as any).device || "",
+      tools,
+      demoUrl: (p as any).location || "",
+      repoUrl: meta.repoUrl || "",
+      isPrivate: p.isPrivate || false,
     });
+    setImagePreviews(getImages(p));
+    setSingleFile(null);
     setImageFiles([]);
-    setImagePreviews([]);
-    setIconFile(null);
-    setIconPreview(p.icon || '');
-    setShowEditDialog(true);
   };
 
-  const handleAddProject = async () => {
-    if (!formData.title) {
-      toast.toast({ title: 'Eroare', description: 'Titlul este obligatoriu.', variant: 'destructive' });
+  const handleMultipleImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setImageFiles((prev) => [...prev, ...files]);
+
+    files.forEach((f) => {
+      const r = new FileReader();
+      r.onloadend = () =>
+        setImagePreviews((prev) => [...prev, r.result as string]);
+      r.readAsDataURL(f);
+    });
+  };
+
+  const handleRemovePreviewImage = (index: number) => {
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => {
+      if (prev.length > index) return prev.filter((_, i) => i !== index);
+      return prev;
+    });
+  };
+
+  const handleSingleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setSingleFile(f);
+    const r = new FileReader();
+    r.onloadend = () => setImagePreviews([r.result as string]);
+    r.readAsDataURL(f);
+  };
+
+  const toggleToolForm = (tool: string) => {
+    setForm((f) => ({
+      ...f,
+      tools: f.tools.includes(tool)
+        ? f.tools.filter((t) => t !== tool)
+        : [...f.tools, tool],
+    }));
+  };
+
+  // ── CRUD operations ───────────────────────────────────────────────────────
+
+  const buildPayload = (imageUrl: string, allImages: string) => ({
+    category: "ai-ml" as const,
+    subcategory: form.type,
+    title: form.title,
+    image: imageUrl,
+    description: encodeMeta({
+      brief: form.brief,
+      problem: form.problem,
+      dataset: form.dataset,
+      architecture: form.architecture,
+      metrics: form.metrics,
+      repoUrl: form.repoUrl,
+      role: "",
+      process: [],
+      solution: "",
+      users: "",
+      outcomes: "", // filler for old schema
+    }),
+    device: form.compute,
+    dimensions: form.modelSize,
+    materials: form.tools,
+    location: form.demoUrl,
+    medium: form.status,
+    isPrivate: form.isPrivate,
+    date: allImages,
+  });
+
+  const handleAdd = async () => {
+    if (!form.title || imageFiles.length === 0) {
+      toast({
+        title: "Eroare",
+        description: "Titlul și cel puțin o imagine sunt obligatorii.",
+        variant: "destructive",
+      });
       return;
     }
     try {
-      setIsUploading(true);
-      const uploadedImages: string[] = [];
-      for (const f of imageFiles) {
-        uploadedImages.push(await uploadFile(f, 'ai-ml'));
+      setUploading(true);
+      const urls: string[] = [];
+      for (const file of imageFiles) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("folder", "aiml");
+        const res = await fetch("/api/upload/image", {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        const { url } = await res.json();
+        urls.push(url);
       }
-      const mainImage = uploadedImages.length > 0 ? uploadedImages[0] : '';
-      let iconUrl = '';
-      if (iconFile) iconUrl = await uploadFile(iconFile, 'ai-ml');
-
-      const tags: string[] = [];
-      if (formData.status) tags.push(`status:${formData.status}`);
-      if (formData.framework) tags.push(`framework:${formData.framework}`);
-      if (formData.accuracy) tags.push(`accuracy:${formData.accuracy}`);
-      if (formData.dataset) tags.push(`dataset:${formData.dataset}`);
-
-      await createProject.mutateAsync({
-        title: formData.title,
-        description: formData.description,
-        image: mainImage,
-        category: 'tech',
-        subcategory: 'ai-ml',
-        isPrivate: formData.isPrivate,
-        tags,
-        projectType: formData.type,
-        icon: iconUrl || undefined,
-        images: uploadedImages,
-        frontendTech: formData.technologies.split(',').map(t => t.trim()).filter(Boolean),
-      } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
-
-      toast.toast({ title: 'Succes', description: 'Proiectul AI/ML a fost adăugat.' });
-      setShowAddDialog(false);
+      await createGalleryItem(buildPayload(urls[0], urls.join("|")) as any);
+      toast({ title: "Succes", description: "Proiectul AI a fost publicat." });
+      setShowAdd(false);
       resetForm();
-    } catch (e) {
-      toast.toast({ title: 'Eroare', description: (e as Error).message || 'Nu s-a putut adăuga proiectul.', variant: 'destructive' });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleEditProject = async () => {
-    if (!selectedProject) return;
-    try {
-      setIsUploading(true);
-      let images = selectedProject.images || [];
-      let mainImage = selectedProject.image;
-      if (imageFiles.length > 0) {
-        const uploadedImages: string[] = [];
-        for (const f of imageFiles) uploadedImages.push(await uploadFile(f, 'ai-ml'));
-        images = uploadedImages;
-        mainImage = uploadedImages[0];
-      }
-      let iconUrl = selectedProject.icon || '';
-      if (iconFile) iconUrl = await uploadFile(iconFile, 'ai-ml');
-
-      const tags: string[] = [];
-      if (formData.status) tags.push(`status:${formData.status}`);
-      if (formData.framework) tags.push(`framework:${formData.framework}`);
-      if (formData.accuracy) tags.push(`accuracy:${formData.accuracy}`);
-      if (formData.dataset) tags.push(`dataset:${formData.dataset}`);
-
-      await updateProject.mutateAsync({
-        id: selectedProject.id,
-        updates: {
-          title: formData.title,
-          description: formData.description,
-          image: mainImage,
-          isPrivate: formData.isPrivate,
-          tags,
-          projectType: formData.type,
-          icon: iconUrl || undefined,
-          images,
-          frontendTech: formData.technologies.split(',').map(t => t.trim()).filter(Boolean),
-        },
+      await reload();
+    } catch {
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut salva proiectul.",
+        variant: "destructive",
       });
-
-      toast.toast({ title: 'Succes', description: 'Proiectul a fost actualizat.' });
-      setShowEditDialog(false);
-      setSelectedProject(null);
-      resetForm();
-    } catch (e) {
-      toast.toast({ title: 'Eroare', description: (e as Error).message || 'Nu s-a putut actualiza proiectul.', variant: 'destructive' });
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
   };
 
-  const handleDeleteCurrent = async () => {
-    if (!showDeleteDialog) return;
+  const handleEdit = async () => {
+    if (!selected || !form.title) return;
     try {
-      await softDeleteProject.mutateAsync(showDeleteDialog.id);
-      toast.toast({ title: 'Șters', description: 'Proiectul a fost mutat în coș.' });
-      setShowDeleteDialog(null);
-    } catch (e) {
-      toast.toast({ title: 'Eroare', description: (e as Error).message || 'Nu s-a putut șterge proiectul.', variant: 'destructive' });
+      setUploading(true);
+      let imageUrl = selected.image;
+
+      const existingUrls = imagePreviews.filter((p) => p.startsWith("http"));
+      let allUrls = [...existingUrls];
+
+      if (singleFile) {
+        const fd = new FormData();
+        fd.append("file", singleFile);
+        fd.append("folder", "aiml");
+        const res = await fetch("/api/upload/image", {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        const { url } = await res.json();
+        imageUrl = url;
+        allUrls = [url];
+      } else if (imageFiles.length > 0) {
+        for (const file of imageFiles) {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("folder", "aiml");
+          const res = await fetch("/api/upload/image", {
+            method: "POST",
+            body: fd,
+          });
+          if (!res.ok) throw new Error("Upload failed");
+          const { url } = await res.json();
+          allUrls.push(url);
+        }
+      }
+
+      if (allUrls.length > 0 && !singleFile) imageUrl = allUrls[0];
+
+      await updateGalleryItem(
+        selected.id!,
+        buildPayload(imageUrl, allUrls.join("|")) as any,
+      );
+      toast({
+        title: "Succes",
+        description: "Proiectul AI a fost actualizat.",
+      });
+      setShowEdit(false);
+      setSelected(null);
+      resetForm();
+      await reload();
+    } catch {
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza proiectul.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleRestoreProject = async (project: Project) => {
+  const handleDelete = async () => {
+    if (!toDelete) return;
     try {
-      await restoreProject.mutateAsync(project.id);
-      toast.toast({ title: 'Restaurat', description: 'Proiectul a fost restaurat.' });
-    } catch (e) {
-      toast.toast({ title: 'Eroare', description: (e as Error).message || 'Nu s-a putut restaura proiectul.', variant: 'destructive' });
+      await softDeleteGalleryItem(toDelete.id!);
+      toast({ title: "Succes", description: "Mutat în coș." });
+      setShowDeleteConfirm(false);
+      setToDelete(null);
+      setSelected(null);
+      await reload();
+      await reloadTrash();
+    } catch {
+      toast({
+        title: "Eroare",
+        description: "Ștergere eșuată.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handlePermanentDelete = async (project: Project) => {
+  const handleRestore = async (p: AiMlProject) => {
     try {
-      await permanentDeleteProject.mutateAsync(project.id);
-      toast.toast({ title: 'Șters permanent', description: 'Proiectul a fost șters permanent.' });
-    } catch (e) {
-      toast.toast({ title: 'Eroare', description: (e as Error).message || 'Nu s-a putut șterge permanent proiectul.', variant: 'destructive' });
+      await restoreGalleryItem(p.id!);
+      toast({ title: "Restaurat", description: p.title });
+      await reload();
+      await reloadTrash();
+    } catch {
+      toast({
+        title: "Eroare",
+        description: "Restaurare eșuată.",
+        variant: "destructive",
+      });
     }
   };
 
-  const canNavigatePrev = selectedProject ? visibleProjects.findIndex(p => p.id === selectedProject.id) > 0 : false;
-  const canNavigateNext = selectedProject ? visibleProjects.findIndex(p => p.id === selectedProject.id) < visibleProjects.length - 1 : false;
+  const handlePermDelete = async (p: AiMlProject) => {
+    try {
+      await deleteGalleryItem(p.id!);
+      toast({ title: "Șters definitiv", description: p.title });
+      await reloadTrash();
+    } catch {
+      toast({
+        title: "Eroare",
+        description: "Ștergere permanentă eșuată.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const typeCount = Object.fromEntries(
+    Object.keys(AI_TYPES).map((k) => [
+      k,
+      projects.filter((p) => p.subcategory === k).length,
+    ]),
+  );
 
   return (
     <PageLayout>
+      {/* Hero */}
       <section className="page-hero-section">
         <div className="page-container">
-          <div className="text-center mb-8 animate-fade-in">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Bot className="h-8 w-8 text-tech-accent" />
-              <h1 className="text-2xl font-bold gradient-text">AI & Machine Learning</h1>
+          <div className="text-center mb-6 animate-fade-in">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <BrainCircuit className="h-8 w-8 text-blue-500" />
+              <h1 className="text-2xl sm:text-3xl font-bold gradient-text">
+                AI & Machine Learning
+              </h1>
             </div>
-            <p className="hidden sm:block text-base text-muted-foreground max-w-2xl mx-auto">
-              Modele de inteligență artificială și soluții de machine learning
+            <p className="text-sm text-muted-foreground max-w-xl mx-auto">
+              Modele, experimente data science și aplicații inteligente
+              construite de la zero sau prin fine-tuning.
             </p>
           </div>
+
+          {/* Stats mini-row */}
+          {!loading && projects.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-3 mt-6">
+              {Object.entries(typeCount)
+                .filter(([, c]) => c > 0)
+                .map(([k, c]) => {
+                  const info = AI_TYPES[k];
+                  return (
+                    <div
+                      key={k}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${info.bg} shadow-sm`}
+                    >
+                      <span className={`font-bold ${info.color}`}>{c}</span>
+                      <span className="text-foreground/80">{info.label}</span>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="page-content-section flex-1">
+      <section className="page-content-section flex-1 mt-4">
         <div className="page-container">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Proiecte AI/ML</h2>
-            <span className="text-sm text-muted-foreground">Total: {isLoading ? '…' : projectCount}</span>
-          </div>
+          {/* Toolbar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  type="search"
+                  placeholder="Caută modele, dataset-uri..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-card border-border"
+                />
+              </div>
 
-          {/* Toolbar: compact two rows on mobile */}
-          <div className="space-y-2 md:space-y-0 relative">
-            {/* Trash and Add buttons in corner (admin, desktop) */}
-            {isAdmin && !isMobile && (
-              <div className="absolute top-0 right-0 z-10 flex items-center gap-2">
-                {trashedProjects.length > 0 && (
-                  <Button variant="outline" onClick={() => setShowTrashDialog(true)} className="relative">
-                    <Trash className="w-4 h-4" />
-                    <span className="ml-2 flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-semibold rounded-full">
-                      {trashedProjects.length}
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-full sm:w-[160px] bg-card border-border">
+                  <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Domeniu AI" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toate domeniile</SelectItem>
+                  {Object.entries(AI_TYPES).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-[160px] bg-card border-border">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Orice Status</SelectItem>
+                  {Object.entries(STATUSES).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between md:justify-end gap-3">
+              <div className="flex items-center border border-border bg-card rounded-md p-1 gap-0.5">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                  className="h-7 w-7 p-0 rounded-sm"
+                >
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("list")}
+                  className="h-7 w-7 p-0 rounded-sm"
+                >
+                  <List className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isAdmin && !isMobile && trashed.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTrash(true)}
+                    className="relative gap-2 bg-card"
+                  >
+                    <Trash className="h-4 w-4" />
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center font-bold">
+                      {trashed.length}
                     </span>
                   </Button>
                 )}
-                <Button onClick={() => { resetForm(); setShowAddDialog(true); }} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white">
-                  <Brain className="h-4 w-4 mr-2" />
-                  Adaugă Proiect AI/ML
-                </Button>
-              </div>
-            )}
-
-            {/* Row 1: Search bar */}
-            <div className="relative md:hidden">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Caută proiecte AI/ML..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 w-full" />
-            </div>
-
-            {/* Row 2: Filters + View toggle */}
-            <div className="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-center gap-2 md:gap-3">
-              <div className="relative hidden md:block flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Caută proiecte AI/ML..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 h-9 w-full" />
-              </div>
-
-              <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="h-9 w-[150px] sm:w-[180px]">
-                    <Filter className="h-4 w-4 mr-2 hidden sm:inline" />
-                    <SelectValue placeholder="Tip proiect" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Toate tipurile</SelectItem>
-                    <SelectItem value="ml-model">ML Model</SelectItem>
-                    <SelectItem value="ai-application">AI Application</SelectItem>
-                    <SelectItem value="data-analysis">Data Analysis</SelectItem>
-                    <SelectItem value="automation">Automation</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="h-9 w-[130px] sm:w-[160px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Toate</SelectItem>
-                    <SelectItem value="completed">Finalizat</SelectItem>
-                    <SelectItem value="in-progress">În progres</SelectItem>
-                    <SelectItem value="experimental">Experimental</SelectItem>
-                  </SelectContent>
-                </Select>
+                {isAdmin && !isMobile && (
+                  <Button
+                    onClick={() => {
+                      resetForm();
+                      setShowAdd(true);
+                    }}
+                    className="gap-2"
+                    size="sm"
+                  >
+                    <Plus className="h-4 w-4" /> Adaugă Model AI
+                  </Button>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="h-6 md:h-8" />
-
-          {/* Content */}
-          {loadingProjects ? (
-            <div className="text-center py-12 text-muted-foreground">Se încarcă...</div>
-          ) : visibleProjects.length === 0 ? (
-            <div className="text-center py-12">
-              <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nu au fost găsite proiecte AI/ML</p>
+          {/* Content Grid */}
+          {loading ? (
+            <div className="text-center py-20 text-muted-foreground animate-pulse">
+              Se încarcă modelele...
+            </div>
+          ) : visible.length === 0 ? (
+            <div className="text-center py-24 bg-card/50 rounded-2xl border border-border/50">
+              <BrainCircuit className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                {search || filterType !== "all" || filterStatus !== "all"
+                  ? "Niciun proiect AI nu corespunde filtrelor tale."
+                  : "Nu ai încărcat niciun proiect AI/ML."}
+              </p>
+              {isAdmin && !search && filterType === "all" && (
+                <Button
+                  className="mt-6 gap-2"
+                  onClick={() => {
+                    resetForm();
+                    setShowAdd(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" /> Adaugă primul model
+                </Button>
+              )}
+            </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {visible.map((p, i) => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  index={i}
+                  isAdmin={isAdmin}
+                  viewMode="grid"
+                  onClick={() => setSelected(p)}
+                  onEdit={(e) => {
+                    e.stopPropagation();
+                    populateForm(p);
+                    setSelected(p);
+                    setShowEdit(true);
+                  }}
+                  onDelete={(e) => {
+                    e.stopPropagation();
+                    setToDelete(p);
+                    setShowDeleteConfirm(true);
+                  }}
+                />
+              ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              {visibleProjects.map((project, index) => (
-                <Card key={project.id} className="hover-scale cursor-pointer group border-tech-accent/20 hover:border-tech-accent/50 animate-scale-in" style={{ animationDelay: `${index * 100}ms` }} onClick={() => { setSelectedProject(project); setCurrentImageIndex(0); }}>
-                  {/* Desktop: vertical layout */}
-                  <div className="hidden sm:block">
-                    <CardHeader className="pb-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {getTypeIcon(project.projectType || '')}
-                          <CardTitle className="text-base sm:text-lg line-clamp-1">{project.title}</CardTitle>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {project.isPrivate && !isAdmin && (
-                            <Badge variant="outline" className="text-xs">Private</Badge>
-                          )}
-                          {isAdmin && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(project); }}>Editează</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(project); }}>Șterge</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3 sm:space-y-4">
-                      <p className="text-muted-foreground text-xs sm:text-sm line-clamp-2">{project.description}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(project.frontendTech || []).map((tech) => (
-                          <span key={tech} className="px-2 py-1 bg-tech-accent/20 text-tech-accent rounded-md text-xs">{tech}</span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge className="bg-blue-500/20 text-blue-400" variant="outline">{getTypeLabel(project.projectType || '')}</Badge>
-                        {getProjectStatus(project) && (
-                          <Badge className={getStatusColor(getProjectStatus(project))} variant="outline">
-                            {getProjectStatus(project) === 'completed' ? 'Finalizat' : getProjectStatus(project) === 'in-progress' ? 'În progres' : 'Experimental'}
-                          </Badge>
-                        )}
-                      </div>
-                      {getProjectFramework(project) && (
-                        <div className="text-center pt-2 border-t border-border/50">
-                          <p className="text-xs text-muted-foreground">Framework</p>
-                          <p className="font-semibold text-sm">{getProjectFramework(project)}</p>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-2 gap-4">
-                        {getProjectAccuracy(project) && (
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Acuratețe</p>
-                            <p className="font-semibold text-sm text-green-400">{getProjectAccuracy(project)}</p>
-                          </div>
-                        )}
-                        {getProjectDataset(project) && (
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Dataset</p>
-                            <p className="font-semibold text-sm">{getProjectDataset(project)}</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </div>
-
-                  {/* Mobile: compact horizontal layout */}
-                  <div className="sm:hidden">
-                    <CardContent className="p-3">
-                      <div className="flex gap-3">
-                        <div className="flex items-start justify-center pt-1">
-                          {getTypeIcon(project.projectType || '')}
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-semibold text-sm line-clamp-1">{project.title}</h3>
-                            {isAdmin && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0">
-                                    <MoreVertical className="h-3 w-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(project); }}>Editează</DropdownMenuItem>
-                                  <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(project); }}>Șterge</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-                          <p className="text-muted-foreground text-xs line-clamp-1">{project.description}</p>
-                          <div className="flex gap-1 flex-wrap">
-                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 h-5" variant="outline">
-                              <span className="text-[10px]">{getTypeLabel(project.projectType || '')}</span>
-                            </Badge>
-                            {getProjectStatus(project) && (
-                              <Badge className={`${getStatusColor(getProjectStatus(project))} h-5`} variant="outline">
-                                <span className="text-[10px]">
-                                  {getProjectStatus(project) === 'completed' ? 'Done' : getProjectStatus(project) === 'in-progress' ? 'WIP' : 'Exp'}
-                                </span>
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            {getProjectAccuracy(project) && (
-                              <span className="text-green-400 font-medium">{getProjectAccuracy(project)}</span>
-                            )}
-                            {getProjectFramework(project) && (
-                              <span className="text-muted-foreground truncate">{getProjectFramework(project)}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </div>
-                </Card>
+            <div className="flex flex-col gap-4">
+              {visible.map((p, i) => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  index={i}
+                  isAdmin={isAdmin}
+                  viewMode="list"
+                  onClick={() => setSelected(p)}
+                  onEdit={(e) => {
+                    e.stopPropagation();
+                    populateForm(p);
+                    setSelected(p);
+                    setShowEdit(true);
+                  }}
+                  onDelete={(e) => {
+                    e.stopPropagation();
+                    setToDelete(p);
+                    setShowDeleteConfirm(true);
+                  }}
+                />
               ))}
             </div>
           )}
         </div>
       </section>
 
-      {/* Mobile FAB for Add (Admin) */}
+      {/* FAB (mobile admin) */}
       {isAdmin && isMobile && (
-        <div className="fixed bottom-20 right-4 z-40">
-          <Button size="icon" className="h-16 w-16 rounded-full shadow-lg" onClick={() => { resetForm(); setShowAddDialog(true); }}>
-            <Plus className="h-8 w-8" />
+        <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
+          {trashed.length > 0 && (
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-12 w-12 rounded-full shadow-lg bg-background relative border-border"
+              onClick={() => setShowTrash(true)}
+            >
+              <Trash className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] h-5 min-w-[20px] px-1 rounded-full flex items-center justify-center font-bold">
+                {trashed.length}
+              </span>
+            </Button>
+          )}
+          <Button
+            size="icon"
+            className="h-14 w-14 rounded-full shadow-xl bg-blue-600 text-white hover:bg-blue-700"
+            onClick={() => {
+              resetForm();
+              setShowAdd(true);
+            }}
+          >
+            <Plus className="h-6 w-6" />
           </Button>
         </div>
       )}
 
-      {/* Fullscreen Dialog - bespoke AI/ML presentation */}
-      {selectedProject && (
-        <Dialog open={!!selectedProject} onOpenChange={() => { setSelectedProject(null); setCurrentImageIndex(0); }}>
-          <DialogContent className="max-w-[95vw] w-full max-h-[95vh] p-0">
-            <DialogTitle className="sr-only">{selectedProject.title}</DialogTitle>
-            <DialogDescription className="sr-only">Vizualizare proiect AI/ML</DialogDescription>
-            <div className="grid grid-cols-1 lg:grid-cols-12 h-full">
-              {/* Media + Navigator */}
-              <div className="lg:col-span-7 bg-muted/40 relative p-4 sm:p-6 flex flex-col">
-                {/* Project navigation arrows */}
-                {canNavigatePrev && (
-                  <Button variant="ghost" size="icon" className="absolute left-4 top-1/2 -translate-y-1/2 z-30 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 text-white" onClick={() => {
-                    const idx = visibleProjects.findIndex(p => p.id === selectedProject.id);
-                    if (idx > 0) { setSelectedProject(visibleProjects[idx - 1]); setCurrentImageIndex(0); setIsAutoRotating(true); }
-                  }}>
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                )}
-                {canNavigateNext && (
-                  <Button variant="ghost" size="icon" className="absolute right-4 top-1/2 -translate-y-1/2 z-30 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 text-white" onClick={() => {
-                    const idx = visibleProjects.findIndex(p => p.id === selectedProject.id);
-                    if (idx < visibleProjects.length - 1) { setSelectedProject(visibleProjects[idx + 1]); setCurrentImageIndex(0); setIsAutoRotating(true); }
-                  }}>
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
-                )}
+      {/* Project Modal View */}
+      {selected && !showEdit && !showDeleteConfirm && (
+        <ProjectModal
+          project={selected}
+          projects={visible}
+          onClose={() => setSelected(null)}
+          isAdmin={isAdmin}
+          onEdit={
+            isAdmin
+              ? () => {
+                  populateForm(selected);
+                  setShowEdit(true);
+                }
+              : undefined
+          }
+          onDelete={
+            isAdmin
+              ? () => {
+                  setToDelete(selected);
+                  setSelected(null);
+                  setShowDeleteConfirm(true);
+                }
+              : undefined
+          }
+        />
+      )}
 
-                {/* Image area */}
-                <div className="flex-1 flex items-center justify-center">
-                  {(() => {
-                    const imgs = selectedProject.images && selectedProject.images.length > 0 ? selectedProject.images : [selectedProject.image];
-                    const currentImage = imgs[currentImageIndex] || selectedProject.image;
-                    return (
-                      <div className="relative w-full h-full flex items-center justify-center">
-                        <img src={currentImage} alt={`${selectedProject.title} - ${currentImageIndex + 1}`} className="max-w-full max-h-[50vh] lg:max-h-[70vh] object-contain rounded-lg shadow-2xl" />
-                      </div>
-                    );
-                  })()}
+      {/* =========================================================================
+          INLINED FORM DIALOG (Add/Edit)
+          ========================================================================= */}
+      {isAdmin && (
+        <Dialog
+          open={showAdd || showEdit}
+          onOpenChange={(v) => {
+            if (!v) {
+              setShowAdd(false);
+              setShowEdit(false);
+              resetForm();
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-border bg-card">
+            <DialogHeader className="px-6 py-5 bg-card border-b border-border/50 shadow-sm z-10">
+              <DialogTitle className="flex items-center gap-2 text-blue-400">
+                <BrainCircuit className="h-5 w-5" />
+                {showEdit ? "Editează Model AI" : "Adaugă Proiect AI / ML"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <Tabs
+              defaultValue="basics"
+              className="flex-1 flex flex-col min-h-0 bg-muted/10"
+            >
+              <TabsList className="grid w-full grid-cols-4 text-xs mx-6 mt-4 max-w-[calc(100%-3rem)] bg-muted/50 border border-border/50">
+                <TabsTrigger value="basics">Esențial</TabsTrigger>
+                <TabsTrigger value="model">Model & Date</TabsTrigger>
+                <TabsTrigger value="stack">Stack Tehnic</TabsTrigger>
+                <TabsTrigger value="media">Media & Link</TabsTrigger>
+              </TabsList>
+
+              {/* TAB 1: Basics */}
+              <TabsContent
+                value="basics"
+                className="flex-1 px-6 pt-5 space-y-4 m-0"
+              >
+                <div className="space-y-1.5">
+                  <Label>Titlu Proiect *</Label>
+                  <Input
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, title: e.target.value }))
+                    }
+                    placeholder="ex: Ro-LLM Fine-Tuned"
+                    className="h-9"
+                  />
                 </div>
-
-                {/* Dots navigator */}
-                {(() => {
-                  const imgs = selectedProject.images && selectedProject.images.length > 0 ? selectedProject.images : [selectedProject.image];
-                  if (imgs.length > 1) {
-                    return (
-                      <div className="flex gap-2 mt-4 pb-2 justify-center">
-                        {imgs.map((_, index) => (
-                          <button key={index} onClick={() => { setCurrentImageIndex(index); setIsAutoRotating(false); }} className={`w-2.5 h-2.5 rounded-full transition-all ${index === currentImageIndex ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/75'}`} aria-label={`Go to image ${index + 1}`} />
+                <div className="space-y-1.5">
+                  <Label>Scurtă descriere (pentru card)</Label>
+                  <Input
+                    value={form.brief}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, brief: e.target.value }))
+                    }
+                    placeholder="Ce face modelul pe scurt..."
+                    className="h-9"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Domeniu AI</Label>
+                    <Select
+                      value={form.type}
+                      onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(AI_TYPES).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>
+                            {v.label}
+                          </SelectItem>
                         ))}
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Status</Label>
+                    <Select
+                      value={form.status}
+                      onValueChange={(v) =>
+                        setForm((f) => ({ ...f, status: v }))
+                      }
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(STATUSES).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>
+                            {v.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-muted-foreground">
+                      <Database className="h-3 w-3" /> Dimensiune Model
+                    </Label>
+                    <Input
+                      value={form.modelSize}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, modelSize: e.target.value }))
+                      }
+                      placeholder="ex: 7B params / 2.5 GB"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-muted-foreground">
+                      <Cpu className="h-3 w-3" /> Hardware (Compute)
+                    </Label>
+                    <Input
+                      value={form.compute}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, compute: e.target.value }))
+                      }
+                      placeholder="ex: 1x RTX 4090 / Cloud TPU"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
 
-              {/* Details panel with tabs and metrics */}
-              <div className="lg:col-span-5 bg-background border-t lg:border-t-0 lg:border-l p-4 sm:p-6 overflow-y-auto">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-bold">{selectedProject.title}</h2>
-                    {selectedProject.description && (
-                      <p className="text-muted-foreground text-sm sm:text-base">{selectedProject.description}</p>
-                    )}
+              {/* TAB 2: Model & Date (Fără Scroll necesar) */}
+              <TabsContent
+                value="model"
+                className="flex-1 px-6 pt-5 space-y-4 m-0"
+              >
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 uppercase tracking-widest">
+                    <Target className="h-3 w-3" /> Obiectivul / Problema
+                  </Label>
+                  <Textarea
+                    value={form.problem}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, problem: e.target.value }))
+                    }
+                    placeholder="Ce prezice sau ce generează acest model?"
+                    className="resize-none h-[64px] text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 uppercase tracking-widest">
+                    <Database className="h-3 w-3" /> Setul de Date (Dataset)
+                  </Label>
+                  <Textarea
+                    value={form.dataset}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, dataset: e.target.value }))
+                    }
+                    placeholder="ex: Kaggle Titanic, 50k imagini custom scraped, curățate cu Pandas..."
+                    className="resize-none h-[64px] text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-purple-400 uppercase tracking-widest">
+                    <Network className="h-3 w-3" /> Arhitectură Model
+                  </Label>
+                  <Textarea
+                    value={form.architecture}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, architecture: e.target.value }))
+                    }
+                    placeholder="ex: ResNet-50 modificat cu 3 head-uri dense, LoRA Fine-Tuning pe Mistral 7B..."
+                    className="resize-none h-[64px] text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 uppercase tracking-widest">
+                    <BarChart3 className="h-3 w-3" /> Performanță / Metrici
+                  </Label>
+                  <Input
+                    value={form.metrics}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, metrics: e.target.value }))
+                    }
+                    placeholder="ex: 95% Accuracy, F1-Score: 0.92, 50ms Inference"
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </TabsContent>
+
+              {/* TAB 3: Process & Tools */}
+              <TabsContent
+                value="stack"
+                className="flex-1 px-6 pt-5 space-y-6 m-0"
+              >
+                <div className="space-y-2 relative">
+                  <Label className="text-sm font-semibold">
+                    Tehnologii și Framework-uri
+                  </Label>
+
+                  {/* Căutare / Adăugare Tool cu Popover (Portal) pt a scapa de z-index issues */}
+                  <Popover
+                    open={showToolDropdown}
+                    onOpenChange={setShowToolDropdown}
+                  >
+                    <PopoverTrigger asChild>
+                      <div
+                        className={`flex items-center border rounded-md transition-all px-3 py-1 cursor-text ${showToolDropdown ? "border-blue-500/50 ring-1 ring-blue-500/20 bg-background" : "border-border bg-card"}`}
+                      >
+                        <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
+                        <Input
+                          className="border-0 focus-visible:ring-0 shadow-none bg-transparent h-8 px-0 text-sm"
+                          placeholder="Caută framework (ex: PyTorch)..."
+                          value={toolSearch}
+                          onChange={(e) => {
+                            setToolSearch(e.target.value);
+                            setShowToolDropdown(true);
+                          }}
+                          onFocus={() => setShowToolDropdown(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (toolSearch.trim()) {
+                                if (
+                                  !availableTools.includes(toolSearch.trim())
+                                ) {
+                                  saveTools([
+                                    ...availableTools,
+                                    toolSearch.trim(),
+                                  ]);
+                                }
+                                toggleToolForm(toolSearch.trim());
+                                setToolSearch("");
+                              }
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 ml-1 text-muted-foreground shrink-0"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowToolDropdown(!showToolDropdown);
+                          }}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] p-0 border-border shadow-xl rounded-lg overflow-hidden z-[100]"
+                      align="start"
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                    >
+                      <div className="max-h-48 overflow-y-auto p-1 custom-scrollbar bg-card">
+                        {availableTools
+                          .filter((t) =>
+                            t.toLowerCase().includes(toolSearch.toLowerCase()),
+                          )
+                          .map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded flex items-center justify-between"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                toggleToolForm(t);
+                                setToolSearch("");
+                                setShowToolDropdown(false);
+                              }}
+                            >
+                              {t}{" "}
+                              {form.tools.includes(t) && (
+                                <Check className="h-3.5 w-3.5 text-blue-400" />
+                              )}
+                            </button>
+                          ))}
+                        {toolSearch.trim() &&
+                          !availableTools.some(
+                            (t) => t.toLowerCase() === toolSearch.toLowerCase(),
+                          ) && (
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded text-blue-400 font-medium"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                saveTools([
+                                  ...availableTools,
+                                  toolSearch.trim(),
+                                ]);
+                                toggleToolForm(toolSearch.trim());
+                                setToolSearch("");
+                                setShowToolDropdown(false);
+                              }}
+                            >
+                              <Plus className="inline w-3.5 h-3.5 mr-1" />{" "}
+                              Adaugă noul framework "{toolSearch.trim()}"
+                            </button>
+                          )}
+                      </div>
+                      <div className="border-t border-border p-1 bg-muted/30">
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted rounded flex items-center gap-1.5 text-muted-foreground font-bold uppercase tracking-wider"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setShowToolDropdown(false);
+                            setShowToolManager(true);
+                          }}
+                        >
+                          <Settings2 className="h-3.5 w-3.5" /> Gestionează
+                          Lista
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Chips pt Tool-uri selectate */}
+                  {form.tools.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-3">
+                      {form.tools.map((t) => (
+                        <span
+                          key={t}
+                          className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium"
+                        >
+                          {t}
+                          <button
+                            onClick={() => toggleToolForm(t)}
+                            className="hover:text-red-400 ml-1.5 text-blue-400/50 hover:bg-red-500/10 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* TAB 4: Media & Links */}
+              <TabsContent
+                value="media"
+                className="flex-1 px-6 pt-5 space-y-5 m-0"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-blue-400">
+                      <ExternalLink className="w-3.5 h-3.5" /> Live Demo URL
+                    </Label>
+                    <Input
+                      value={form.demoUrl}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, demoUrl: e.target.value }))
+                      }
+                      placeholder="https://..."
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-slate-400">
+                      <Github className="w-3.5 h-3.5" /> Repository URL (Cod)
+                    </Label>
+                    <Input
+                      value={form.repoUrl}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, repoUrl: e.target.value }))
+                      }
+                      placeholder="https://github.com/..."
+                      className="h-10"
+                    />
                   </div>
                 </div>
 
-                <Tabs defaultValue="overview" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 mb-4">
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="metrics">Metrics</TabsTrigger>
-                    <TabsTrigger value="stack">Tech Stack</TabsTrigger>
-                  </TabsList>
-
-                  {/* Overview */}
-                  <TabsContent value="overview" className="space-y-4">
-                    <div className="flex gap-2 flex-wrap">
-                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">{getTypeLabel(selectedProject.projectType || '')}</Badge>
-                      {getProjectStatus(selectedProject) && (
-                        <Badge className={getStatusColor(getProjectStatus(selectedProject))}>
-                          {getProjectStatus(selectedProject) === 'completed' ? 'Finalizat' : getProjectStatus(selectedProject) === 'in-progress' ? 'În progres' : 'Experimental'}
-                        </Badge>
-                      )}
-                    </div>
-                    {(selectedProject.images || []).length > 1 && (
-                      <div className="text-xs text-muted-foreground">{(selectedProject.images || []).length} imagini în project</div>
-                    )}
-                  </TabsContent>
-
-                  {/* Metrics */}
-                  <TabsContent value="metrics" className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      {/* Accuracy circular indicator */}
-                      <div className="flex items-center justify-center">
-                        {(() => {
-                          const accText = getProjectAccuracy(selectedProject);
-                          const pct = accText && accText.endsWith('%') ? Number(accText.replace('%', '')) : accText ? Number(accText) : 0;
-                          const clamped = Math.max(0, Math.min(100, isNaN(pct) ? 0 : pct));
-                          const deg = (clamped / 100) * 360;
-                          return (
-                            <div className="relative w-40 h-40 rounded-full bg-muted" style={{ backgroundImage: `conic-gradient(#22c55e ${deg}deg, rgba(255,255,255,0.2) ${deg}deg)` }}>
-                              <div className="absolute inset-3 rounded-full bg-background flex flex-col items-center justify-center">
-                                <span className="text-xs text-muted-foreground">Acuratețe</span>
-                                <span className="text-2xl font-bold">{clamped}%</span>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      {/* Dataset and framework cards */}
-                      <div className="space-y-4">
-                        {getProjectFramework(selectedProject) && (
-                          <div className="rounded-lg border p-4">
-                            <p className="text-xs text-muted-foreground">Framework</p>
-                            <p className="font-semibold">{getProjectFramework(selectedProject)}</p>
-                          </div>
-                        )}
-                        {getProjectDataset(selectedProject) && (
-                          <div className="rounded-lg border p-4">
-                            <p className="text-xs text-muted-foreground">Dataset</p>
-                            <p className="font-semibold">{getProjectDataset(selectedProject)}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  {/* Tech Stack */}
-                  <TabsContent value="stack" className="space-y-4">
-                    {(selectedProject.frontendTech || []).length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {(selectedProject.frontendTech || []).map((tool: string) => (
-                          <span key={tool} className="px-3 py-1.5 bg-tech-accent/20 text-tech-accent rounded-md text-sm font-medium">{tool}</span>
-                        ))}
-                      </div>
+                <div className="flex justify-between items-center bg-card border border-border p-3 rounded-xl shadow-sm">
+                  <Label className="text-sm font-semibold pl-1">
+                    Vizibilitate Proiect
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, isPrivate: !f.isPrivate }))
+                    }
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 border font-bold text-xs uppercase tracking-wider ${
+                      form.isPrivate
+                        ? "bg-red-500/10 border-red-500/30 text-red-400"
+                        : "bg-muted border-transparent text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {form.isPrivate ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5" /> Privat
+                      </>
                     ) : (
-                      <p className="text-muted-foreground text-sm">Nu sunt specificate tehnologii.</p>
+                      <>
+                        <Unlock className="w-3.5 h-3.5" /> Public
+                      </>
                     )}
-                  </TabsContent>
-                </Tabs>
+                  </button>
+                </div>
 
-                {selectedProject.isPrivate && (
-                  <div className="flex items-center gap-2 text-muted-foreground pt-4 border-t">
-                    <span className="text-xs">Privat (vizibil doar pentru admin)</span>
-                  </div>
-                )}
-              </div>
+                <div className="space-y-2 pt-2">
+                  <Label>Imagini proiect (Prima e Cover)</Label>
+                  {showEdit ? (
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSingleImage}
+                      className="cursor-pointer"
+                    />
+                  ) : (
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleMultipleImages}
+                      className="cursor-pointer"
+                    />
+                  )}
+
+                  {imagePreviews.length > 0 && (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-3">
+                      {imagePreviews.map((src, i) => (
+                        <div
+                          key={i}
+                          className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted group shadow-sm"
+                        >
+                          <img
+                            src={src}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-1 left-1 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                            {i === 0 ? "Cover" : i + 1}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePreviewImage(i)}
+                            className="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md backdrop-blur-sm"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="px-6 py-4 flex justify-end gap-3 bg-card border-t border-border/50">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  showEdit ? setShowEdit(false) : setShowAdd(false);
+                  resetForm();
+                }}
+                disabled={uploading}
+              >
+                Anulează
+              </Button>
+              <Button
+                onClick={showEdit ? handleEdit : handleAdd}
+                disabled={uploading}
+                className="gap-2 min-w-[120px] bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {uploading
+                  ? "Se salvează..."
+                  : showEdit
+                    ? "Salvează"
+                    : "Publică"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* Add Dialog */}
-      {isAdmin && (
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Adaugă Proiect AI/ML</DialogTitle>
-              <DialogDescription>Completează detaliile proiectului AI/ML.</DialogDescription>
-            </DialogHeader>
-            <Tabs defaultValue="info" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="info">Informații</TabsTrigger>
-                <TabsTrigger value="details">Detalii</TabsTrigger>
-              </TabsList>
-              <TabsContent value="info" className="space-y-4 mt-4 min-h-[400px]">
-                <div className="space-y-2">
-                  <Label htmlFor="add-title">Titlu *</Label>
-                  <Input id="add-title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="ex: Image Classification System" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-images">Imagini (opțional)</Label>
-                  <Input id="add-images" type="file" accept="image/*" multiple onChange={handleMultipleImagesChange} className="cursor-pointer" />
-                  {imagePreviews.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {imagePreviews.map((preview, idx) => (
-                        <div key={idx} className="relative aspect-video rounded border overflow-hidden bg-muted">
-                          <img src={preview} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain" />
-                          <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-2 py-1 rounded">{idx + 1}/{imagePreviews.length}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-description">Descriere</Label>
-                  <Textarea id="add-description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Descrierea proiectului..." rows={3} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="add-type">Tip Proiect</Label>
-                    <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                      <SelectTrigger id="add-type"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ml-model">ML Model</SelectItem>
-                        <SelectItem value="ai-application">AI Application</SelectItem>
-                        <SelectItem value="data-analysis">Data Analysis</SelectItem>
-                        <SelectItem value="automation">Automation</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="add-status">Status</Label>
-                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                      <SelectTrigger id="add-status"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="completed">Finalizat</SelectItem>
-                        <SelectItem value="in-progress">În progres</SelectItem>
-                        <SelectItem value="experimental">Experimental</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="details" className="space-y-4 mt-4 min-h-[400px]">
-                <div className="space-y-2">
-                  <Label htmlFor="add-tech">Tehnologii (separate prin virgulă)</Label>
-                  <Input id="add-tech" value={formData.technologies} onChange={(e) => setFormData({ ...formData, technologies: e.target.value })} placeholder="ex: Python, TensorFlow, OpenCV" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="add-framework">Framework</Label>
-                    <Input id="add-framework" value={formData.framework} onChange={(e) => setFormData({ ...formData, framework: e.target.value })} placeholder="ex: TensorFlow" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="add-accuracy">Acuratețe</Label>
-                    <Input id="add-accuracy" value={formData.accuracy} onChange={(e) => setFormData({ ...formData, accuracy: e.target.value })} placeholder="ex: 94.2%" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-dataset">Dataset</Label>
-                  <Input id="add-dataset" value={formData.dataset} onChange={(e) => setFormData({ ...formData, dataset: e.target.value })} placeholder="ex: 50,000 images" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-icon">Iconiță (opțional)</Label>
-                  <Input id="add-icon" type="file" accept="image/*" onChange={handleIconChange} className="cursor-pointer" />
-                  {iconPreview && (
-                    <div className="relative w-full aspect-video rounded border overflow-hidden bg-muted">
-                      <img src={iconPreview} alt="Preview icon" className="w-full h-full object-contain" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="add-private" checked={formData.isPrivate} onCheckedChange={(checked) => setFormData({ ...formData, isPrivate: checked })} />
-                  <Label htmlFor="add-private">Privat (vizibil doar pentru admin)</Label>
-                </div>
-              </TabsContent>
-            </Tabs>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isUploading}>Anulează</Button>
-              <Button onClick={handleAddProject} disabled={isUploading}>{isUploading ? 'Se încarcă...' : 'Adaugă'}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Delete confirm */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Șterge proiect</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{toDelete?.title}" va fi mutat în coșul de gunoi. Poți să îl
+              restaurezi oricând de acolo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+            >
+              Mută în coș
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Edit Dialog */}
-      {isAdmin && (
-        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Editează Proiect</DialogTitle>
-              <DialogDescription>Modifică detaliile proiectului AI/ML.</DialogDescription>
-            </DialogHeader>
-            <Tabs defaultValue="info" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="info">Informații</TabsTrigger>
-                <TabsTrigger value="details">Detalii</TabsTrigger>
-              </TabsList>
-              <TabsContent value="info" className="space-y-4 mt-4 min-h-[400px]">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-title">Titlu *</Label>
-                  <Input id="edit-title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-images">Înlocuiește imaginile (opțional)</Label>
-                  <Input id="edit-images" type="file" accept="image/*" multiple onChange={handleMultipleImagesChange} className="cursor-pointer" />
-                  {imagePreviews.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {imagePreviews.map((preview, idx) => (
-                        <div key={idx} className="relative aspect-video rounded border overflow-hidden bg-muted">
-                          <img src={preview} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain" />
-                          <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-2 py-1 rounded">{idx + 1}/{imagePreviews.length}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-description">Descriere</Label>
-                  <Textarea id="edit-description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-type">Tip Proiect</Label>
-                    <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                      <SelectTrigger id="edit-type"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ml-model">ML Model</SelectItem>
-                        <SelectItem value="ai-application">AI Application</SelectItem>
-                        <SelectItem value="data-analysis">Data Analysis</SelectItem>
-                        <SelectItem value="automation">Automation</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
-                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                      <SelectTrigger id="edit-status"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="completed">Finalizat</SelectItem>
-                        <SelectItem value="in-progress">În progres</SelectItem>
-                        <SelectItem value="experimental">Experimental</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="details" className="space-y-4 mt-4 min-h-[400px]">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-tech">Tehnologii (separate prin virgulă)</Label>
-                  <Input id="edit-tech" value={formData.technologies} onChange={(e) => setFormData({ ...formData, technologies: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-framework">Framework</Label>
-                    <Input id="edit-framework" value={formData.framework} onChange={(e) => setFormData({ ...formData, framework: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-accuracy">Acuratețe</Label>
-                    <Input id="edit-accuracy" value={formData.accuracy} onChange={(e) => setFormData({ ...formData, accuracy: e.target.value })} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-dataset">Dataset</Label>
-                  <Input id="edit-dataset" value={formData.dataset} onChange={(e) => setFormData({ ...formData, dataset: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-icon">Iconiță (opțional)</Label>
-                  <Input id="edit-icon" type="file" accept="image/*" onChange={handleIconChange} className="cursor-pointer" />
-                  {iconPreview && (
-                    <div className="relative w-full aspect-video rounded border overflow-hidden bg-muted">
-                      <img src={iconPreview} alt="Preview icon" className="w-full h-full object-contain" />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEditDialog(false)} disabled={isUploading}>Anulează</Button>
-              <Button onClick={handleEditProject} disabled={isUploading}>{isUploading ? 'Se salvează...' : 'Salvează'}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Delete Confirmation */}
-      {showDeleteDialog && (
-        <Dialog open={!!showDeleteDialog} onOpenChange={() => setShowDeleteDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Confirmare ștergere</DialogTitle>
-              <DialogDescription>Ești sigur că vrei să ștergi acest proiect? Va fi mutat în coșul de gunoi.</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(null)}>Anulează</Button>
-              <Button variant="destructive" onClick={handleDeleteCurrent}>Șterge</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Trash Management Dialog */}
-      <Dialog open={showTrashDialog} onOpenChange={setShowTrashDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      {/* Trash dialog */}
+      <Dialog open={showTrash} onOpenChange={setShowTrash}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto border-border">
           <DialogHeader>
-            <DialogTitle>Coș de gunoi ({trashedProjects.length})</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5" /> Coș de gunoi
+            </DialogTitle>
             <DialogDescription>
-              Restaurează sau șterge permanent proiectele.
+              Modelele șterse pot fi restaurate sau eliminate definitiv.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            {trashedProjects.map((project) => (
+          <div className="space-y-3 mt-4">
+            {trashed.length === 0 && (
+              <p className="text-center text-muted-foreground py-10 bg-muted/30 rounded-lg">
+                Coșul e gol.
+              </p>
+            )}
+            {trashed.map((p) => (
               <div
-                key={project.id}
-                className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition"
+                key={p.id}
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 border border-border rounded-xl bg-card hover:bg-accent/30 transition-colors"
               >
-                <div className="relative w-20 h-20 rounded overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center">
-                  {project.icon ? (
-                    <img src={project.icon} alt={project.title} className="w-full h-full object-cover" />
-                  ) : (
-                    getTypeIcon(project.projectType || '')
-                  )}
+                <div className="w-full sm:w-24 h-24 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-muted">
+                  <img
+                    src={p.image}
+                    alt={p.title}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium truncate">{project.title}</h4>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {getTypeLabel(project.projectType || '')} • {parseTagValue(project.tags, 'status', 'N/A')}
+                  <p className="font-semibold text-sm truncate">{p.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {AI_TYPES[p.subcategory || ""]?.label || p.subcategory}
                   </p>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 w-full sm:w-auto">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleRestoreProject(project)}
+                    onClick={() => handleRestore(p)}
+                    className="flex-1 sm:flex-none gap-1.5 h-8 text-xs"
                   >
-                    <RotateCcw className="w-4 h-4 mr-1" />
-                    Restaurează
+                    <RotateCcw className="h-3.5 w-3.5" /> Restaurează
                   </Button>
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => handlePermanentDelete(project)}
+                    onClick={() => handlePermDelete(p)}
+                    className="flex-1 sm:flex-none gap-1.5 h-8 text-xs"
                   >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Șterge
+                    <Trash className="h-3.5 w-3.5" /> Șterge definitiv
                   </Button>
                 </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gestionează Tools Dialog */}
+      <Dialog open={showToolManager} onOpenChange={setShowToolManager}>
+        <DialogContent className="max-w-sm border-border z-[110]">
+          <DialogHeader>
+            <DialogTitle>Gestionează Instrumente AI</DialogTitle>
+            <DialogDescription>
+              Acestea apar automat la scrierea unui framework.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-2">
+            <Input
+              value={newToolInput}
+              onChange={(e) => setNewToolInput(e.target.value)}
+              onKeyDown={(e) =>
+                e.key === "Enter" && (e.preventDefault(), handleAddGlobalTool())
+              }
+              placeholder="Adaugă framework..."
+            />
+            <Button onClick={handleAddGlobalTool}>Adaugă</Button>
+          </div>
+          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+            {availableTools.map((t) => (
+              <div
+                key={t}
+                className="flex items-center justify-between p-2 border border-border rounded-lg bg-card"
+              >
+                <span className="text-sm font-medium">{t}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-red-500"
+                  onClick={() => handleRemoveGlobalTool(t)}
+                >
+                  <Trash className="h-3.5 w-3.5" />
+                </Button>
               </div>
             ))}
           </div>
