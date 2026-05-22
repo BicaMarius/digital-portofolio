@@ -1,6 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { PageLayout } from "@/components/PageLayout";
 import {
+  useProjects,
+  useCreateProject,
+  useUpdateProject,
+  useSoftDeleteProject,
+  useRestoreProject,
+  usePermanentDeleteProject,
+} from "@/hooks/useProjects";
+import {
   Search,
   Plus,
   Filter,
@@ -34,6 +42,7 @@ import {
   UploadCloud,
   Settings,
 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 // ================= TYPES & INITIAL DATA =================
 
@@ -66,6 +75,12 @@ interface SWProject {
   lastModified?: string;
 }
 
+type PendingAction =
+  | { type: "restore-all"; count: number }
+  | { type: "delete-all"; count: number }
+  | { type: "soft-delete"; project: SWProject }
+  | { type: "hard-delete"; project: SWProject };
+
 export interface FilterOption {
   id: string;
   label: string;
@@ -89,6 +104,31 @@ const INITIAL_STATUSES: FilterOption[] = [
   { id: "archived", label: "Archived", color: "#94a3b8" },
   { id: "concept", label: "Concept", color: "#a78bfa" },
 ];
+
+const INITIAL_TECHS = {
+  main: [
+    { id: "react", label: "React" },
+    { id: "typescript", label: "TypeScript" },
+    { id: "node", label: "Node.js" },
+    { id: "docker", label: "Docker" },
+    { id: "postgresql", label: "PostgreSQL" },
+  ],
+  frontend: [
+    { id: "react", label: "React" },
+    { id: "tailwind", label: "Tailwind CSS" },
+    { id: "vite", label: "Vite" },
+  ],
+  backend: [
+    { id: "nodejs", label: "Node.js" },
+    { id: "express", label: "Express" },
+    { id: "drizzle", label: "Drizzle ORM" },
+  ],
+  devops: [
+    { id: "docker", label: "Docker" },
+    { id: "github-actions", label: "GitHub Actions" },
+    { id: "vercel", label: "Vercel" },
+  ],
+};
 
 const INITIAL_PROJECTS: SWProject[] = [
   {
@@ -141,8 +181,8 @@ const INITIAL_PROJECTS: SWProject[] = [
     backend: ["Node.js", "Express", "Drizzle ORM", "JWT"],
     devops: ["Docker", "Nginx", "GitHub Actions", "Neon DB"],
     gitUrl: "#",
-    gradient: "linear-gradient(135deg,#7c3aed,#a21caf)",
-    accent: "#c084fc",
+    gradient: "linear-gradient(135deg,#081226 0%,#1d4ed8 48%,#7c3aed 100%)",
+    accent: "#38bdf8",
     version: "0.8.2",
     hours: 340,
     since: "2024-08",
@@ -160,6 +200,61 @@ const INITIAL_PROJECTS: SWProject[] = [
 ];
 
 const G = { inset: 0, position: "absolute" as const };
+
+const PROJECT_PALETTES = [
+  {
+    gradient: "linear-gradient(135deg,#081226 0%,#1d4ed8 50%,#7c3aed 100%)",
+    accent: "#38bdf8",
+  },
+  {
+    gradient: "linear-gradient(135deg,#111827 0%,#0f766e 48%,#22c55e 100%)",
+    accent: "#5eead4",
+  },
+  {
+    gradient: "linear-gradient(135deg,#0f172a 0%,#7c3aed 52%,#ec4899 100%)",
+    accent: "#c084fc",
+  },
+  {
+    gradient: "linear-gradient(135deg,#111827 0%,#b45309 48%,#f59e0b 100%)",
+    accent: "#fbbf24",
+  },
+  {
+    gradient: "linear-gradient(135deg,#0f172a 0%,#0ea5e9 48%,#8b5cf6 100%)",
+    accent: "#67e8f9",
+  },
+  {
+    gradient: "linear-gradient(135deg,#1e1b4b 0%,#db2777 48%,#f97316 100%)",
+    accent: "#fb7185",
+  },
+  {
+    gradient: "linear-gradient(135deg,#09111f 0%,#2563eb 48%,#14b8a6 100%)",
+    accent: "#93c5fd",
+  },
+  {
+    gradient: "linear-gradient(135deg,#1f2937 0%,#6366f1 48%,#a855f7 100%)",
+    accent: "#818cf8",
+  },
+  {
+    gradient: "linear-gradient(135deg,#111827 0%,#ef4444 48%,#f97316 100%)",
+    accent: "#fca5a5",
+  },
+  {
+    gradient: "linear-gradient(135deg,#030712 0%,#334155 48%,#22c55e 100%)",
+    accent: "#86efac",
+  },
+];
+
+function hashString(input: string) {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function pickProjectPalette(seed: string) {
+  return PROJECT_PALETTES[hashString(seed) % PROJECT_PALETTES.length];
+}
 
 // ================= CUSTOM HOOKS =================
 
@@ -208,7 +303,9 @@ function CustomSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
   useOutsideClick(wrapperRef, () => setIsOpen(false));
+
   const selectedOption = options.find((o) => o.value === value);
 
   return (
@@ -264,6 +361,155 @@ function CustomSelect({
               </div>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MultiSelectTagInput({
+  values,
+  onChange,
+  options,
+  placeholder,
+  onManage,
+  onAddNew,
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  options: FilterOption[];
+  placeholder: string;
+  onManage: () => void;
+  onAddNew: (label: string) => void;
+}) {
+  const [input, setInput] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useOutsideClick(wrapperRef, () => setIsOpen(false));
+
+  const filteredOptions = options.filter(
+    (o) =>
+      o.label.toLowerCase().includes(input.toLowerCase()) &&
+      !values.includes(o.label),
+  );
+
+  const handleAdd = (label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed || values.includes(trimmed)) return;
+
+    onChange([...values, trimmed]);
+    setInput("");
+
+    if (!options.find((o) => o.label.toLowerCase() === trimmed.toLowerCase())) {
+      onAddNew(trimmed);
+    }
+    inputRef.current?.focus();
+  };
+
+  const handleRemove = (labelToRemove: string) => {
+    onChange(values.filter((v) => v !== labelToRemove));
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (input.trim()) handleAdd(input);
+    } else if (e.key === "Backspace" && input === "" && values.length > 0) {
+      handleRemove(values[values.length - 1]);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <div
+        className={`min-h-[44px] w-full bg-[#09090b] border ${isOpen ? "border-purple-500/50 ring-1 ring-purple-500/30" : "border-white/10"} rounded-xl px-3 py-2 flex flex-wrap gap-2 items-center transition-all cursor-text`}
+        onClick={() => {
+          setIsOpen(true);
+          inputRef.current?.focus();
+        }}
+      >
+        {values.map((val) => (
+          <span
+            key={val}
+            className="flex items-center gap-1 bg-purple-500/10 text-purple-300 px-2 py-1 rounded-lg text-xs font-mono border border-purple-500/20"
+          >
+            {val}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemove(val);
+              }}
+              className="hover:bg-purple-500/30 hover:text-white rounded-full p-0.5 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setIsOpen(true);
+          }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsOpen(true)}
+          placeholder={values.length === 0 ? placeholder : ""}
+          className="flex-1 min-w-[120px] bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-500"
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 w-full bg-[#111111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50 flex flex-col max-h-64">
+          <div className="overflow-y-auto custom-scrollbar">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAdd(opt.label);
+                  }}
+                  className="flex items-center px-4 py-2.5 text-sm cursor-pointer transition-colors text-slate-300 hover:bg-white/5 hover:text-white"
+                >
+                  {opt.label}
+                </div>
+              ))
+            ) : input.trim() ? (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdd(input);
+                }}
+                className="flex items-center px-4 py-2.5 text-sm cursor-pointer transition-colors text-purple-400 hover:bg-white/5 font-medium"
+              >
+                <Plus className="w-4 h-4 mr-2" /> Adaugă "{input}" la catalog
+              </div>
+            ) : (
+              <div className="px-4 py-3 text-sm text-slate-500 italic">
+                Începe să scrii pentru sugestii...
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t border-white/10 mt-1">
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                onManage();
+                setIsOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm cursor-pointer text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <Settings className="w-4 h-4 shrink-0" />
+              <span>Gestionează catalogul</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -352,7 +598,7 @@ function ManageFiltersModal({
               type="text"
               value={newItemLabel}
               onChange={(e) => setNewItemLabel(e.target.value)}
-              placeholder="Adaugă un filtru nou..."
+              placeholder="Adaugă un element nou..."
               className="flex-1 bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-purple-500/50"
             />
             <button
@@ -378,6 +624,287 @@ function ManageFiltersModal({
             Salvează
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectPreviewArt({
+  project,
+  compact = false,
+}: {
+  project: SWProject;
+  compact?: boolean;
+}) {
+  const featuredHighlights = project.highlights.slice(0, 3);
+  const compactBars = [
+    Math.max(28, Math.min(92, (project.hours % 90) + 24)),
+    Math.max(36, Math.min(96, (project.tech.length || 3) * 18)),
+    Math.max(20, Math.min(88, ((project.stars || 42) % 100) + 20)),
+  ];
+
+  return (
+    <div
+      className={`relative overflow-hidden border border-white/10 ${compact ? "rounded-2xl h-[144px]" : "rounded-[28px] h-[240px]"}`}
+      style={{ background: project.gradient }}
+    >
+      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.24),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_38%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(3,7,18,0.24),rgba(3,7,18,0.06))]" />
+      <div
+        className={`relative z-10 flex h-full flex-col ${compact ? "p-3" : "p-4 sm:p-5"}`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div
+              className="h-2.5 w-2.5 rounded-full shadow-[0_0_12px_currentColor]"
+              style={{ color: project.accent, background: project.accent }}
+            />
+            <div className="min-w-0">
+              <div className="truncate text-[10px] font-bold uppercase tracking-[0.28em] text-white/80">
+                {project.title}
+              </div>
+              <div className="truncate text-[9px] uppercase tracking-[0.24em] text-white/45">
+                {project.tagline}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-full border border-white/15 bg-black/25 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.22em] text-white/70 backdrop-blur-sm">
+            {project.status}
+          </div>
+        </div>
+
+        <div
+          className={`grid gap-2 ${compact ? "mt-3 grid-cols-3" : "mt-4 grid-cols-3"}`}
+        >
+          {[
+            { label: "Ore", value: `${project.hours}h` },
+            { label: "Stack", value: `${project.tech.length}` },
+            { label: "Theme", value: project.accent },
+          ].map((item, index) => (
+            <div
+              key={item.label}
+              className="rounded-2xl border border-white/10 bg-black/20 p-2.5 backdrop-blur-md"
+              style={{ transform: `translateY(${index % 2 === 0 ? 0 : 4}px)` }}
+            >
+              <div className="text-[8px] font-bold uppercase tracking-[0.22em] text-white/45">
+                {item.label}
+              </div>
+              <div className="mt-1 truncate text-[11px] font-semibold text-white/90">
+                {item.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className={`grid flex-1 gap-2 ${compact ? "mt-3 grid-cols-2" : "mt-4 grid-cols-[1.1fr_0.9fr]"}`}
+        >
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur-md">
+            <div className="flex items-center justify-between text-[8px] font-bold uppercase tracking-[0.24em] text-white/45">
+              <span>Dashboard</span>
+              <span>Live</span>
+            </div>
+            <div
+              className={`mt-3 flex items-end gap-2 pb-1 ${compact ? "h-16" : "h-24"}`}
+            >
+              {compactBars.map((bar, index) => (
+                <div
+                  key={`${index}-${bar}`}
+                  className="flex-1 rounded-t-xl"
+                  style={{
+                    height: `${bar}%`,
+                    background: `linear-gradient(180deg, ${project.accent}cc 0%, rgba(255,255,255,0.08) 100%)`,
+                    opacity: 0.95 - index * 0.12,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {!compact && (
+            <div className="flex flex-col gap-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur-md">
+                <div className="text-[8px] font-bold uppercase tracking-[0.24em] text-white/45">
+                  Highlights
+                </div>
+                <div className="mt-3 flex flex-col gap-2">
+                  {featuredHighlights.length > 0 ? (
+                    featuredHighlights.map((highlight, index) => (
+                      <div
+                        key={highlight}
+                        className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2 text-[10px] text-white/80"
+                        style={{ marginLeft: `${index * 4}px` }}
+                      >
+                        {highlight}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2 text-[10px] text-white/55">
+                      UI dashboard preview
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur-md">
+                <div className="text-[8px] font-bold uppercase tracking-[0.24em] text-white/45">
+                  Visual cue
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <div
+                    className="h-9 w-9 rounded-xl"
+                    style={{ background: project.accent }}
+                  />
+                  <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                    <div className="text-[10px] font-semibold text-white/80">
+                      {project.featured
+                        ? "Featured surface"
+                        : "Project surface"}
+                    </div>
+                    <div className="text-[9px] text-white/50">
+                      {project.isPrivate ? "private" : "public"} •{" "}
+                      {project.version}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionConfirmationModal({
+  action,
+  onClose,
+  onConfirm,
+  isProcessing,
+}: {
+  action: PendingAction;
+  onClose: () => void;
+  onConfirm: () => void;
+  isProcessing: boolean;
+}) {
+  useModalEffects(onClose);
+
+  const title =
+    action.type === "restore-all"
+      ? "Restaurezi toate proiectele din coș?"
+      : action.type === "delete-all"
+        ? "Ștergi definitiv toate proiectele din coș?"
+        : action.type === "soft-delete"
+          ? "Muti proiectul în coș?"
+          : "Ștergi definitiv proiectul?";
+
+  const description =
+    action.type === "restore-all"
+      ? `${action.count} proiecte vor fi readuse în lista activă.`
+      : action.type === "delete-all"
+        ? `${action.count} proiecte vor fi eliminate definitiv din cloud și nu vor mai putea fi recuperate.`
+        : action.type === "soft-delete"
+          ? `Proiectul ${action.project.title} va fi arhivat în coș.`
+          : `Proiectul ${action.project.title} va fi șters definitiv din cloud.`;
+
+  const confirmLabel =
+    action.type === "restore-all"
+      ? "Restaurează toate"
+      : action.type === "delete-all"
+        ? "Șterge definitiv"
+        : action.type === "soft-delete"
+          ? "Mută în coș"
+          : "Șterge definitiv";
+
+  const icon =
+    action.type === "restore-all" ? (
+      <RotateCcw className="w-5 h-5 text-emerald-400" />
+    ) : (
+      <Trash2 className="w-5 h-5 text-red-400" />
+    );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isProcessing) return;
+    onConfirm();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/85 backdrop-blur-md animate-in fade-in"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-[#111111] shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between border-b border-white/5 bg-white/5 px-6 py-5">
+          <div className="flex items-center gap-3">
+            {icon}
+            <div>
+              <h2 className="text-lg font-bold text-white">{title}</h2>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                Confirmare de siguranță
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="rounded-2xl border border-white/10 bg-[#09090b] p-4">
+            <p className="text-sm leading-relaxed text-slate-300">
+              {description}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-400">
+              <div className="rounded-xl border border-white/5 bg-white/5 p-3">
+                <div className="uppercase tracking-[0.22em] text-slate-500">
+                  Tip acțiune
+                </div>
+                <div className="mt-1 font-semibold text-white">
+                  {action.type === "restore-all"
+                    ? "Restaurare"
+                    : action.type === "delete-all"
+                      ? "Ștergere totală"
+                      : action.type === "soft-delete"
+                        ? "Mutare în coș"
+                        : "Ștergere definitivă"}
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-3">
+                <div className="uppercase tracking-[0.22em] text-slate-500">
+                  Elemente
+                </div>
+                <div className="mt-1 font-semibold text-white">
+                  {action.type === "restore-all" || action.type === "delete-all"
+                    ? `${action.count} proiecte`
+                    : action.project.title}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Anulează
+            </button>
+            <button
+              type="submit"
+              disabled={isProcessing}
+              className={`rounded-xl px-6 py-2.5 text-sm font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50 ${action.type === "restore-all" ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500" : "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500"}`}
+            >
+              {isProcessing ? "Se procesează..." : confirmLabel}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -910,12 +1437,6 @@ function ProjectModal({
           <div
             className={`flex flex-col flex-1 overflow-hidden relative ${!hasImages ? "w-full" : ""}`}
           >
-            {!hasImages && (
-              <div
-                style={{ background: p.gradient }}
-                className="absolute top-0 left-0 right-0 h-32 opacity-20 pointer-events-none blur-3xl"
-              />
-            )}
             <div className="p-6 md:p-8 flex-1 flex flex-col overflow-y-auto custom-scrollbar relative z-10 pr-2">
               <div className="mb-6 shrink-0">
                 {!hasImages && (
@@ -980,14 +1501,20 @@ function ProjectModal({
                     type="button"
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
-                    className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === tab ? "border-purple-500 text-purple-400" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+                    className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === tab ? "text-white" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+                    style={
+                      activeTab === tab
+                        ? { borderColor: p.accent, color: p.accent }
+                        : undefined
+                    }
                   >
                     {tab}
                   </button>
                 ))}
               </div>
 
-              <div className="flex-1 min-h-[150px]">
+              {/* FIX DE PADDING (pb-24) PENTRU A EVITA SUPRAPUNEREA CONȚINUTULUI */}
+              <div className="flex-1 min-h-[150px] pb-24">
                 {activeTab === "despre" && (
                   <div className="animate-in fade-in">
                     <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
@@ -1002,7 +1529,12 @@ function ProjectModal({
                         stack.map((sec) => (
                           <div
                             key={sec.l}
-                            className="bg-white/5 border border-white/10 rounded-xl p-4"
+                            className="rounded-xl border p-4"
+                            style={{
+                              background: `linear-gradient(180deg, ${p.accent}18 0%, rgba(255,255,255,0.04) 100%)`,
+                              borderColor: `${p.accent}33`,
+                              boxShadow: `0 18px 40px ${p.accent}12`,
+                            }}
                           >
                             <div
                               style={{ color: sec.c }}
@@ -1014,7 +1546,12 @@ function ProjectModal({
                               {sec.items.map((i) => (
                                 <div
                                   key={i}
-                                  className="text-xs text-slate-300 font-mono bg-black/40 px-2 py-1 rounded-md border border-white/5 w-fit"
+                                  className="text-xs font-mono px-2 py-1 rounded-md border w-fit"
+                                  style={{
+                                    color: p.accent,
+                                    background: `${p.accent}14`,
+                                    borderColor: `${p.accent}30`,
+                                  }}
                                 >
                                   {i}
                                 </div>
@@ -1029,7 +1566,7 @@ function ProjectModal({
                       )}
                     </div>
                     {p.architectureDiagram && (
-                      <div className="mt-2">
+                      <div className="mt-2 mb-8">
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
                           <Layout className="w-3 h-3" /> Diagramă Arhitectură
                         </div>
@@ -1055,7 +1592,7 @@ function ProjectModal({
                   </div>
                 )}
                 {activeTab === "highlights" && (
-                  <div className="animate-in fade-in space-y-3">
+                  <div className="animate-in fade-in space-y-3 pb-8">
                     {p.highlights && p.highlights.length > 0 ? (
                       p.highlights.map((h, idx) => (
                         <div
@@ -1137,12 +1674,16 @@ function EditModal({
   onSave,
   platformsList,
   statusesList,
+  techCatalogs,
+  onAddTech,
 }: {
   project?: SWProject;
   onClose: () => void;
   onSave: (p: SWProject) => void;
   platformsList: FilterOption[];
   statusesList: FilterOption[];
+  techCatalogs: Record<string, FilterOption[]>;
+  onAddTech: (type: string, label: string) => void;
 }) {
   useModalEffects(onClose);
   const isEdit = !!project;
@@ -1150,6 +1691,7 @@ function EditModal({
     "general",
   );
   const [isFetchingGit, setIsFetchingGit] = useState(false);
+  const [manageFilterType, setManageFilterType] = useState<string | null>(null);
 
   const [f, setF] = useState<Partial<SWProject>>(
     project || {
@@ -1212,24 +1754,20 @@ function EditModal({
     return () => clearTimeout(timeoutId);
   }, [f.gitUrl]);
 
-  const GRADS = [
-    "linear-gradient(135deg,#4f46e5,#7c3aed)",
-    "linear-gradient(135deg,#7c3aed,#a21caf)",
-    "linear-gradient(135deg,#be185d,#9f1239)",
-    "linear-gradient(135deg,#0891b2,#0d9488)",
-    "linear-gradient(135deg,#ea580c,#dc2626)",
-  ];
-  const ACCS = ["#818cf8", "#c084fc", "#f472b6", "#22d3ee", "#fb923c"];
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.title) return;
-    const idx = Math.floor(Math.random() * GRADS.length);
+    const palette =
+      isEdit && project
+        ? project
+        : pickProjectPalette(
+            `${f.title}-${f.platform}-${f.status}-${Date.now()}`,
+          );
     const finalProject: SWProject = {
       ...(f as SWProject),
       id: isEdit ? project!.id : Date.now(),
-      gradient: isEdit ? project!.gradient : GRADS[idx],
-      accent: isEdit ? project!.accent : ACCS[idx],
+      gradient: palette.gradient,
+      accent: palette.accent,
       isDeleted: f.isDeleted || false,
       isPrivate: f.isPrivate || false,
       featured: f.featured || false,
@@ -1240,23 +1778,10 @@ function EditModal({
     onSave(finalProject);
   };
 
-  const handleArrayChange = (
-    key: "tech" | "frontend" | "backend" | "devops",
-    value: string,
-  ) => {
-    setF({
-      ...f,
-      [key]: value
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    });
-  };
   const blockNegative = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "-" || e.key === "e") e.preventDefault();
   };
 
-  // ================= UPLOAD HANDLERS =================
   const handleDiagramUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1287,467 +1812,479 @@ function EditModal({
     "block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5";
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-        onClick={onClose}
-      />
-      <div className="relative w-full max-w-2xl bg-[#111111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-        <div className="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            {isEdit ? (
-              <Edit2 className="w-5 h-5 text-purple-400" />
-            ) : (
-              <Code2 className="w-5 h-5 text-purple-400" />
-            )}{" "}
-            {isEdit ? "Editează Proiectul" : "Adaugă Proiect"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="flex border-b border-white/5 px-6 pt-4 gap-6 bg-[#0c0c0c] overflow-x-auto custom-scrollbar shrink-0">
-          {[
-            { id: "general", label: "Informații", icon: Layout },
-            { id: "tehnic", label: "Stack Tehnic", icon: Database },
-            { id: "metrici", label: "Media & Linkuri", icon: LinkIcon },
-          ].map((tab) => (
+    <>
+      <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={onClose}
+        />
+        <div className="relative w-full max-w-2xl bg-[#111111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+          <div className="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              {isEdit ? (
+                <Edit2 className="w-5 h-5 text-purple-400" />
+              ) : (
+                <Code2 className="w-5 h-5 text-purple-400" />
+              )}{" "}
+              {isEdit ? "Editează Proiectul" : "Adaugă Proiect"}
+            </h2>
             <button
-              key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? "border-purple-500 text-purple-400" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
             >
-              <tab.icon className="w-4 h-4" /> {tab.label}
+              <X className="w-5 h-5" />
             </button>
-          ))}
-        </div>
-        <form
-          id="project-form"
-          onSubmit={handleSubmit}
-          className="flex-1 flex flex-col min-h-0 overflow-hidden"
-        >
-          <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-            {/* GENERAL TAB */}
-            <div
-              className={
-                activeTab === "general"
-                  ? "flex flex-col gap-4 animate-in fade-in h-full"
-                  : "hidden"
-              }
-            >
-              <div className="flex gap-4 items-start">
-                <div className="flex-1">
-                  <label className={LabelStyle}>Titlu Proiect *</label>
-                  <input
-                    required
-                    type="text"
-                    className={InputStyle}
-                    value={f.title || ""}
-                    onChange={(e) => setF({ ...f, title: e.target.value })}
-                    placeholder="Ex: E-commerce Dashboard"
-                  />
-                </div>
-
-                {/* Toggles Minimaliste (Featured & Private) */}
-                <div className="flex gap-2 pt-6 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setF({ ...f, featured: !f.featured })}
-                    title="Setează ca Featured"
-                    className={`p-2.5 rounded-xl border transition-all ${f.featured ? "bg-amber-500/10 border-amber-500/30" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
-                  >
-                    <Star
-                      className={`w-5 h-5 ${f.featured ? "fill-amber-400 text-amber-400" : "text-slate-500"}`}
+          </div>
+          <div className="flex border-b border-white/5 px-6 pt-4 gap-6 bg-[#0c0c0c] overflow-x-auto custom-scrollbar shrink-0">
+            {[
+              { id: "general", label: "Informații", icon: Layout },
+              { id: "tehnic", label: "Stack Tehnic", icon: Database },
+              { id: "metrici", label: "Media & Linkuri", icon: LinkIcon },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? "border-purple-500 text-purple-400" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+              >
+                <tab.icon className="w-4 h-4" /> {tab.label}
+              </button>
+            ))}
+          </div>
+          <form
+            id="project-form"
+            onSubmit={handleSubmit}
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+          >
+            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+              {/* TAB 1: GENERAL */}
+              <div
+                className={
+                  activeTab === "general"
+                    ? "flex flex-col gap-4 animate-in fade-in h-full"
+                    : "hidden"
+                }
+              >
+                <div className="flex gap-4 items-start">
+                  <div className="flex-1">
+                    <label className={LabelStyle}>Titlu Proiect *</label>
+                    <input
+                      required
+                      type="text"
+                      className={InputStyle}
+                      value={f.title || ""}
+                      onChange={(e) => setF({ ...f, title: e.target.value })}
+                      placeholder="Ex: E-commerce Dashboard"
                     />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setF({ ...f, isPrivate: !f.isPrivate })}
-                    title={f.isPrivate ? "Proiect Privat" : "Proiect Public"}
-                    className={`p-2.5 rounded-xl border transition-all ${f.isPrivate ? "bg-rose-500/10 border-rose-500/30" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
-                  >
-                    {f.isPrivate ? (
-                      <Lock className="w-5 h-5 text-rose-400" />
-                    ) : (
-                      <Unlock className="w-5 h-5 text-slate-500" />
-                    )}
-                  </button>
+                  </div>
+                  <div className="flex gap-2 pt-6 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setF({ ...f, featured: !f.featured })}
+                      title="Setează ca Featured"
+                      className={`p-2.5 rounded-xl border transition-all ${f.featured ? "bg-amber-500/10 border-amber-500/30" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
+                    >
+                      <Star
+                        className={`w-5 h-5 ${f.featured ? "fill-amber-400 text-amber-400" : "text-slate-500"}`}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setF({ ...f, isPrivate: !f.isPrivate })}
+                      title={f.isPrivate ? "Proiect Privat" : "Proiect Public"}
+                      className={`p-2.5 rounded-xl border transition-all ${f.isPrivate ? "bg-rose-500/10 border-rose-500/30" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
+                    >
+                      {f.isPrivate ? (
+                        <Lock className="w-5 h-5 text-rose-400" />
+                      ) : (
+                        <Unlock className="w-5 h-5 text-slate-500" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className={LabelStyle}>Tagline (Subtitlu curat)</label>
-                <input
-                  type="text"
-                  className={InputStyle}
-                  value={f.tagline || ""}
-                  onChange={(e) => setF({ ...f, tagline: e.target.value })}
-                  placeholder="Scurtă descriere catchy..."
-                />
-              </div>
-              <div>
-                <label className={LabelStyle}>Descriere Detaliată</label>
-                <textarea
-                  required
-                  rows={4}
-                  className={`${InputStyle} resize-none custom-scrollbar`}
-                  value={f.description || ""}
-                  onChange={(e) => setF({ ...f, description: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4 mt-auto">
-                <div className="relative">
-                  <label className={LabelStyle}>Platformă</label>
-                  <select
-                    className={`${InputStyle} appearance-none pr-10 cursor-pointer`}
-                    value={f.platform}
-                    onChange={(e) =>
-                      setF({ ...f, platform: e.target.value as Platform })
-                    }
-                  >
-                    {platformsList.map((pt) => (
-                      <option key={pt.id} value={pt.id}>
-                        {pt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
-                </div>
-                <div className="relative">
-                  <label className={LabelStyle}>Status</label>
-                  <select
-                    className={`${InputStyle} appearance-none pr-10 cursor-pointer`}
-                    value={f.status}
-                    onChange={(e) =>
-                      setF({ ...f, status: e.target.value as ProjStatus })
-                    }
-                  >
-                    {statusesList.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* TEHNIC TAB */}
-            <div
-              className={
-                activeTab === "tehnic"
-                  ? "space-y-4 animate-in fade-in"
-                  : "hidden"
-              }
-            >
-              <div>
-                <label className={LabelStyle}>
-                  Main Tech Stack (Separate prin virgulă)
-                </label>
-                <input
-                  type="text"
-                  className={InputStyle}
-                  value={f.tech?.join(", ") || ""}
-                  onChange={(e) => handleArrayChange("tech", e.target.value)}
-                  placeholder="React, Node.js, Docker..."
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={LabelStyle}>Frontend Stack</label>
+                  <label className={LabelStyle}>Tagline (Subtitlu curat)</label>
                   <input
                     type="text"
                     className={InputStyle}
-                    value={f.frontend?.join(", ") || ""}
-                    onChange={(e) =>
-                      handleArrayChange("frontend", e.target.value)
-                    }
-                    placeholder="Tailwind, Redux..."
+                    value={f.tagline || ""}
+                    onChange={(e) => setF({ ...f, tagline: e.target.value })}
+                    placeholder="Scurtă descriere catchy..."
                   />
                 </div>
                 <div>
-                  <label className={LabelStyle}>Backend Stack</label>
-                  <input
-                    type="text"
-                    className={InputStyle}
-                    value={f.backend?.join(", ") || ""}
+                  <label className={LabelStyle}>Descriere Detaliată</label>
+                  <textarea
+                    required
+                    rows={4}
+                    className={`${InputStyle} resize-none custom-scrollbar`}
+                    value={f.description || ""}
                     onChange={(e) =>
-                      handleArrayChange("backend", e.target.value)
+                      setF({ ...f, description: e.target.value })
                     }
-                    placeholder="Express, PostgreSQL..."
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                <div>
-                  <label className={LabelStyle}>DevOps / Hosting</label>
-                  <input
-                    type="text"
-                    className={InputStyle}
-                    value={f.devops?.join(", ") || ""}
-                    onChange={(e) =>
-                      handleArrayChange("devops", e.target.value)
-                    }
-                    placeholder="AWS, GitHub Actions, Vercel..."
-                  />
-                </div>
-
-                {/* Upload Diagrama */}
-                <div>
-                  <label className={LabelStyle}>Diagramă Arhitectură</label>
-                  <div className="flex flex-col gap-2">
-                    {f.architectureDiagram ? (
-                      <div className="relative w-full h-[46px] bg-black/40 rounded-xl border border-white/10 overflow-hidden group">
-                        <img
-                          src={f.architectureDiagram}
-                          alt="Preview Diagrama"
-                          className="w-full h-full object-cover opacity-80"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setF({ ...f, architectureDiagram: undefined })
-                          }
-                          className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
-                        >
-                          <Trash2 className="w-5 h-5 text-rose-400" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="relative w-full">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          id="diagramUpload"
-                          className="hidden"
-                          onChange={handleDiagramUpload}
-                        />
-                        <label
-                          htmlFor="diagramUpload"
-                          className="flex items-center justify-center gap-2 w-full h-[46px] border-2 border-dashed border-white/20 rounded-xl hover:border-purple-500/50 hover:bg-white/5 transition-colors cursor-pointer text-slate-400 hover:text-white"
-                        >
-                          <UploadCloud className="w-4 h-4" />{" "}
-                          <span className="text-xs font-bold">
-                            Încarcă Imagine
-                          </span>
-                        </label>
-                      </div>
-                    )}
+                <div className="grid grid-cols-2 gap-4 mt-auto">
+                  <div className="relative">
+                    <label className={LabelStyle}>Platformă</label>
+                    <select
+                      className={`${InputStyle} appearance-none pr-10 cursor-pointer`}
+                      value={f.platform}
+                      onChange={(e) =>
+                        setF({ ...f, platform: e.target.value as string })
+                      }
+                    >
+                      {platformsList.map((pt) => (
+                        <option key={pt.id} value={pt.id}>
+                          {pt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
+                  </div>
+                  <div className="relative">
+                    <label className={LabelStyle}>Status</label>
+                    <select
+                      className={`${InputStyle} appearance-none pr-10 cursor-pointer`}
+                      value={f.status}
+                      onChange={(e) =>
+                        setF({ ...f, status: e.target.value as string })
+                      }
+                    >
+                      {statusesList.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
                   </div>
                 </div>
               </div>
-              <div>
-                <label className={LabelStyle}>
-                  Highlights / Funcții (Apasă Enter pentru o funcție nouă)
-                </label>
-                <textarea
-                  rows={4}
-                  className={`${InputStyle} resize-none custom-scrollbar`}
-                  value={f.highlights?.join("\n") || ""}
-                  onChange={(e) =>
-                    setF({ ...f, highlights: e.target.value.split("\n") })
-                  }
-                  placeholder="Autentificare biometrică&#10;Plăți cu Stripe&#10;Sistem multi-tenant"
-                />
-              </div>
-            </div>
 
-            {/* METRICI & MEDIA TAB */}
-            <div
-              className={
-                activeTab === "metrici"
-                  ? "space-y-4 animate-in fade-in"
-                  : "hidden"
-              }
-            >
-              {/* Galerie Imagini Proiect */}
-              <div>
-                <label className={LabelStyle}>
-                  Imagini Proiect (Mockup UI, Screenshots)
-                </label>
-                <div className="flex flex-col gap-3">
-                  {f.images && f.images.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {f.images.map((img, idx) => (
-                        <div
-                          key={idx}
-                          className="relative aspect-video bg-black/40 rounded-xl border border-white/10 overflow-hidden group"
-                        >
+              {/* TEHNIC TAB */}
+              <div
+                className={
+                  activeTab === "tehnic"
+                    ? "space-y-4 animate-in fade-in"
+                    : "hidden"
+                }
+              >
+                <div>
+                  <label className={LabelStyle}>Main Tech Stack</label>
+                  <MultiSelectTagInput
+                    values={f.tech || []}
+                    onChange={(v: any) => setF({ ...f, tech: v })}
+                    options={techCatalogs.main}
+                    placeholder="Selectează sau scrie..."
+                    onManage={() => setManageFilterType("main")}
+                    onAddNew={(l: any) => onAddTech("main", l)}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={LabelStyle}>Frontend Stack</label>
+                    <MultiSelectTagInput
+                      values={f.frontend || []}
+                      onChange={(v: any) => setF({ ...f, frontend: v })}
+                      options={techCatalogs.frontend}
+                      placeholder="Selectează..."
+                      onManage={() => setManageFilterType("frontend")}
+                      onAddNew={(l: any) => onAddTech("frontend", l)}
+                    />
+                  </div>
+                  <div>
+                    <label className={LabelStyle}>Backend Stack</label>
+                    <MultiSelectTagInput
+                      values={f.backend || []}
+                      onChange={(v: any) => setF({ ...f, backend: v })}
+                      options={techCatalogs.backend}
+                      placeholder="Selectează..."
+                      onManage={() => setManageFilterType("backend")}
+                      onAddNew={(l: any) => onAddTech("backend", l)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                  <div>
+                    <label className={LabelStyle}>DevOps / Hosting</label>
+                    <MultiSelectTagInput
+                      values={f.devops || []}
+                      onChange={(v: any) => setF({ ...f, devops: v })}
+                      options={techCatalogs.devops}
+                      placeholder="Selectează..."
+                      onManage={() => setManageFilterType("devops")}
+                      onAddNew={(l: any) => onAddTech("devops", l)}
+                    />
+                  </div>
+                  <div>
+                    <label className={LabelStyle}>
+                      Diagramă Arhitectură (Upload)
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {f.architectureDiagram ? (
+                        <div className="relative w-full h-[44px] bg-black/40 rounded-xl border border-white/10 overflow-hidden group">
                           <img
-                            src={img}
-                            alt={`Preview ${idx + 1}`}
+                            src={f.architectureDiagram}
+                            alt="Preview Diagrama"
                             className="w-full h-full object-cover opacity-80"
                           />
                           <button
                             type="button"
-                            onClick={() => handleRemoveImage(idx)}
+                            onClick={() =>
+                              setF({ ...f, architectureDiagram: undefined })
+                            }
                             className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
                           >
                             <Trash2 className="w-5 h-5 text-rose-400" />
                           </button>
                         </div>
-                      ))}
+                      ) : (
+                        <div className="relative w-full">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id="diagramUpload"
+                            className="hidden"
+                            onChange={handleDiagramUpload}
+                          />
+                          <label
+                            htmlFor="diagramUpload"
+                            className="flex items-center justify-center gap-2 w-full h-[44px] border border-white/10 border-dashed rounded-xl hover:border-purple-500/50 hover:bg-white/5 transition-colors cursor-pointer text-slate-400 hover:text-white"
+                          >
+                            <UploadCloud className="w-4 h-4" />{" "}
+                            <span className="text-xs font-bold">
+                              Încarcă Imagine
+                            </span>
+                          </label>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div className="relative w-full">
+                  </div>
+                </div>
+                <div>
+                  <label className={LabelStyle}>
+                    Highlights / Funcții (Apasă Enter pentru o funcție nouă)
+                  </label>
+                  <textarea
+                    rows={4}
+                    className={`${InputStyle} resize-none custom-scrollbar`}
+                    value={f.highlights?.join("\n") || ""}
+                    onChange={(e) =>
+                      setF({ ...f, highlights: e.target.value.split("\n") })
+                    }
+                    placeholder="Autentificare biometrică&#10;Plăți cu Stripe&#10;Sistem multi-tenant"
+                  />
+                </div>
+              </div>
+
+              {/* METRICI & MEDIA TAB */}
+              <div
+                className={
+                  activeTab === "metrici"
+                    ? "space-y-4 animate-in fade-in"
+                    : "hidden"
+                }
+              >
+                <div>
+                  <label className={LabelStyle}>
+                    Imagini Proiect (Mockups, UI, Preview)
+                  </label>
+                  <div className="flex flex-col gap-3">
+                    {f.images && f.images.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {f.images.map((img, idx) => (
+                          <div
+                            key={idx}
+                            className="relative aspect-video bg-black/40 rounded-xl border border-white/10 overflow-hidden group"
+                          >
+                            <img
+                              src={img}
+                              alt={`Preview ${idx + 1}`}
+                              className="w-full h-full object-cover opacity-80"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                            >
+                              <Trash2 className="w-5 h-5 text-rose-400" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative w-full">
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        id="imagesUpload"
+                        className="hidden"
+                        onChange={handleImagesUpload}
+                      />
+                      <label
+                        htmlFor="imagesUpload"
+                        className="flex items-center justify-center gap-2 w-full h-[44px] border border-white/10 border-dashed rounded-xl hover:border-purple-500/50 hover:bg-white/5 transition-colors cursor-pointer text-slate-400 hover:text-white"
+                      >
+                        <UploadCloud className="w-4 h-4" />{" "}
+                        <span className="text-xs font-bold">
+                          Adaugă Imagini (Upload)
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={LabelStyle}>URL Proiect Live</label>
                     <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      id="imagesUpload"
-                      className="hidden"
-                      onChange={handleImagesUpload}
+                      type="url"
+                      className={InputStyle}
+                      value={f.liveUrl || ""}
+                      onChange={(e) => setF({ ...f, liveUrl: e.target.value })}
+                      placeholder="https://..."
                     />
-                    <label
-                      htmlFor="imagesUpload"
-                      className="flex items-center justify-center gap-2 w-full h-[46px] border-2 border-dashed border-white/20 rounded-xl hover:border-purple-500/50 hover:bg-white/5 transition-colors cursor-pointer text-slate-400 hover:text-white"
-                    >
-                      <UploadCloud className="w-4 h-4" />{" "}
-                      <span className="text-xs font-bold">
-                        Încarcă Imagini Noi
-                      </span>
-                    </label>
+                  </div>
+                  <div>
+                    <label className={LabelStyle}>URL GitHub / Repo</label>
+                    <input
+                      type="url"
+                      className={InputStyle}
+                      value={f.gitUrl || ""}
+                      onChange={(e) => setF({ ...f, gitUrl: e.target.value })}
+                      placeholder="https://github.com/..."
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className={LabelStyle}>Ore Lucrate</label>
+                    <input
+                      type="number"
+                      min="0"
+                      onKeyDown={blockNegative}
+                      className={InputStyle}
+                      value={f.hours || 0}
+                      onChange={(e) =>
+                        setF({ ...f, hours: parseInt(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className={LabelStyle}>Versiune</label>
+                    <input
+                      type="text"
+                      className={InputStyle}
+                      value={f.version || ""}
+                      onChange={(e) => setF({ ...f, version: e.target.value })}
+                      placeholder="1.0.0"
+                    />
+                  </div>
+                  <div className="relative">
+                    <label className={LabelStyle}>Stele</label>
+                    <input
+                      type="number"
+                      min="0"
+                      onKeyDown={blockNegative}
+                      className={`${InputStyle} ${isFetchingGit ? "pr-10" : ""}`}
+                      value={f.stars || 0}
+                      onChange={(e) =>
+                        setF({ ...f, stars: parseInt(e.target.value) || 0 })
+                      }
+                    />
+                    {isFetchingGit && (
+                      <div className="absolute right-3 top-[30px]">
+                        <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <label className={LabelStyle}>Ultima modif.</label>
+                    <input
+                      type="text"
+                      className={`${InputStyle} ${isFetchingGit ? "pr-10" : ""}`}
+                      value={f.lastModified || ""}
+                      onChange={(e) =>
+                        setF({ ...f, lastModified: e.target.value })
+                      }
+                      placeholder="ex. 12.05.2024"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={LabelStyle}>Nr. Utilizatori</label>
+                    <input
+                      type="text"
+                      className={InputStyle}
+                      value={f.users || ""}
+                      onChange={(e) => setF({ ...f, users: e.target.value })}
+                      placeholder='ex: "10k+"'
+                    />
+                  </div>
+                  <div>
+                    <label className={LabelStyle}>Data Începerii</label>
+                    <input
+                      type="month"
+                      className={InputStyle}
+                      value={f.since || ""}
+                      onChange={(e) => setF({ ...f, since: e.target.value })}
+                    />
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className={LabelStyle}>URL Proiect Live</label>
-                  <input
-                    type="url"
-                    className={InputStyle}
-                    value={f.liveUrl || ""}
-                    onChange={(e) => setF({ ...f, liveUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
-                <div>
-                  <label className={LabelStyle}>URL GitHub / Repo</label>
-                  <input
-                    type="url"
-                    className={InputStyle}
-                    value={f.gitUrl || ""}
-                    onChange={(e) => setF({ ...f, gitUrl: e.target.value })}
-                    placeholder="https://github.com/..."
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className={LabelStyle}>Ore Lucrate</label>
-                  <input
-                    type="number"
-                    min="0"
-                    onKeyDown={blockNegative}
-                    className={InputStyle}
-                    value={f.hours || 0}
-                    onChange={(e) =>
-                      setF({ ...f, hours: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className={LabelStyle}>Versiune</label>
-                  <input
-                    type="text"
-                    className={InputStyle}
-                    value={f.version || ""}
-                    onChange={(e) => setF({ ...f, version: e.target.value })}
-                    placeholder="1.0.0"
-                  />
-                </div>
-                <div className="relative">
-                  <label className={LabelStyle}>Stele (GitHub)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    onKeyDown={blockNegative}
-                    className={`${InputStyle} ${isFetchingGit ? "pr-10" : ""}`}
-                    value={f.stars || 0}
-                    onChange={(e) =>
-                      setF({ ...f, stars: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                  {isFetchingGit && (
-                    <div className="absolute right-3 top-[26px]">
-                      <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                    </div>
-                  )}
-                </div>
-                <div className="relative">
-                  <label className={LabelStyle}>Ultima modif.</label>
-                  <input
-                    type="text"
-                    className={`${InputStyle} ${isFetchingGit ? "pr-10" : ""}`}
-                    value={f.lastModified || ""}
-                    onChange={(e) =>
-                      setF({ ...f, lastModified: e.target.value })
-                    }
-                    placeholder="ex. 12.05.2024"
-                  />
-                  {isFetchingGit && (
-                    <div className="absolute right-3 top-[26px]">
-                      <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={LabelStyle}>Nr. Utilizatori</label>
-                  <input
-                    type="text"
-                    className={InputStyle}
-                    value={f.users || ""}
-                    onChange={(e) => setF({ ...f, users: e.target.value })}
-                    placeholder='ex: "10k+"'
-                  />
-                </div>
-                <div>
-                  <label className={LabelStyle}>Data Începerii</label>
-                  <input
-                    type="month"
-                    className={InputStyle}
-                    value={f.since || ""}
-                    onChange={(e) => setF({ ...f, since: e.target.value })}
-                  />
-                </div>
-              </div>
             </div>
-          </div>
-          <div className="p-5 border-t border-white/5 bg-[#09090b] flex gap-3 justify-end shrink-0 rounded-b-3xl">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors"
-            >
-              Anulează
-            </button>
-            <button
-              type="submit"
-              form="project-form"
-              className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all"
-            >
-              {isEdit ? "Salvează Modificările" : "Adaugă Proiectul"}
-            </button>
-          </div>
-        </form>
+            <div className="p-5 border-t border-white/5 bg-[#09090b] flex gap-3 justify-end shrink-0 rounded-b-3xl">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors"
+              >
+                Anulează
+              </button>
+              <button
+                type="submit"
+                form="project-form"
+                className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all"
+              >
+                {isEdit ? "Salvează Modificările" : "Adaugă Proiectul"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+
+      {manageFilterType && (
+        <ManageFiltersModal
+          title={`Gestionează: ${manageFilterType}`}
+          items={
+            techCatalogs[manageFilterType as keyof typeof techCatalogs] || []
+          }
+          onClose={() => setManageFilterType(null)}
+          onSave={(newItems: any) => {
+            onAddTech(manageFilterType, "");
+            setManageFilterType(null);
+          }}
+        />
+      )}
+    </>
   );
 }
 
-// ================= PAGINA PRINCIPALĂ =================
+// ================= PAGINA PRINCIPALĂ (CLOUD CRUD) =================
 export default function WebDevelopment() {
-  const [projs, setProjs] = useState<SWProject[]>(INITIAL_PROJECTS);
+  const { data: cloudProjects = [], isLoading } = useProjects();
+  const createMutation = useCreateProject();
+  const updateMutation = useUpdateProject();
+  const softDeleteMutation = useSoftDeleteProject();
+  const restoreMutation = useRestoreProject();
+  const permanentDeleteMutation = usePermanentDeleteProject();
+
   const [platforms, setPlatforms] = useState<FilterOption[]>(INITIAL_PLATFORMS);
   const [statuses, setStatuses] = useState<FilterOption[]>(INITIAL_STATUSES);
+  const [techCatalogs, setTechCatalogs] = useState(INITIAL_TECHS);
 
   const [sel, setSel] = useState<SWProject | null>(null);
   const [editingProj, setEditingProj] = useState<SWProject | null>(null);
@@ -1756,14 +2293,88 @@ export default function WebDevelopment() {
   const [manageFilterType, setManageFilterType] = useState<
     "platform" | "status" | null
   >(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
+  const [isActionProcessing, setIsActionProcessing] = useState(false);
 
   const [search, setSearch] = useState("");
   const [fPlat, setFPlat] = useState("all");
   const [fStat, setFStat] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
-  const activeProjects = projs.filter((p) => !p.isDeleted);
-  const deletedProjects = projs.filter((p) => p.isDeleted);
+  const processedProjects: SWProject[] = useMemo(() => {
+    // Îmbinăm mockup-urile inițiale cu datele din Cloud
+    // Convertim datele din cloud în structura noastră UI
+    const mappedCloud = cloudProjects.map((p: any) => {
+      let devops = [];
+      let highlights = [];
+      let stars = 0;
+      let users = "";
+      let version = "1.0.0";
+      let featured = false;
+      let accent = "#818cf8";
+
+      if (p.additionalFiles && p.additionalFiles.length >= 7) {
+        try {
+          devops = JSON.parse(p.additionalFiles[0]);
+        } catch (e) {}
+        try {
+          highlights = JSON.parse(p.additionalFiles[1]);
+        } catch (e) {}
+        stars = parseInt(p.additionalFiles[2], 10) || 0;
+        users = p.additionalFiles[3] || "";
+        version = p.additionalFiles[4] || "1.0.0";
+        featured = p.additionalFiles[5] === "true";
+        accent = p.additionalFiles[6] || "#818cf8";
+      }
+
+      return {
+        id: p.id,
+        title: p.title,
+        tagline: p.subcategory || "",
+        description: p.description,
+        platform: p.category || "web",
+        status: p.projectType || "concept",
+        tech: p.tags || [],
+        frontend: p.frontendTech || [],
+        backend: p.backendTech || [],
+        devops,
+        liveUrl: p.projectUrl || "",
+        gitUrl: p.gitUrl || "",
+        gradient: p.image || "linear-gradient(135deg,#4f46e5,#7c3aed)",
+        accent,
+        version,
+        hours: p.hoursWorked || 0,
+        since: p.initialReleaseDate || "",
+        highlights,
+        featured,
+        isPrivate: p.isPrivate || false,
+        stars,
+        users,
+        isDeleted: !!p.deletedAt,
+        images: p.images || [],
+        architectureDiagram: p.icon || "",
+        lastModified: p.lastUpdatedDate || "",
+      };
+    });
+
+    const cloudTitles = new Set(mappedCloud.map((c) => c.title.toLowerCase()));
+
+    // Păstrăm mockup-urile doar dacă nu au fost deja replicate în cloud (după titlu)
+    const activeMockups = INITIAL_PROJECTS.filter(
+      (m) => !cloudTitles.has(m.title.toLowerCase()),
+    ).map((m, i) => ({
+      ...m,
+      id: -100 - i, // Id negativ pentru a nu intra în conflict cu db id
+    }));
+
+    return [...activeMockups, ...mappedCloud];
+  }, [cloudProjects]);
+
+  // Folosim direct variabile pre-definite pentru a elimina eroarea de ReferenceError
+  const activeProjects = processedProjects.filter((p) => !p.isDeleted);
+  const deletedProjects = processedProjects.filter((p) => p.isDeleted);
   const projectsToDisplay = showTrash ? deletedProjects : activeProjects;
 
   const filtered = useMemo(() => {
@@ -1806,31 +2417,213 @@ export default function WebDevelopment() {
     { l: "Tehnologii", v: techSet.size, icon: Cpu, color: "text-white" },
   ];
 
-  const handleSaveProject = (newOrUpdatedProj: SWProject) => {
-    if (editingProj) {
-      setProjs((prev) =>
-        prev.map((p) => (p.id === newOrUpdatedProj.id ? newOrUpdatedProj : p)),
-      );
-    } else {
-      setProjs([newOrUpdatedProj, ...projs]);
+  // CLOUD CRUD Operations
+  const handleSaveProject = async (proj: SWProject) => {
+    const isMockup = proj.id < 0;
+
+    const apiPayload = {
+      title: proj.title,
+      description: proj.description,
+      image: proj.gradient || "linear-gradient(135deg,#4f46e5,#7c3aed)",
+      category: proj.platform,
+      subcategory: proj.tagline,
+      isPrivate: proj.isPrivate || false,
+      tags: proj.tech,
+      projectType: proj.status,
+      icon: proj.architectureDiagram || "",
+      images: proj.images || [],
+      hoursWorked: proj.hours,
+      frontendTech: proj.frontend,
+      backendTech: proj.backend,
+      initialReleaseDate: proj.since,
+      lastUpdatedDate: proj.lastModified || "",
+      gitUrl: proj.gitUrl || "",
+      projectUrl: proj.liveUrl || "",
+      additionalFiles: [
+        JSON.stringify(proj.devops || []),
+        JSON.stringify(proj.highlights || []),
+        (proj.stars || 0).toString(),
+        proj.users || "",
+        proj.version || "1.0.0",
+        proj.featured ? "true" : "false",
+        proj.accent || "#818cf8",
+      ],
+    };
+
+    try {
+      if (editingProj && !isMockup) {
+        await updateMutation.mutateAsync({
+          id: proj.id,
+          updates: apiPayload as any,
+        });
+        toast({
+          title: "Actualizat",
+          description: "Proiectul a fost salvat în cloud.",
+        });
+      } else {
+        await createMutation.mutateAsync(apiPayload as any);
+        toast({
+          title: "Creat",
+          description: "Noul proiect a fost adăugat în cloud.",
+        });
+      }
+      setShowAdd(false);
+      setEditingProj(null);
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Salvarea în cloud a eșuat.",
+      });
     }
-    setShowAdd(false);
-    setEditingProj(null);
   };
 
-  const handleSoftDelete = (id: number) =>
-    setProjs((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isDeleted: true } : p)),
-    );
-  const handleRestore = (id: number) =>
-    setProjs((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isDeleted: false } : p)),
-    );
+  const handleAddTechToCatalog = (type: string, label: string) => {
+    if (!label) return;
+    setTechCatalogs((prev: any) => {
+      const target = prev[type as keyof typeof prev] || [];
+      if (
+        target.find((t: any) => t.label.toLowerCase() === label.toLowerCase())
+      )
+        return prev;
+      return {
+        ...prev,
+        [type]: [
+          ...target,
+          { id: label.toLowerCase().replace(/\s+/g, "-"), label },
+        ],
+      };
+    });
+  };
+
+  const handleSoftDelete = (id: number) => {
+    if (id < 0) {
+      toast({
+        title: "Atenție",
+        description: "Proiectele demonstrative se resetează.",
+      });
+      return;
+    }
+    const project = processedProjects.find((item) => item.id === id);
+    if (!project) return;
+    setPendingAction({ type: "soft-delete", project });
+  };
+
+  const handleRestore = async (id: number) => {
+    try {
+      await restoreMutation.mutateAsync(id);
+      toast({ title: "Restaurat", description: "Proiectul a fost recuperat." });
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Operațiunea a eșuat.",
+      });
+    }
+  };
+
   const handleHardDelete = (id: number) => {
-    if (
-      window.confirm("Ești sigur că vrei să ștergi DEFINITIV acest proiect?")
-    ) {
-      setProjs((prev) => prev.filter((x) => x.id !== id));
+    if (id < 0) {
+      toast({
+        title: "Atenție",
+        description: "Proiectele demonstrative se resetează.",
+      });
+      return;
+    }
+    const project = processedProjects.find((item) => item.id === id);
+    if (!project) return;
+    setPendingAction({ type: "hard-delete", project });
+  };
+
+  const handleRestoreAll = async () => {
+    if (deletedProjects.length === 0) return;
+    setPendingAction({ type: "restore-all", count: deletedProjects.length });
+  };
+
+  const handleDeleteAll = async () => {
+    if (deletedProjects.length === 0) return;
+    setPendingAction({ type: "delete-all", count: deletedProjects.length });
+  };
+
+  const executePendingAction = async () => {
+    if (!pendingAction || isActionProcessing) return;
+
+    setIsActionProcessing(true);
+    try {
+      if (pendingAction.type === "soft-delete") {
+        await softDeleteMutation.mutateAsync(pendingAction.project.id);
+        toast({
+          title: "Arhivat",
+          description: "Proiectul a fost mutat în coș.",
+        });
+      } else if (pendingAction.type === "hard-delete") {
+        await permanentDeleteMutation.mutateAsync(pendingAction.project.id);
+        toast({
+          title: "Șters Definitiv",
+          description: "Proiectul a fost șters.",
+        });
+      } else if (pendingAction.type === "restore-all") {
+        const results = await Promise.allSettled(
+          deletedProjects.map((project) =>
+            restoreMutation.mutateAsync(project.id),
+          ),
+        );
+        const failedCount = results.filter(
+          (result) => result.status === "rejected",
+        ).length;
+
+        if (failedCount > 0) {
+          toast({
+            variant: "destructive",
+            title: "Eroare",
+            description:
+              failedCount === deletedProjects.length
+                ? "Niciun proiect nu a putut fi restaurat."
+                : `${failedCount} proiecte nu au putut fi restaurate.`,
+          });
+          return;
+        }
+
+        toast({
+          title: "Restaurate",
+          description: `${deletedProjects.length} proiecte au fost recuperate.`,
+        });
+      } else if (pendingAction.type === "delete-all") {
+        const results = await Promise.allSettled(
+          deletedProjects.map((project) =>
+            permanentDeleteMutation.mutateAsync(project.id),
+          ),
+        );
+        const failedCount = results.filter(
+          (result) => result.status === "rejected",
+        ).length;
+
+        if (failedCount > 0) {
+          toast({
+            variant: "destructive",
+            title: "Eroare",
+            description:
+              failedCount === deletedProjects.length
+                ? "Niciun proiect nu a putut fi șters definitiv."
+                : `${failedCount} proiecte nu au putut fi șterse definitiv.`,
+          });
+          return;
+        }
+
+        toast({
+          title: "Șterse Definitiv",
+          description: `${deletedProjects.length} proiecte au fost eliminate din Cloud.`,
+        });
+      }
+      setPendingAction(null);
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Eroare",
+        description: "Operațiunea a eșuat.",
+      });
+    } finally {
+      setIsActionProcessing(false);
     }
   };
 
@@ -1851,6 +2644,14 @@ export default function WebDevelopment() {
     { value: "hours", label: "Complexitate (Ore)" },
     { value: "title", label: "Alfabetic (A-Z)" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#080810]">
+        <Loader2 className="animate-spin w-12 h-12 text-purple-500" />
+      </div>
+    );
+  }
 
   return (
     <PageLayout>
@@ -1977,8 +2778,27 @@ export default function WebDevelopment() {
             </div>
             <h2 className="text-xl font-bold text-red-400">Proiecte Șterse</h2>
             <p className="text-sm text-slate-500 ml-2">
-              Aici poți restaura proiectele sau le poți șterge definitiv.
+              Aici poți restaura proiectele sau le poți șterge definitiv din
+              cloud.
             </p>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRestoreAll}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap border bg-[#09090b] text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 hover:text-emerald-300"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Restabilește toate</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAll}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap border bg-[#09090b] text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Șterge toate</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -2078,6 +2898,8 @@ export default function WebDevelopment() {
             onSave={handleSaveProject}
             platformsList={platforms}
             statusesList={statuses}
+            techCatalogs={techCatalogs}
+            onAddTech={handleAddTechToCatalog}
           />
         )}
 
@@ -2090,11 +2912,24 @@ export default function WebDevelopment() {
             }
             items={manageFilterType === "platform" ? platforms : statuses}
             onClose={() => setManageFilterType(null)}
-            onSave={(newItems) => {
+            onSave={(newItems: any) => {
               if (manageFilterType === "platform") setPlatforms(newItems);
               else setStatuses(newItems);
               setManageFilterType(null);
             }}
+          />
+        )}
+
+        {pendingAction && (
+          <ActionConfirmationModal
+            action={pendingAction}
+            onClose={() => {
+              if (!isActionProcessing) {
+                setPendingAction(null);
+              }
+            }}
+            onConfirm={executePendingAction}
+            isProcessing={isActionProcessing}
           />
         )}
       </div>
