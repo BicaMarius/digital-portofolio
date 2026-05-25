@@ -164,6 +164,33 @@ const STATUS_LABELS: Record<string, string> = {
   experiment: 'Experiment',
 };
 
+// Colored stack tags
+const STACK_TAG_COLORS = [
+  'text-rose-400 border-rose-400/20',
+  'text-emerald-400 border-emerald-400/20',
+  'text-blue-400 border-blue-400/20',
+  'text-amber-400 border-amber-400/20',
+  'text-violet-400 border-violet-400/20',
+  'text-cyan-400 border-cyan-400/20',
+  'text-orange-400 border-orange-400/20',
+  'text-pink-400 border-pink-400/20',
+];
+
+// Unit constants
+const ACC_UNITS = [{ v: '%', l: '%' }];
+const DATASET_UNITS = [{ v: 'K', l: 'K' }, { v: 'M', l: 'M' }, { v: 'B', l: 'B' }];
+const QUERY_UNITS = [{ v: 'μs', l: 'μs' }, { v: 'ms', l: 'ms' }, { v: 's', l: 's' }];
+const SIZE_UNITS = [{ v: 'KB', l: 'KB' }, { v: 'MB', l: 'MB' }, { v: 'GB', l: 'GB' }];
+const TRAIN_UNITS = [{ v: 'min', l: 'min' }, { v: 'h', l: 'h' }, { v: 'zile', l: 'zile' }];
+
+function splitValUnit(val: string, units: { v: string; l: string }[], defUnit: string): [string, string] {
+  if (!val) return ['', defUnit];
+  for (const u of units) {
+    if (val.endsWith(u.v)) return [val.slice(0, -u.v.length).trim(), u.v];
+  }
+  return [val.replace(/[^0-9.]/g, ''), defUnit];
+}
+
 const InputStyle =
   'w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all placeholder:text-slate-600';
 const LabelStyle =
@@ -424,11 +451,11 @@ function MLCard({ p, admin, onClick, onEdit, onDel, onRestore, isTrashView, task
           ))}
         </div>
 
-        {/* Tech Stack Pills */}
+        {/* Tech Stack Pills — colored */}
         {p.stack.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-4">
-            {p.stack.map((t) => (
-              <span key={t} className="px-2 py-0.5 rounded-md text-[10px] font-medium text-slate-400 bg-white/[0.03] border border-white/5 font-mono">{t}</span>
+            {p.stack.map((t, i) => (
+              <span key={t} className={`px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/[0.03] border font-mono ${STACK_TAG_COLORS[i % STACK_TAG_COLORS.length]}`}>{t}</span>
             ))}
           </div>
         )}
@@ -452,6 +479,18 @@ function EditModal({ project, onClose, onSave, tasksList }: {
   const isEdit = !!project;
   useModalEffects(true);
   const [activeTab, setActiveTab] = useState<'general' | 'tehnic' | 'media'>('general');
+
+  // Unit states
+  const [accNum, setAccNum] = useState(() => splitValUnit(project?.accuracy || '', ACC_UNITS, '%')[0]);
+  const [accUnit] = useState('%');
+  const [dataNum, setDataNum] = useState(() => splitValUnit(project?.dataset || '', DATASET_UNITS, 'K')[0]);
+  const [dataUnit, setDataUnit] = useState(() => splitValUnit(project?.dataset || '', DATASET_UNITS, 'K')[1]);
+  const [infNum, setInfNum] = useState(() => splitValUnit(project?.inferenceTime || '', QUERY_UNITS, 'ms')[0]);
+  const [infUnit, setInfUnit] = useState(() => splitValUnit(project?.inferenceTime || '', QUERY_UNITS, 'ms')[1]);
+  const [sizeNum, setSizeNum] = useState(() => splitValUnit(project?.modelSize || '', SIZE_UNITS, 'MB')[0]);
+  const [sizeUnit, setSizeUnit] = useState(() => splitValUnit(project?.modelSize || '', SIZE_UNITS, 'MB')[1]);
+  const [trainNum, setTrainNum] = useState(() => splitValUnit(project?.trainingTime || '', TRAIN_UNITS, 'h')[0]);
+  const [trainUnit, setTrainUnit] = useState(() => splitValUnit(project?.trainingTime || '', TRAIN_UNITS, 'h')[1]);
 
   const [f, setF] = useState<MLProject>({
     id: project?.id || 0,
@@ -487,7 +526,16 @@ function EditModal({ project, onClose, onSave, tasksList }: {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.title.trim()) return;
-    onSave({ ...f, stack: parsedStack });
+    const combined = {
+      ...f,
+      stack: parsedStack,
+      accuracy: accNum ? `${accNum}${accUnit}` : '',
+      dataset: dataNum ? `${dataNum}${dataUnit}` : '',
+      inferenceTime: infNum ? `${infNum}${infUnit}` : '',
+      modelSize: sizeNum ? `${sizeNum}${sizeUnit}` : '',
+      trainingTime: trainNum ? `${trainNum}${trainUnit}` : '',
+    };
+    onSave(combined);
   };
 
   const tabs = [
@@ -582,33 +630,64 @@ function EditModal({ project, onClose, onSave, tasksList }: {
           {/* ========== TAB 2: STACK TEHNIC ========== */}
           {activeTab === 'tehnic' && (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className={LabelStyle}>Accuracy</label>
-                  <input type="text" className={InputStyle} value={f.accuracy} onChange={(e) => setF({ ...f, accuracy: e.target.value })} placeholder="91.4%" />
-                </div>
-                <div>
-                  <label className={LabelStyle}>Dataset</label>
-                  <input type="text" className={InputStyle} value={f.dataset} onChange={(e) => setF({ ...f, dataset: e.target.value })} placeholder="280K samples" />
-                </div>
-                <div>
-                  <label className={LabelStyle}>Inferență</label>
-                  <input type="text" className={InputStyle} value={f.inferenceTime} onChange={(e) => setF({ ...f, inferenceTime: e.target.value })} placeholder="45ms" />
-                </div>
-                <div>
-                  <label className={LabelStyle}>Model Size</label>
-                  <input type="text" className={InputStyle} value={f.modelSize} onChange={(e) => setF({ ...f, modelSize: e.target.value })} placeholder="438MB" />
+              {/* Accuracy */}
+              <div>
+                <label className={LabelStyle}>Accuracy <span className="normal-case tracking-normal text-slate-600">— 0 la 100</span></label>
+                <div className="flex gap-2">
+                  <input type="number" min="0" max="100" step="0.1" className={`${InputStyle} flex-1`} value={accNum} onChange={(e) => setAccNum(e.target.value)} placeholder="91.4" />
+                  <div className="bg-[#09090b] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-400 font-mono shrink-0">%</div>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
+                {/* Dataset */}
+                <div>
+                  <label className={LabelStyle}>Dataset</label>
+                  <div className="flex gap-2">
+                    <input type="number" min="0" className={`${InputStyle} flex-1`} value={dataNum} onChange={(e) => setDataNum(e.target.value)} placeholder="280" />
+                    <select className="bg-[#09090b] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-300 outline-none focus:border-purple-500/50 shrink-0 cursor-pointer" value={dataUnit} onChange={(e) => setDataUnit(e.target.value)}>
+                      {DATASET_UNITS.map(u => <option key={u.v} value={u.v}>{u.l}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {/* Inference */}
+                <div>
+                  <label className={LabelStyle}>Inferență</label>
+                  <div className="flex gap-2">
+                    <input type="number" min="0" step="0.1" className={`${InputStyle} flex-1`} value={infNum} onChange={(e) => setInfNum(e.target.value)} placeholder="45" />
+                    <select className="bg-[#09090b] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-300 outline-none focus:border-purple-500/50 shrink-0 cursor-pointer" value={infUnit} onChange={(e) => setInfUnit(e.target.value)}>
+                      {QUERY_UNITS.map(u => <option key={u.v} value={u.v}>{u.l}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Model Size */}
+                <div>
+                  <label className={LabelStyle}>Model Size</label>
+                  <div className="flex gap-2">
+                    <input type="number" min="0" step="0.1" className={`${InputStyle} flex-1`} value={sizeNum} onChange={(e) => setSizeNum(e.target.value)} placeholder="438" />
+                    <select className="bg-[#09090b] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-300 outline-none focus:border-purple-500/50 shrink-0 cursor-pointer" value={sizeUnit} onChange={(e) => setSizeUnit(e.target.value)}>
+                      {SIZE_UNITS.map(u => <option key={u.v} value={u.v}>{u.l}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {/* Training Time */}
                 <div>
                   <label className={LabelStyle}>Timp Antrenare</label>
-                  <input type="text" className={InputStyle} value={f.trainingTime} onChange={(e) => setF({ ...f, trainingTime: e.target.value })} placeholder="8h" />
+                  <div className="flex gap-2">
+                    <input type="number" min="0" step="0.5" className={`${InputStyle} flex-1`} value={trainNum} onChange={(e) => setTrainNum(e.target.value)} placeholder="8" />
+                    <select className="bg-[#09090b] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-300 outline-none focus:border-purple-500/50 shrink-0 cursor-pointer" value={trainUnit} onChange={(e) => setTrainUnit(e.target.value)}>
+                      {TRAIN_UNITS.map(u => <option key={u.v} value={u.v}>{u.l}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className={LabelStyle}>Compute</label>
-                  <input type="text" className={InputStyle} value={f.compute} onChange={(e) => setF({ ...f, compute: e.target.value })} placeholder="NVIDIA A100" />
-                </div>
+              </div>
+
+              <div>
+                <label className={LabelStyle}>Compute</label>
+                <input type="text" className={InputStyle} value={f.compute} onChange={(e) => setF({ ...f, compute: e.target.value })} placeholder="NVIDIA A100" />
               </div>
               <div>
                 <label className={LabelStyle}>Metrici detaliate</label>
@@ -622,8 +701,8 @@ function EditModal({ project, onClose, onSave, tasksList }: {
                 <div>
                   <label className={LabelStyle}>Previzualizare stack</label>
                   <div className="flex flex-wrap gap-1.5">
-                    {parsedStack.map((t) => (
-                      <span key={t} className="px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium text-slate-300 bg-white/[0.03] border border-white/5">{t}</span>
+                    {parsedStack.map((t, i) => (
+                      <span key={t} className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-white/[0.03] border ${STACK_TAG_COLORS[i % STACK_TAG_COLORS.length]}`}>{t}</span>
                     ))}
                   </div>
                 </div>
@@ -815,8 +894,8 @@ function ProjectDetailModal({ p, onClose, allProjects, onNavigate, tasksList }: 
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Tech Stack</div>
                       <div className="rounded-xl border p-4" style={{ background: 'linear-gradient(180deg, rgba(147,51,234,0.08) 0%, rgba(255,255,255,0.04) 100%)', borderColor: 'rgba(147,51,234,0.2)' }}>
                         <div className="flex flex-wrap gap-1.5">
-                          {p.stack.map((t) => (
-                            <span key={t} className="text-xs font-mono px-2 py-1 rounded-md border w-fit" style={{ color: '#a78bfa', background: 'rgba(147,51,234,0.08)', borderColor: 'rgba(147,51,234,0.2)' }}>
+                          {p.stack.map((t, i) => (
+                            <span key={t} className={`text-xs font-mono px-2 py-1 rounded-md border w-fit bg-white/[0.03] ${STACK_TAG_COLORS[i % STACK_TAG_COLORS.length]}`}>
                               {t}
                             </span>
                           ))}

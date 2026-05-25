@@ -190,6 +190,19 @@ const TABLE_TAG_DOT_COLORS = [
   'bg-pink-400',
 ];
 
+const PROJECT_CARD_GRADIENTS = [
+  'from-indigo-600 via-purple-600 to-violet-500',
+  'from-emerald-500 via-teal-500 to-cyan-500',
+  'from-amber-500 via-orange-500 to-red-500',
+  'from-rose-500 via-pink-500 to-purple-600',
+  'from-cyan-500 via-blue-500 to-indigo-600',
+  'from-purple-600 via-fuchsia-500 to-pink-500',
+  'from-green-500 via-emerald-600 to-teal-700',
+  'from-orange-400 via-red-500 to-rose-600',
+  'from-blue-500 via-indigo-500 to-purple-600',
+  'from-teal-400 via-cyan-500 to-blue-600',
+];
+
 const InputStyle =
   'w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all placeholder:text-slate-600';
 const LabelStyle =
@@ -565,6 +578,8 @@ function DBCard({
         el.style.boxShadow = 'none';
       }}
     >
+      {/* Accent gradient stripe */}
+      <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${PROJECT_CARD_GRADIENTS[p.id % PROJECT_CARD_GRADIENTS.length]} opacity-80`} />
       {/* Top row: Engine badge + Status + Admin actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
