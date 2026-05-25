@@ -2302,11 +2302,15 @@ export default function WebDevelopment() {
   const [fPlat, setFPlat] = useState("all");
   const [fStat, setFStat] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PROJECTS_PER_PAGE = 9;
 
   const processedProjects: SWProject[] = useMemo(() => {
     // Îmbinăm mockup-urile inițiale cu datele din Cloud
     // Convertim datele din cloud în structura noastră UI
-    const mappedCloud = cloudProjects.map((p: any) => {
+    const mappedCloud = cloudProjects
+      .filter((p: any) => p.subcategory !== 'database')
+      .map((p: any) => {
       let devops = [];
       let highlights = [];
       let stars = 0;
@@ -2398,6 +2402,14 @@ export default function WebDevelopment() {
 
   const featured = filtered.filter((p) => p.featured);
   const rest = filtered.filter((p) => !p.featured);
+
+  const totalPages = Math.ceil(filtered.length / PROJECTS_PER_PAGE);
+  const paginatedProjects = filtered.slice(
+    (currentPage - 1) * PROJECTS_PER_PAGE,
+    currentPage * PROJECTS_PER_PAGE,
+  );
+
+  useEffect(() => { setCurrentPage(1); }, [search, fPlat, fStat, sortBy, showTrash]);
 
   const totalH = activeProjects.reduce((s, p) => s + p.hours, 0);
   const formattedHours =
@@ -2804,46 +2816,10 @@ export default function WebDevelopment() {
 
         {/* GRID PROIECTE */}
         <div className="pb-16 flex flex-col gap-12">
-          {featured.length > 0 && (
+          {paginatedProjects.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-6">
-                <span className="text-amber-400">★</span>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                  Featured Projects
-                </span>
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featured.map((p) => (
-                  <Card
-                    key={p.id}
-                    p={p}
-                    admin={true}
-                    onClick={() => !showTrash && setSel(p)}
-                    onEdit={() => setEditingProj(p)}
-                    onDel={() =>
-                      showTrash
-                        ? handleHardDelete(p.id)
-                        : handleSoftDelete(p.id)
-                    }
-                    onRestore={() => handleRestore(p.id)}
-                    isTrashView={showTrash}
-                    platformsList={platforms}
-                    statusesList={statuses}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {rest.length > 0 && (
-            <section>
-              {featured.length > 0 && (
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-6">
-                  Alte Proiecte
-                </div>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {rest.map((p) => (
+                {paginatedProjects.map((p) => (
                   <Card
                     key={p.id}
                     p={p}
@@ -2872,6 +2848,73 @@ export default function WebDevelopment() {
                 {showTrash
                   ? "Nu există proiecte în coșul de gunoi."
                   : "Niciun proiect nu corespunde filtrelor aplicate."}
+              </div>
+            </div>
+          )}
+
+          {/* PAGINATION */}
+          {totalPages > 1 && (
+            <div className="flex flex-col items-center gap-3 mt-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                    currentPage === 1
+                      ? 'bg-[#12121a] border border-white/5 text-slate-600 cursor-not-allowed'
+                      : 'bg-[#12121a] border border-white/5 text-slate-400 hover:border-white/20 hover:text-white'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 3) pages.push('...');
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (currentPage < totalPages - 2) pages.push('...');
+                    pages.push(totalPages);
+                  }
+                  return pages.map((page, i) =>
+                    typeof page === 'string' ? (
+                      <span key={`ellipsis-${i}`} className="w-10 h-10 flex items-center justify-center text-slate-600 text-sm">…</span>
+                    ) : (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-10 h-10 rounded-xl text-sm font-bold transition-all duration-300 ${
+                          currentPage === page
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(147,51,234,0.3)]'
+                            : 'bg-[#12121a] border border-white/5 text-slate-400 hover:border-white/20 hover:text-white'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  );
+                })()}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                    currentPage === totalPages
+                      ? 'bg-[#12121a] border border-white/5 text-slate-600 cursor-not-allowed'
+                      : 'bg-[#12121a] border border-white/5 text-slate-400 hover:border-white/20 hover:text-white'
+                  }`}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                Pagina {currentPage} din {totalPages} · {filtered.length} proiecte
               </div>
             </div>
           )}

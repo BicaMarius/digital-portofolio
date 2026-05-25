@@ -1,96 +1,55 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { PageLayout } from "@/components/PageLayout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-import {
-  Search,
-  Filter,
-  EyeOff,
-  ExternalLink,
-  Edit,
-  Trash2,
-  Trash,
-  RotateCcw,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Plus,
-  Monitor,
-  Grid3x3,
-  List,
-  Target,
-  Layers,
-  Zap,
-  CheckCircle2,
-  ImagePlus,
-  BarChart3,
-  Check,
-  Settings2,
-  Lock,
-  Unlock,
-  ChevronDown,
-  BrainCircuit,
-  Database,
-  Network,
-  Cpu,
-  Github,
-  Activity,
-  Terminal,
-} from "lucide-react";
-import { useAdmin } from "@/contexts/AdminContext";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { PageLayout } from '@/components/PageLayout';
+import { useAdmin } from '@/contexts/AdminContext';
+import { useToast } from '@/hooks/use-toast';
 import {
   getGalleryItemsByCategory,
   createGalleryItem,
   updateGalleryItem,
-  deleteGalleryItem,
   softDeleteGalleryItem,
   restoreGalleryItem,
+  deleteGalleryItem,
   getTrashedGalleryItemsByCategory,
-} from "@/lib/api";
-import type { GalleryItem } from "@shared/schema";
+} from '@/lib/api';
+import type { GalleryItem } from '@shared/schema';
+import {
+  Search,
+  Plus,
+  Filter,
+  ArrowUpDown,
+  X,
+  Edit3,
+  Trash2,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Loader2,
+  Check,
+  AlertTriangle,
+  Settings,
+  Lock,
+  Unlock,
+  Star,
+  BrainCircuit,
+  Activity,
+  Zap,
+  Database,
+  BarChart3,
+  Cpu,
+  HardDrive,
+  Github,
+  ExternalLink,
+  Eye,
+  MessageSquare,
+  Table2,
+  FolderKanban,
+  Layout,
+  Link as LinkIcon,
+  UploadCloud,
+} from 'lucide-react';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type AiMlProject = GalleryItem;
-
+// ================= HELPERS =================
 interface AIMLMeta {
   brief: string;
   problem: string;
@@ -98,91 +57,31 @@ interface AIMLMeta {
   architecture: string;
   metrics: string;
   repoUrl: string;
+  accuracy: string;
+  inferenceTime: string;
+  modelSize: string;
+  trainingTime: string;
 }
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const INITIAL_STACK = [
-  "Python",
-  "PyTorch",
-  "TensorFlow",
-  "Scikit-learn",
-  "Pandas",
-  "HuggingFace",
-  "FastAPI",
-  "Streamlit",
-  "CUDA",
-  "OpenCV",
-];
-
-const AI_TYPES: Record<
-  string,
-  { label: string; color: string; bg: string; icon: React.ReactNode }
-> = {
-  nlp: {
-    label: "NLP & LLMs",
-    color: "text-blue-400",
-    bg: "bg-blue-400/15 border-blue-400/30",
-    icon: <Terminal className="w-3.5 h-3.5" />,
-  },
-  cv: {
-    label: "Computer Vision",
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/15 border-emerald-400/30",
-    icon: <EyeOff className="w-3.5 h-3.5" />,
-  },
-  predictive: {
-    label: "Predictive Modeling",
-    color: "text-amber-400",
-    bg: "bg-amber-400/15 border-amber-400/30",
-    icon: <Activity className="w-3.5 h-3.5" />,
-  },
-  "gen-ai": {
-    label: "Generative AI",
-    color: "text-purple-400",
-    bg: "bg-purple-400/15 border-purple-400/30",
-    icon: <BrainCircuit className="w-3.5 h-3.5" />,
-  },
-  "data-science": {
-    label: "Data Science / EDA",
-    color: "text-cyan-400",
-    bg: "bg-cyan-400/15 border-cyan-400/30",
-    icon: <Database className="w-3.5 h-3.5" />,
-  },
-};
-
-const STATUSES: Record<string, { label: string; color: string }> = {
-  experiment: {
-    label: "Experiment / Notebook",
-    color: "text-slate-400 bg-slate-400/10 border-slate-400/20",
-  },
-  model: {
-    label: "Model Antrenat",
-    color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-  },
-  deployed: {
-    label: "Produs Lansat (API)",
-    color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  },
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseMeta(desc: string | null | undefined): AIMLMeta {
   const empty: AIMLMeta = {
-    brief: "",
-    problem: "",
-    dataset: "",
-    architecture: "",
-    metrics: "",
-    repoUrl: "",
+    brief: '',
+    problem: '',
+    dataset: '',
+    architecture: '',
+    metrics: '',
+    repoUrl: '',
+    accuracy: '',
+    inferenceTime: '',
+    modelSize: '',
+    trainingTime: '',
   };
   if (!desc) return empty;
   try {
     const p = JSON.parse(desc);
-    if (typeof p === "object" && p !== null) return { ...empty, ...p };
+    if (typeof p === 'object' && p !== null) return { ...empty, ...p };
   } catch {
-    /* legacy */
+    /* legacy plain text */
   }
   return { ...empty, brief: desc };
 }
@@ -191,1834 +90,1276 @@ function encodeMeta(m: AIMLMeta): string {
   return JSON.stringify(m);
 }
 
-function getImages(project: AiMlProject): string[] {
-  if (project.date?.includes("|"))
-    return project.date.split("|").filter(Boolean);
-  return [project.image].filter(Boolean);
+// ================= TYPES & CONSTANTS =================
+interface MLProject {
+  id: number;
+  title: string;
+  brief: string;
+  problem: string;
+  dataset: string;
+  architecture: string;
+  metricsText: string;
+  repoUrl: string;
+  demoUrl: string;
+  accuracy: string;
+  inferenceTime: string;
+  modelSize: string;
+  trainingTime: string;
+  task: string;
+  status: string;
+  stack: string[];
+  gradient: string;
+  featured: boolean;
+  isPrivate: boolean;
+  isDeleted: boolean;
+  compute: string;
+  image: string;
 }
 
-// ─── Sub-component: Project Card ─────────────────────────────────────────────
-
-interface ProjectCardProps {
-  project: AiMlProject;
-  index: number;
-  isAdmin: boolean;
-  viewMode: "grid" | "list";
-  onClick: () => void;
-  onEdit: (e: React.MouseEvent) => void;
-  onDelete: (e: React.MouseEvent) => void;
+interface FilterOption {
+  id: string;
+  label: string;
+  color?: string;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({
-  project,
-  index,
-  isAdmin,
-  viewMode,
-  onClick,
-  onEdit,
-  onDelete,
-}) => {
-  const meta = parseMeta(project.description);
-  const typeInfo = AI_TYPES[project.subcategory || "nlp"] || AI_TYPES["nlp"];
-  const statusInfo =
-    STATUSES[(project as any).medium || "experiment"] || STATUSES.experiment;
-  const stack: string[] = (project as any).materials || [];
-  const images = getImages(project);
-  const isDeployed = (project as any).medium === "deployed";
+type PendingAction =
+  | { type: 'soft-delete'; project: MLProject }
+  | { type: 'hard-delete'; project: MLProject }
+  | { type: 'restore-all'; count: number }
+  | { type: 'delete-all'; count: number };
 
-  if (viewMode === "list") {
-    return (
-      <div
-        className="group flex gap-4 p-4 rounded-xl border border-border/50 hover:border-blue-500/40 bg-card/50 hover:bg-card/80 transition-all duration-300 cursor-pointer animate-scale-in"
-        style={{ animationDelay: `${index * 40}ms` }}
-        onClick={onClick}
-      >
-        <div className="relative w-32 sm:w-48 flex-shrink-0 aspect-[4/3] rounded-lg overflow-hidden bg-muted border border-border/50">
-          <img
-            src={project.image}
-            alt={project.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-          {images.length > 1 && (
-            <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
-              +{images.length - 1}
-            </div>
-          )}
-          {project.isPrivate && (
-            <div className="absolute top-1.5 left-1.5 bg-black/70 p-1 rounded">
-              <EyeOff className="w-3 h-3 text-white" />
-            </div>
-          )}
-        </div>
+const PROJECTS_PER_PAGE = 9;
 
-        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-          <div className="space-y-1.5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span
-                  className={`text-[11px] font-semibold uppercase tracking-widest flex items-center gap-1.5 ${typeInfo.color}`}
-                >
-                  {typeInfo.icon} {typeInfo.label}
-                </span>
-                <h3 className="font-semibold text-base leading-tight mt-1 line-clamp-1">
-                  {project.title}
-                </h3>
-              </div>
-              {isAdmin && (
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 hover:bg-blue-500/10 hover:text-blue-400"
-                    onClick={onEdit}
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 hover:bg-red-500/10 hover:text-red-400"
-                    onClick={onDelete}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-            <p className="text-muted-foreground text-sm line-clamp-2">
-              {meta.brief || meta.problem || "Fără descriere"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap pt-2 mt-auto">
-            <Badge
-              variant="outline"
-              className={`text-[10px] h-5 ${statusInfo.color}`}
-            >
-              {statusInfo.label}
-            </Badge>
-            {(project as any).dimensions && (
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <Database className="w-3 h-3" /> {(project as any).dimensions}
-              </span>
-            )}
-            {stack.slice(0, 3).map((t) => (
-              <span
-                key={t}
-                className="text-[10px] text-muted-foreground border border-border/40 px-1.5 py-0.5 rounded"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+const INITIAL_TASKS: FilterOption[] = [
+  { id: 'nlp', label: 'NLP & LLMs', color: '#818cf8' },
+  { id: 'cv', label: 'Computer Vision', color: '#34d399' },
+  { id: 'predictive', label: 'Predictive Modeling', color: '#fbbf24' },
+  { id: 'gen-ai', label: 'Generative AI', color: '#c084fc' },
+  { id: 'data-science', label: 'Data Science / EDA', color: '#22d3ee' },
+];
+
+const INITIAL_STATUSES: FilterOption[] = [
+  { id: 'deployed', label: 'Deployed (API)', color: '#34d399' },
+  { id: 'model', label: 'Model Antrenat', color: '#fbbf24' },
+  { id: 'experiment', label: 'Experiment', color: '#94a3b8' },
+];
+
+const TASK_STYLES: Record<string, { bg: string; text: string; border: string; icon: React.ElementType; gradient: string }> = {
+  nlp: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30', icon: MessageSquare, gradient: 'from-indigo-600 via-purple-600 to-violet-500' },
+  cv: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', icon: Eye, gradient: 'from-rose-500 via-pink-500 to-purple-600' },
+  predictive: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30', icon: Activity, gradient: 'from-amber-500 via-orange-500 to-red-500' },
+  'gen-ai': { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', icon: BrainCircuit, gradient: 'from-purple-600 via-fuchsia-500 to-pink-500' },
+  'data-science': { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30', icon: Database, gradient: 'from-cyan-500 via-blue-500 to-indigo-600' },
+};
+
+const STATUS_DOT_COLORS: Record<string, string> = {
+  deployed: 'bg-emerald-400',
+  model: 'bg-amber-400',
+  experiment: 'bg-slate-400',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  deployed: 'Deployed',
+  model: 'Model Antrenat',
+  experiment: 'Experiment',
+};
+
+const InputStyle =
+  'w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all placeholder:text-slate-600';
+const LabelStyle =
+  'block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5';
+
+// ================= HOOKS =================
+function useModalEffects(isOpen: boolean) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+}
+
+function useOutsideClick(ref: React.RefObject<HTMLElement | null>, callback: () => void) {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) callback();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ref, callback]);
+}
+
+// ================= CUSTOM SELECT =================
+function CustomSelect({
+  value, onChange, options, icon: Icon, onManage,
+}: {
+  value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  icon?: React.ElementType; onManage?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useOutsideClick(ref, () => setOpen(false));
+  const selected = options.find((o) => o.value === value);
 
   return (
-    <div
-      className="group relative rounded-xl overflow-hidden border border-border/40 hover:border-blue-500/50 bg-card/60 hover:bg-card/90 transition-all duration-300 cursor-pointer animate-scale-in hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 flex flex-col h-full"
-      style={{ animationDelay: `${index * 60}ms` }}
-      onClick={onClick}
-    >
+    <div ref={ref} className="relative w-full sm:w-auto min-w-[170px] z-20">
       <div
-        className={`absolute top-0 left-0 right-0 h-[3px] z-10 ${typeInfo.bg.replace("bg-", "bg-").replace("/15", "/80").split(" ")[0]}`}
-      />
-
-      <div className="relative aspect-[16/10] overflow-hidden bg-muted border-b border-border/20">
-        <img
-          src={project.image}
-          alt={project.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-        <div className="absolute top-3 left-3 flex gap-2">
-          {images.length > 1 && (
-            <div className="bg-black/70 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md font-mono flex items-center gap-1 border border-white/10">
-              <ImagePlus className="h-3 w-3" /> {images.length}
-            </div>
-          )}
-          {project.isPrivate && (
-            <div className="bg-black/70 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
-              <EyeOff className="w-3 h-3 text-white" />
-            </div>
-          )}
+        onClick={() => setOpen(!open)}
+        className={`flex items-center justify-between w-full bg-[#09090b] border ${open ? 'border-purple-500/50' : 'border-white/5'} hover:border-white/20 rounded-xl px-4 py-2.5 text-sm text-slate-300 cursor-pointer transition-all shadow-sm`}
+      >
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-slate-500" />}
+          <span className="truncate">{selected?.label || 'Selectează'}</span>
         </div>
-
-        <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <div className="flex gap-2">
-            {(project as any).location && (
-              <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-none gap-1">
-                <ExternalLink className="w-3 h-3" /> Demo
-              </Badge>
-            )}
-            {meta.repoUrl && (
-              <Badge className="bg-slate-700 hover:bg-slate-600 text-white border-none gap-1">
-                <Github className="w-3 h-3" /> Repo
-              </Badge>
-            )}
-          </div>
-          {isAdmin && (
-            <div className="flex gap-1.5">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 bg-black/60 hover:bg-blue-500/80 text-white rounded-md backdrop-blur-sm"
-                onClick={onEdit}
-              >
-                <Edit className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 bg-black/60 hover:bg-red-500/80 text-white rounded-md backdrop-blur-sm"
-                onClick={onDelete}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          )}
-        </div>
+        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-300 shrink-0 ml-2 ${open ? 'rotate-180' : ''}`} />
       </div>
-
-      <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">
-        <div>
-          <span
-            className={`text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5 ${typeInfo.color}`}
-          >
-            {typeInfo.icon} {typeInfo.label}
-          </span>
-          <h3 className="font-bold text-base mt-1.5 leading-snug line-clamp-1">
-            {project.title}
-          </h3>
-          <p className="text-muted-foreground text-xs mt-2 line-clamp-2 leading-relaxed">
-            {meta.brief || meta.problem || "Nicio descriere adăugată."}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between pt-3 border-t border-border/40">
-            <Badge
-              variant="outline"
-              className={`text-[10px] h-5 px-2 ${statusInfo.color}`}
-            >
-              {statusInfo.label}
-            </Badge>
-            <div className="flex items-center gap-1.5">
-              {stack.slice(0, 2).map((t) => (
-                <span
-                  key={t}
-                  className="text-[10px] font-medium text-muted-foreground border border-border/60 px-1.5 py-0.5 rounded bg-muted/20"
-                >
-                  {t}
-                </span>
-              ))}
-              {stack.length > 2 && (
-                <span className="text-[10px] text-muted-foreground">
-                  +{stack.length - 2}
-                </span>
-              )}
-            </div>
+      {open && (
+        <div className="absolute top-full left-0 mt-2 w-full bg-[#111111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 py-1.5 z-50 flex flex-col">
+          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+            {options.map((o) => (
+              <div key={o.value}
+                onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-colors ${value === o.value ? 'bg-purple-500/10 text-purple-400 font-medium' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                {o.label}
+                {value === o.value && <Check className="w-4 h-4" />}
+              </div>
+            ))}
           </div>
+          {onManage && (
+            <div className="mt-1 shrink-0">
+              <div className="h-px w-full bg-white/10 mb-1" />
+              <div
+                onClick={() => { onManage(); setOpen(false); }}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm cursor-pointer text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
+                <Settings className="w-4 h-4 shrink-0" />
+                <span>Gestionează filtre</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================= MANAGE FILTERS MODAL =================
+function ManageFiltersModal({ title, items, onClose, onSave }: {
+  title: string; items: FilterOption[]; onClose: () => void; onSave: (items: FilterOption[]) => void;
+}) {
+  const [local, setLocal] = useState<FilterOption[]>([...items]);
+  const [newLabel, setNewLabel] = useState('');
+  useModalEffects(true);
+
+  const handleAdd = () => {
+    if (!newLabel.trim()) return;
+    const id = newLabel.trim().toLowerCase().replace(/\s+/g, '-');
+    if (local.find((i) => i.id === id)) return;
+    setLocal([...local, { id, label: newLabel.trim() }]);
+    setNewLabel('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-white/5 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white">{title}</h3>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar">
+          {local.map((item) => (
+            <div key={item.id} className="flex items-center gap-3 bg-[#09090b] border border-white/5 rounded-xl px-3 py-2">
+              {item.color && <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />}
+              <input type="text" value={item.label} onChange={(e) => setLocal(local.map((i) => (i.id === item.id ? { ...i, label: e.target.value } : i)))} className="flex-1 bg-transparent text-sm text-slate-200 outline-none" />
+              <button type="button" onClick={() => setLocal(local.filter((i) => i.id !== item.id))} className="text-slate-600 hover:text-red-400 transition-colors"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ))}
+          <div className="flex gap-2 mt-2">
+            <input type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} placeholder="Adaugă opțiune nouă..." className={InputStyle} />
+            <button type="button" onClick={handleAdd} className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-xl text-sm font-bold hover:bg-purple-600/30 transition-colors whitespace-nowrap"><Plus className="w-4 h-4" /></button>
+          </div>
+        </div>
+        <div className="p-5 border-t border-white/5 bg-[#09090b] flex gap-3 justify-end rounded-b-3xl">
+          <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors">Anulează</button>
+          <button type="button" onClick={() => onSave(local)} className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all">Salvează</button>
         </div>
       </div>
     </div>
   );
-};
-
-// ─── Sub-component: Project Modal (Tabbed, Artistic, Clean) ──────────────────
-
-interface ProjectModalProps {
-  project: AiMlProject;
-  projects: AiMlProject[];
-  onClose: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  isAdmin: boolean;
 }
 
-const ProjectModal: React.FC<ProjectModalProps> = ({
-  project,
-  projects,
-  onClose,
-  onEdit,
-  onDelete,
-  isAdmin,
-}) => {
-  const [imgIdx, setImgIdx] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(true);
-  const meta = parseMeta(project.description);
-  const images = getImages(project);
-  const typeInfo = AI_TYPES[project.subcategory || "nlp"] || AI_TYPES["nlp"];
-  const statusInfo =
-    STATUSES[(project as any).medium || "experiment"] || STATUSES.experiment;
-  const stack: string[] = (project as any).materials || [];
-
-  useEffect(() => {
-    if (!autoPlay || images.length <= 1) return;
-    const t = setInterval(
-      () => setImgIdx((i) => (i + 1) % images.length),
-      4000,
-    );
-    return () => clearInterval(t);
-  }, [autoPlay, images.length]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft" && images.length > 1) {
-        setAutoPlay(false);
-        setImgIdx((i) => (i - 1 + images.length) % images.length);
-      }
-      if (e.key === "ArrowRight" && images.length > 1) {
-        setAutoPlay(false);
-        setImgIdx((i) => (i + 1) % images.length);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [images.length, onClose]);
+// ================= ACTION CONFIRMATION MODAL =================
+function ActionConfirmationModal({ action, onClose, onConfirm, isProcessing }: {
+  action: PendingAction; onClose: () => void; onConfirm: () => void; isProcessing: boolean;
+}) {
+  useModalEffects(true);
+  const config = useMemo(() => {
+    switch (action.type) {
+      case 'soft-delete': return { title: 'Mută în coș', desc: `Ești sigur că vrei să muți „${action.project.title}" în coșul de gunoi?`, icon: Trash2, confirmLabel: 'Mută în coș', color: 'red' as const };
+      case 'hard-delete': return { title: 'Ștergere permanentă', desc: `Ești sigur că vrei să ștergi definitiv „${action.project.title}"? Acțiunea nu poate fi anulată.`, icon: AlertTriangle, confirmLabel: 'Șterge definitiv', color: 'red' as const };
+      case 'restore-all': return { title: 'Restaurează toate', desc: `Vrei să restaurezi ${action.count} modele din coșul de gunoi?`, icon: RotateCcw, confirmLabel: 'Restaurează toate', color: 'emerald' as const };
+      case 'delete-all': return { title: 'Golește coșul', desc: `Vrei să ștergi definitiv ${action.count} modele?`, icon: AlertTriangle, confirmLabel: 'Șterge tot definitiv', color: 'red' as const };
+    }
+  }, [action]);
+  const IconComp = config.icon;
+  const isRed = config.color === 'red';
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
-      onClick={onClose}
+    <div className="fixed inset-0 z-[10020] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => !isProcessing && onClose()}>
+      <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 text-center">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isRed ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
+            <IconComp className={`w-7 h-7 ${isRed ? 'text-red-400' : 'text-emerald-400'}`} />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">{config.title}</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">{config.desc}</p>
+        </div>
+        <div className="p-5 border-t border-white/5 flex gap-3 justify-center">
+          <button type="button" onClick={onClose} disabled={isProcessing} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors disabled:opacity-50">Anulează</button>
+          <button type="button" onClick={onConfirm} disabled={isProcessing}
+            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 ${isRed ? 'bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30'}`}>
+            {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+            {config.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================= ML PROJECT CARD =================
+function MLCard({ p, admin, onClick, onEdit, onDel, onRestore, isTrashView, tasksList }: {
+  p: MLProject; admin: boolean; onClick: () => void; onEdit: () => void;
+  onDel: () => void; onRestore?: () => void; isTrashView: boolean; tasksList: FilterOption[];
+}) {
+  const ts = TASK_STYLES[p.task] || TASK_STYLES.nlp;
+  const TaskIcon = ts.icon;
+  const taskLabel = tasksList.find((t) => t.id === p.task)?.label || p.task;
+  const statusDot = STATUS_DOT_COLORS[p.status] || 'bg-slate-400';
+  const statusLabel = STATUS_LABELS[p.status] || p.status;
+  const accNum = parseFloat(p.accuracy) || 0;
+
+  return (
+    <div className="group relative bg-[#12121a] border border-white/5 rounded-[1.25rem] overflow-hidden cursor-pointer transition-all duration-[350ms]"
+      style={{ transitionTimingFunction: 'cubic-bezier(0.34,1.56,0.64,1)' }}
+      onClick={onClick}
+      onMouseEnter={(e) => { const el = e.currentTarget; el.style.transform = 'translateY(-5px)'; el.style.borderColor = 'rgba(255,255,255,0.15)'; el.style.boxShadow = '0 8px 30px rgba(139,92,246,0.12)'; }}
+      onMouseLeave={(e) => { const el = e.currentTarget; el.style.transform = 'translateY(0)'; el.style.borderColor = 'rgba(255,255,255,0.05)'; el.style.boxShadow = 'none'; }}
     >
-      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
-      <div
-        className="relative w-full max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col lg:flex-row rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-card border border-border"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* LEFT: Image Gallery */}
-        <div className="relative h-[40vh] lg:h-full lg:w-[50%] xl:w-[55%] flex flex-col bg-[#0a0a0a] border-b lg:border-b-0 lg:border-r border-border">
-          <div className="relative flex-1 flex items-center justify-center p-2 sm:p-8 overflow-hidden">
-            <img
-              src={images[imgIdx] || project.image}
-              alt={`${project.title} — slide ${imgIdx + 1}`}
-              className="max-w-full max-h-full object-contain rounded-lg"
-            />
-            {images.length > 1 && (
+      {/* Gradient Header */}
+      <div className={`relative h-32 bg-gradient-to-r ${ts.gradient} overflow-hidden`}>
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PHBhdGggZD0iTTAgMGg0MHY0MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjIwIiBjeT0iMjAiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IGZpbGw9InVybCgjZykiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiLz48L3N2Zz4=')] opacity-50" />
+        {/* Task badge */}
+        <div className="absolute top-3 left-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white text-[11px] font-bold border border-white/10">
+            <TaskIcon className="w-3 h-3" /> {taskLabel}
+          </span>
+        </div>
+        {/* Status badge */}
+        <div className="absolute top-3 right-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white text-[11px] font-bold border border-white/10">
+            <span className={`w-2 h-2 rounded-full ${statusDot}`} /> {statusLabel}
+          </span>
+        </div>
+        {/* Accuracy badge */}
+        {p.accuracy && (
+          <div className="absolute bottom-3 left-3">
+            <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white text-[13px] font-bold font-mono border border-white/10">
+              {p.accuracy} accuracy
+            </span>
+          </div>
+        )}
+        {/* Admin actions */}
+        {admin && (
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {isTrashView ? (
               <>
-                <button
-                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/60 hover:bg-black border border-white/10 flex items-center justify-center text-white transition-all shadow-md"
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setImgIdx((i) => (i - 1 + images.length) % images.length);
-                  }}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/60 hover:bg-black border border-white/10 flex items-center justify-center text-white transition-all shadow-md"
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setImgIdx((i) => (i + 1) % images.length);
-                  }}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); onRestore?.(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-emerald-400 hover:bg-emerald-500/20 transition-colors border border-white/10" title="Restaurează"><RotateCcw className="w-3.5 h-3.5" /></button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); onDel(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-red-400 hover:bg-red-500/20 transition-colors border border-white/10" title="Șterge"><Trash2 className="w-3.5 h-3.5" /></button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-white hover:bg-white/20 transition-colors border border-white/10" title="Editează"><Edit3 className="w-3.5 h-3.5" /></button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); onDel(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-red-400 hover:bg-red-500/20 transition-colors border border-white/10" title="Coș"><Trash2 className="w-3.5 h-3.5" /></button>
               </>
             )}
           </div>
-          {images.length > 1 && (
-            <div className="flex gap-2 px-4 pb-4 overflow-x-auto custom-scrollbar flex-shrink-0 bg-[#0a0a0a]">
-              {images.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setImgIdx(i);
-                  }}
-                  className={`h-14 w-20 flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${i === imgIdx ? "border-blue-500 opacity-100" : "border-transparent opacity-50 hover:opacity-100"}`}
-                >
-                  <img
-                    src={img}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
+        )}
+      </div>
+
+      {/* Card Body */}
+      <div className="p-5">
+        <h3 className="text-[15px] font-bold text-white line-clamp-1">{p.title}</h3>
+        <p className="text-[11px] text-slate-400 font-mono mt-1 line-clamp-1">{p.brief || p.problem || '—'}</p>
+
+        {/* Accuracy Bar */}
+        {p.accuracy && accNum > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Accuracy</span>
+              <span className={`text-[12px] font-bold font-mono ${ts.text}`}>{p.accuracy}</span>
+            </div>
+            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full bg-gradient-to-r ${ts.gradient} transition-all duration-700`}
+                style={{ width: `${Math.min(accNum, 100)}%` }} />
+            </div>
+          </div>
+        )}
+
+        {/* 3 Metric Cards */}
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { value: p.dataset || '—', label: 'Dataset' },
+            { value: p.inferenceTime || '—', label: 'Inferență' },
+            { value: p.modelSize || '—', label: 'Model' },
+          ].map((m) => (
+            <div key={m.label} className="bg-[#0d0d15] border border-white/5 rounded-xl p-2.5 text-center">
+              <div className="text-[13px] font-bold text-white font-mono leading-tight">{m.value}</div>
+              <div className="text-[8px] text-slate-500 uppercase tracking-wide mt-0.5">{m.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tech Stack Pills */}
+        {p.stack.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-4">
+            {p.stack.map((t) => (
+              <span key={t} className="px-2 py-0.5 rounded-md text-[10px] font-medium text-slate-400 bg-white/[0.03] border border-white/5 font-mono">{t}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Featured badge */}
+      {p.featured && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 backdrop-blur-sm text-amber-400 text-[9px] font-bold border border-amber-500/30">
+          <Star className="w-2.5 h-2.5" /> Featured
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================= EDIT MODAL =================
+function EditModal({ project, onClose, onSave, tasksList }: {
+  project?: MLProject; onClose: () => void;
+  onSave: (data: MLProject) => void; tasksList: FilterOption[];
+}) {
+  const isEdit = !!project;
+  useModalEffects(true);
+  const [activeTab, setActiveTab] = useState<'general' | 'tehnic' | 'media'>('general');
+
+  const [f, setF] = useState<MLProject>({
+    id: project?.id || 0,
+    title: project?.title || '',
+    brief: project?.brief || '',
+    problem: project?.problem || '',
+    dataset: project?.dataset || '',
+    architecture: project?.architecture || '',
+    metricsText: project?.metricsText || '',
+    repoUrl: project?.repoUrl || '',
+    demoUrl: project?.demoUrl || '',
+    accuracy: project?.accuracy || '',
+    inferenceTime: project?.inferenceTime || '',
+    modelSize: project?.modelSize || '',
+    trainingTime: project?.trainingTime || '',
+    task: project?.task || 'nlp',
+    status: project?.status || 'experiment',
+    stack: project?.stack || [],
+    gradient: project?.gradient || '',
+    featured: project?.featured || false,
+    isPrivate: project?.isPrivate || false,
+    isDeleted: false,
+    compute: project?.compute || '',
+    image: project?.image || '',
+  });
+
+  const [stackInput, setStackInput] = useState(project?.stack.join(', ') || '');
+
+  const parsedStack = useMemo(() => {
+    return stackInput.split(',').map((s) => s.trim()).filter(Boolean);
+  }, [stackInput]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!f.title.trim()) return;
+    onSave({ ...f, stack: parsedStack });
+  };
+
+  const tabs = [
+    { id: 'general' as const, label: 'Informații', icon: Layout },
+    { id: 'tehnic' as const, label: 'Stack Tehnic', icon: BrainCircuit },
+    { id: 'media' as const, label: 'Media & Linkuri', icon: LinkIcon },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[5vh] overflow-y-auto p-4" onClick={onClose}>
+      <form id="ml-project-form" onSubmit={handleSubmit}
+        className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-4"
+        onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0 rounded-t-3xl">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            {isEdit ? <Edit3 className="w-5 h-5 text-purple-400" /> : <BrainCircuit className="w-5 h-5 text-purple-400" />}
+            {isEdit ? 'Editează Modelul' : 'Adaugă Model AI/ML'}
+          </h2>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Underline Tabs */}
+        <div className="flex border-b border-white/5 px-6 pt-4 gap-6 bg-[#0c0c0c] overflow-x-auto custom-scrollbar shrink-0">
+          {tabs.map((t) => {
+            const TIcon = t.icon;
+            return (
+              <button key={t.id} type="button" onClick={() => setActiveTab(t.id)}
+                className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === t.id ? 'border-purple-500 text-purple-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                <TIcon className="w-4 h-4" /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 space-y-5">
+          {/* ========== TAB 1: INFORMAȚII ========== */}
+          {activeTab === 'general' && (
+            <>
+              {/* Title + Icon Toggles */}
+              <div className="flex gap-4 items-start">
+                <div className="flex-1">
+                  <label className={LabelStyle}>Titlu model <span className="text-red-400">*</span></label>
+                  <input type="text" className={InputStyle} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="RoSentiment NLP" required />
+                </div>
+                <div className="flex gap-2 pt-6 shrink-0">
+                  <button type="button" onClick={() => setF({ ...f, featured: !f.featured })} title={f.featured ? 'Featured ✓' : 'Setează ca Featured'}
+                    className={`p-2.5 rounded-xl border transition-all duration-300 ${f.featured ? 'bg-amber-500/10 border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                    <Star className={`w-5 h-5 transition-all duration-300 ${f.featured ? 'fill-amber-400 text-amber-400' : 'text-slate-500'}`} />
+                  </button>
+                  <button type="button" onClick={() => setF({ ...f, isPrivate: !f.isPrivate })} title={f.isPrivate ? 'Proiect Privat 🔒' : 'Proiect Public'}
+                    className={`p-2.5 rounded-xl border transition-all duration-300 ${f.isPrivate ? 'bg-rose-500/10 border-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.15)]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                    {f.isPrivate ? <Lock className="w-5 h-5 text-rose-400" /> : <Unlock className="w-5 h-5 text-slate-500" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className={LabelStyle}>Descriere scurtă</label>
+                <textarea className={`${InputStyle} resize-none`} value={f.brief} onChange={(e) => setF({ ...f, brief: e.target.value })} rows={2} placeholder="Analiză sentiment text românesc — BERT fine-tuned" />
+              </div>
+              <div>
+                <label className={LabelStyle}>Problemă / Obiectiv</label>
+                <textarea className={`${InputStyle} resize-none`} value={f.problem} onChange={(e) => setF({ ...f, problem: e.target.value })} rows={3} placeholder="Clasificare binară a sentimentului..." />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <label className={LabelStyle}>Task AI</label>
+                  <select className={`${InputStyle} appearance-none pr-10 cursor-pointer`} value={f.task} onChange={(e) => setF({ ...f, task: e.target.value })}>
+                    {tasksList.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
+                </div>
+                <div className="relative">
+                  <label className={LabelStyle}>Status</label>
+                  <select className={`${InputStyle} appearance-none pr-10 cursor-pointer`} value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
+                    <option value="deployed">Deployed (API)</option>
+                    <option value="model">Model Antrenat</option>
+                    <option value="experiment">Experiment</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className={LabelStyle}>Arhitectură model</label>
+                <textarea className={`${InputStyle} resize-none`} value={f.architecture} onChange={(e) => setF({ ...f, architecture: e.target.value })} rows={2} placeholder="BERT-base-multilingual → fine-tuned pe RoSentiment..." />
+              </div>
+            </>
+          )}
+
+          {/* ========== TAB 2: STACK TEHNIC ========== */}
+          {activeTab === 'tehnic' && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className={LabelStyle}>Accuracy</label>
+                  <input type="text" className={InputStyle} value={f.accuracy} onChange={(e) => setF({ ...f, accuracy: e.target.value })} placeholder="91.4%" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>Dataset</label>
+                  <input type="text" className={InputStyle} value={f.dataset} onChange={(e) => setF({ ...f, dataset: e.target.value })} placeholder="280K samples" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>Inferență</label>
+                  <input type="text" className={InputStyle} value={f.inferenceTime} onChange={(e) => setF({ ...f, inferenceTime: e.target.value })} placeholder="45ms" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>Model Size</label>
+                  <input type="text" className={InputStyle} value={f.modelSize} onChange={(e) => setF({ ...f, modelSize: e.target.value })} placeholder="438MB" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LabelStyle}>Timp Antrenare</label>
+                  <input type="text" className={InputStyle} value={f.trainingTime} onChange={(e) => setF({ ...f, trainingTime: e.target.value })} placeholder="8h" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>Compute</label>
+                  <input type="text" className={InputStyle} value={f.compute} onChange={(e) => setF({ ...f, compute: e.target.value })} placeholder="NVIDIA A100" />
+                </div>
+              </div>
+              <div>
+                <label className={LabelStyle}>Metrici detaliate</label>
+                <textarea className={`${InputStyle} resize-none`} value={f.metricsText} onChange={(e) => setF({ ...f, metricsText: e.target.value })} rows={3} placeholder="F1: 0.91, Precision: 0.92, Recall: 0.90" />
+              </div>
+              <div>
+                <label className={LabelStyle}>Tech Stack <span className="normal-case tracking-normal text-slate-600">— separat cu virgulă</span></label>
+                <textarea className={`${InputStyle} resize-none font-mono`} value={stackInput} onChange={(e) => setStackInput(e.target.value)} rows={2} placeholder="PyTorch, HuggingFace Transformers, FastAPI" />
+              </div>
+              {parsedStack.length > 0 && (
+                <div>
+                  <label className={LabelStyle}>Previzualizare stack</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {parsedStack.map((t) => (
+                      <span key={t} className="px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium text-slate-300 bg-white/[0.03] border border-white/5">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ========== TAB 3: MEDIA & LINKURI ========== */}
+          {activeTab === 'media' && (
+            <>
+              <div>
+                <label className={LabelStyle}>Imagini Proiect</label>
+                <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center hover:border-purple-500/30 transition-colors">
+                  <UploadCloud className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">Drag & drop sau click pentru a adăuga imagini</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LabelStyle}>URL Demo Live</label>
+                  <input type="text" className={InputStyle} value={f.demoUrl} onChange={(e) => setF({ ...f, demoUrl: e.target.value })} placeholder="https://demo.example.com" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>URL GitHub / Repo</label>
+                  <input type="text" className={InputStyle} value={f.repoUrl} onChange={(e) => setF({ ...f, repoUrl: e.target.value })} placeholder="https://github.com/..." />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-white/5 bg-[#09090b] flex gap-3 justify-end shrink-0 rounded-b-3xl">
+          <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors">Anulează</button>
+          <button type="submit" form="ml-project-form" className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all">
+            {isEdit ? 'Salvează Modificările' : 'Adaugă Modelul'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ================= PROJECT DETAIL MODAL =================
+function ProjectDetailModal({ p, onClose, allProjects, onNavigate, tasksList }: {
+  p: MLProject; onClose: () => void; allProjects: MLProject[];
+  onNavigate: (p: MLProject) => void; tasksList: FilterOption[];
+}) {
+  useModalEffects(true);
+  const [activeTab, setActiveTab] = useState<'despre' | 'tehnic' | 'highlights'>('despre');
+
+  const currentIdx = allProjects.findIndex((pr) => pr.id === p.id);
+  const canPrev = currentIdx > 0;
+  const canNext = currentIdx < allProjects.length - 1;
+  const ts = TASK_STYLES[p.task] || TASK_STYLES.nlp;
+  const TaskIcon = ts.icon;
+  const taskLabel = tasksList.find((t) => t.id === p.task)?.label || p.task;
+  const accNum = parseFloat(p.accuracy) || 0;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && canPrev) onNavigate(allProjects[currentIdx - 1]);
+      if (e.key === 'ArrowRight' && canNext) onNavigate(allProjects[currentIdx + 1]);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [p, currentIdx, canPrev, canNext, allProjects, onNavigate, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-md" />
+
+      {/* Nav arrows */}
+      {canPrev && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onNavigate(allProjects[currentIdx - 1]); }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-[10001] w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      )}
+      {canNext && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onNavigate(allProjects[currentIdx + 1]); }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-[10001] w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors">
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      )}
+
+      <div onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-[1100px] h-[85vh] bg-[#0b0b12] border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+
+        {/* Close button */}
+        <button onClick={onClose}
+          className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-white/10 text-white/70 hover:text-white rounded-full backdrop-blur-md transition-all border border-transparent hover:border-white/10">
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Gradient banner */}
+        <div className={`relative h-28 bg-gradient-to-r ${ts.gradient} shrink-0 overflow-hidden`}>
+          <div className="absolute top-4 left-4 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white text-[12px] font-bold border border-white/10">
+              <TaskIcon className="w-3.5 h-3.5" /> {taskLabel}
+            </span>
+          </div>
+          {p.accuracy && (
+            <div className="absolute bottom-4 left-4">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white text-[14px] font-bold font-mono border border-white/10">{p.accuracy} accuracy</span>
             </div>
           )}
         </div>
 
-        {/* RIGHT: Tabbed Details Panel */}
-        <div className="flex-1 flex flex-col min-h-0 bg-card/80 backdrop-blur-sm relative">
-          {/* Header Sticky */}
-          <div className="z-20 bg-card/50 px-6 py-5 flex items-start justify-between gap-4 border-b border-border/50">
-            <div>
-              <span
-                className={`text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5 ${typeInfo.color}`}
-              >
-                {typeInfo.icon} {typeInfo.label}
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-bold leading-tight mt-1">
-                {project.title}
+        {/* Content */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 md:p-8 flex-1 flex flex-col overflow-y-auto custom-scrollbar relative z-10 pr-2">
+            {/* Title area */}
+            <div className="mb-6 shrink-0">
+              <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight flex items-center gap-3">
+                {p.title}
+                {p.isPrivate && <Lock className="w-6 h-6 text-white/30" />}
+                {p.featured && <Star className="w-5 h-5 fill-amber-400 text-amber-400" />}
               </h2>
+              {p.brief && <p className="text-sm text-slate-400 mt-2 font-mono">{p.brief}</p>}
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {isAdmin && onEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-blue-500/10 hover:text-blue-400"
-                  onClick={onEdit}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-              )}
-              {isAdmin && onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-red-500/10 hover:text-red-400"
-                  onClick={onDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 bg-muted hover:bg-muted/80 rounded-full ml-1"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+
+            {/* Accuracy bar */}
+            {p.accuracy && accNum > 0 && (
+              <div className="mb-6 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Accuracy</span>
+                  <span className={`text-[14px] font-bold font-mono ${ts.text}`}>{p.accuracy}</span>
+                </div>
+                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${ts.gradient}`} style={{ width: `${Math.min(accNum, 100)}%` }} />
+                </div>
+              </div>
+            )}
+
+            {/* Metrics grid — WebDev style */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-8 shrink-0">
+              {[
+                { l: 'Dataset', v: p.dataset || '—', i: Database },
+                { l: 'Inferență', v: p.inferenceTime || '—', i: Zap },
+                { l: 'Model Size', v: p.modelSize || '—', i: HardDrive },
+                { l: 'Antrenare', v: p.trainingTime || '—', i: Activity },
+                { l: 'Compute', v: p.compute || '—', i: Cpu },
+                { l: 'Status', v: STATUS_LABELS[p.status] || p.status, i: FolderKanban },
+              ].map((m, idx) => (
+                <div key={idx}
+                  className="bg-[#12121a] border border-white/5 rounded-xl p-3 flex flex-col items-center justify-center text-center transition-colors hover:border-purple-500/30 hover:bg-purple-500/5 group">
+                  <m.i className="w-4 h-4 text-purple-400/60 group-hover:text-purple-400 mb-1.5 transition-colors" />
+                  <div className="text-sm font-bold text-slate-200 group-hover:text-white font-mono transition-colors">{m.v}</div>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 group-hover:text-purple-300/70 transition-colors">{m.l}</div>
+                </div>
+              ))}
             </div>
-          </div>
 
-          <Tabs
-            defaultValue="overview"
-            className="flex-1 flex flex-col min-h-0"
-          >
-            <TabsList className="mx-6 justify-start border-b border-border/50 rounded-none bg-transparent p-0 h-auto gap-6 mt-2">
-              <TabsTrigger
-                value="overview"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent px-1 py-3 text-sm"
-              >
-                Prezentare
-              </TabsTrigger>
-              <TabsTrigger
-                value="arch"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent px-1 py-3 text-sm"
-              >
-                Model & Date
-              </TabsTrigger>
-              <TabsTrigger
-                value="stack"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent px-1 py-3 text-sm"
-              >
-                Stack Tehnic
-              </TabsTrigger>
-            </TabsList>
+            {/* Tabbed content */}
+            <div className="flex gap-6 border-b border-white/10 mb-5 shrink-0">
+              {(['despre', 'tehnic', 'highlights'] as const).map((tab) => (
+                <button type="button" key={tab} onClick={() => setActiveTab(tab)}
+                  className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === tab ? 'border-purple-500 text-purple-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                  {tab}
+                </button>
+              ))}
+            </div>
 
-            {/* TAB: Overview */}
-            <TabsContent
-              value="overview"
-              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-6"
-            >
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "px-3 py-1 bg-background shadow-sm",
-                    statusInfo.color,
+            <div className="flex-1 min-h-[150px] pb-24">
+              {activeTab === 'despre' && (
+                <div className="animate-in fade-in space-y-4">
+                  {p.problem && (
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Problemă / Obiectiv</h4>
+                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{p.problem}</p>
+                    </div>
                   )}
-                >
-                  {statusInfo.label}
-                </Badge>
-                {(project as any).dimensions && (
-                  <Badge
-                    variant="outline"
-                    className="px-3 py-1 border-border text-muted-foreground gap-1.5 shadow-sm bg-background"
-                  >
-                    <Database className="w-3.5 h-3.5 text-blue-400" /> Size:{" "}
-                    {(project as any).dimensions}
-                  </Badge>
-                )}
-                {(project as any).device && (
-                  <Badge
-                    variant="outline"
-                    className="px-3 py-1 border-border text-muted-foreground gap-1.5 shadow-sm bg-background"
-                  >
-                    <Cpu className="w-3.5 h-3.5 text-purple-400" /> Compute:{" "}
-                    {(project as any).device}
-                  </Badge>
-                )}
-              </div>
-
-              {meta.brief && (
-                <p className="text-lg text-foreground/90 leading-relaxed font-medium">
-                  {meta.brief}
-                </p>
-              )}
-
-              {meta.problem && (
-                <div className="p-5 rounded-xl bg-blue-500/5 border border-blue-500/20 mt-4 relative overflow-hidden">
-                  <BrainCircuit className="absolute -right-4 -bottom-4 w-32 h-32 text-blue-500/5 pointer-events-none" />
-                  <h4 className="text-[11px] font-bold uppercase tracking-widest text-blue-400 mb-2 flex items-center gap-1.5">
-                    <Target className="h-3.5 w-3.5" /> Problema / Obiectivul
-                  </h4>
-                  <p className="text-sm font-medium text-foreground/90 whitespace-pre-wrap relative z-10">
-                    {meta.problem}
-                  </p>
+                  {p.architecture && (
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Arhitectură Model</h4>
+                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">{p.architecture}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                {(project as any).location && (
-                  <Button
-                    className="flex-1 gap-2 bg-blue-500 hover:bg-blue-600 text-white font-bold h-12 rounded-xl transition-transform hover:-translate-y-0.5 shadow-lg shadow-blue-500/20"
-                    onClick={() =>
-                      window.open((project as any).location, "_blank")
-                    }
-                  >
-                    <ExternalLink className="h-4 w-4" /> Live Demo
-                  </Button>
-                )}
-                {meta.repoUrl && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 gap-2 h-12 rounded-xl border-border bg-background hover:bg-muted transition-transform hover:-translate-y-0.5"
-                    onClick={() => window.open(meta.repoUrl, "_blank")}
-                  >
-                    <Github className="h-4 w-4" /> Cod Sursă (Repo)
-                  </Button>
-                )}
-              </div>
-            </TabsContent>
+              {activeTab === 'tehnic' && (
+                <div className="animate-in fade-in space-y-6">
+                  {/* Tech stack cards */}
+                  {p.stack.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Tech Stack</div>
+                      <div className="rounded-xl border p-4" style={{ background: 'linear-gradient(180deg, rgba(147,51,234,0.08) 0%, rgba(255,255,255,0.04) 100%)', borderColor: 'rgba(147,51,234,0.2)' }}>
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.stack.map((t) => (
+                            <span key={t} className="text-xs font-mono px-2 py-1 rounded-md border w-fit" style={{ color: '#a78bfa', background: 'rgba(147,51,234,0.08)', borderColor: 'rgba(147,51,234,0.2)' }}>
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-            {/* TAB: Arch & Data */}
-            <TabsContent
-              value="arch"
-              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-6"
-            >
-              {meta.dataset && (
-                <div className="relative pl-4 border-l-2 border-emerald-500/50 py-1">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2 flex items-center gap-1.5">
-                    <Database className="h-4 w-4" /> Setul de Date (Dataset)
-                  </h4>
-                  <p className="text-[14px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {meta.dataset}
-                  </p>
+                  {/* Detailed metrics */}
+                  {p.metricsText && (
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Metrici Detaliate</h4>
+                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">{p.metricsText}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {meta.architecture && (
-                <div className="relative pl-4 border-l-2 border-purple-500/50 py-1">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2 flex items-center gap-1.5">
-                    <Network className="h-4 w-4" /> Arhitectură & Model
-                  </h4>
-                  <p className="text-[14px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {meta.architecture}
-                  </p>
-                </div>
-              )}
-
-              {meta.metrics && (
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-5 mt-4">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3 flex items-center gap-1.5">
-                    <BarChart3 className="h-4 w-4" /> Performanță / Metrici
-                  </h4>
-                  <p className="text-sm leading-relaxed text-foreground font-medium whitespace-pre-wrap">
-                    {meta.metrics}
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* TAB: Stack */}
-            <TabsContent
-              value="stack"
-              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0"
-            >
-              {stack.length > 0 ? (
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-blue-400" /> Tehnologii
-                    Utilizate
-                  </h4>
-                  <div className="flex flex-wrap gap-2.5">
-                    {stack.map((t) => (
-                      <div
-                        key={t}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-border shadow-sm"
-                      >
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        <span className="font-semibold text-sm">{t}</span>
+              {activeTab === 'highlights' && (
+                <div className="animate-in fade-in space-y-4">
+                  {/* Accuracy highlight */}
+                  {p.accuracy && accNum > 0 && (
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Performanță Model</h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-slate-300">Accuracy</span>
+                        <span className={`text-lg font-bold font-mono ${ts.text}`}>{p.accuracy}</span>
+                      </div>
+                      <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full bg-gradient-to-r ${ts.gradient} transition-all duration-1000`} style={{ width: `${Math.min(accNum, 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {/* Key stats */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { k: 'Dataset', v: p.dataset },
+                      { k: 'Timp Antrenare', v: p.trainingTime },
+                      { k: 'Inferență', v: p.inferenceTime },
+                      { k: 'Model Size', v: p.modelSize },
+                    ].filter(x => x.v).map((item) => (
+                      <div key={item.k} className="flex gap-3 items-start bg-white/5 p-3 rounded-xl border border-white/5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-slate-500 uppercase tracking-widest">{item.k}</div>
+                          <div className="text-sm text-slate-200 font-mono mt-0.5">{item.v}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              ) : (
-                <p className="text-muted-foreground italic text-sm">
-                  Niciun tool specificat.
-                </p>
               )}
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
+
+          {/* Footer with action buttons */}
+          <div className="p-6 md:p-8 pt-4 border-t border-white/10 bg-[#08080f] shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {p.demoUrl && (
+                <a href={p.demoUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 flex justify-center items-center gap-2 py-3 rounded-xl bg-white text-black hover:bg-slate-200 text-sm font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)]">
+                  <ExternalLink className="w-4 h-4" /> Live Demo
+                </a>
+              )}
+              {p.repoUrl && (
+                <a href={p.repoUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 flex justify-center items-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 text-sm font-bold transition-all">
+                  <Github className="w-4 h-4" /> Cod Sursă
+                </a>
+              )}
+              {!p.demoUrl && !p.repoUrl && (
+                <div className="w-full flex items-center justify-between">
+                  <div className="text-xs text-slate-500 font-mono">Niciun link public disponibil.</div>
+                  <div className="text-[11px] text-slate-600 font-mono">{currentIdx + 1} / {allProjects.length}</div>
+                </div>
+              )}
+            </div>
+            {(p.demoUrl || p.repoUrl) && (
+              <div className="text-center mt-3 text-[11px] text-slate-600 font-mono">{currentIdx + 1} / {allProjects.length}</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
-// ─── Form state type ──────────────────────────────────────────────────────────
+// ================= PAGINATION =================
+function Pagination({ currentPage, totalPages, totalItems, onPageChange }: {
+  currentPage: number; totalPages: number; totalItems: number; onPageChange: (page: number) => void;
+}) {
+  const pages: (number | string)[] = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const p: (number | string)[] = [1];
+    if (currentPage > 3) p.push('...');
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) p.push(i);
+    if (currentPage < totalPages - 2) p.push('...');
+    p.push(totalPages);
+    return p;
+  }, [currentPage, totalPages]);
 
-const EMPTY_FORM = {
-  title: "",
-  brief: "",
-  problem: "",
-  dataset: "",
-  architecture: "",
-  metrics: "",
-  type: "nlp",
-  modelSize: "",
-  compute: "",
-  status: "experiment",
-  tools: [] as string[],
-  demoUrl: "",
-  repoUrl: "",
-  isPrivate: false,
-};
+  return (
+    <div className="flex flex-col items-center gap-3 mt-12 mb-8">
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${currentPage === 1 ? 'bg-[#12121a] border border-white/5 text-slate-600 cursor-not-allowed' : 'bg-[#12121a] border border-white/5 text-slate-400 hover:border-white/20 hover:text-white'}`}>
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        {pages.map((page, i) => typeof page === 'string' ? (
+          <span key={`e-${i}`} className="w-10 h-10 flex items-center justify-center text-slate-600 text-sm">…</span>
+        ) : (
+          <button key={page} type="button" onClick={() => onPageChange(page)}
+            className={`w-10 h-10 rounded-xl text-sm font-bold transition-all duration-300 ${currentPage === page ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(147,51,234,0.3)]' : 'bg-[#12121a] border border-white/5 text-slate-400 hover:border-white/20 hover:text-white'}`}>
+            {page}
+          </button>
+        ))}
+        <button type="button" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${currentPage === totalPages ? 'bg-[#12121a] border border-white/5 text-slate-600 cursor-not-allowed' : 'bg-[#12121a] border border-white/5 text-slate-400 hover:border-white/20 hover:text-white'}`}>
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="text-[11px] text-slate-500 font-mono">Pagina {currentPage} din {totalPages} · {totalItems} modele</div>
+    </div>
+  );
+}
 
-type FormState = typeof EMPTY_FORM;
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
+// ================= PAGINA PRINCIPALĂ =================
 export default function AiMl() {
   const { isAdmin } = useAdmin();
-  const isMobile = useIsMobile();
+  const { toast } = useToast();
 
-  const [projects, setProjects] = useState<AiMlProject[]>([]);
-  const [trashed, setTrashed] = useState<AiMlProject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [cloudProjects, setCloudProjects] = useState<GalleryItem[]>([]);
+  const [trashedCloud, setTrashedCloud] = useState<GalleryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Dialog state
-  const [selected, setSelected] = useState<AiMlProject | null>(null);
+  const [tasks, setTasks] = useState<FilterOption[]>(INITIAL_TASKS);
+  const [statuses, setStatuses] = useState<FilterOption[]>(INITIAL_STATUSES);
+
+  const [sel, setSel] = useState<MLProject | null>(null);
+  const [editingProj, setEditingProj] = useState<MLProject | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
-  const [toDelete, setToDelete] = useState<AiMlProject | null>(null);
+  const [manageFilterType, setManageFilterType] = useState<'task' | 'status' | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [isActionProcessing, setIsActionProcessing] = useState(false);
 
-  // Tools Manager State
-  const [availableTools, setAvailableTools] = useState<string[]>(INITIAL_STACK);
-  const [showToolManager, setShowToolManager] = useState(false);
-  const [newToolInput, setNewToolInput] = useState("");
-  const [toolSearch, setToolSearch] = useState("");
-  const [showToolDropdown, setShowToolDropdown] = useState(false);
+  const [search, setSearch] = useState('');
+  const [fTask, setFTask] = useState('all');
+  const [fStatus, setFStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Form
-  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [singleFile, setSingleFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  // ── Init Tools ────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const savedTools = localStorage.getItem("aiml_tools");
-    if (savedTools) {
-      try {
-        setAvailableTools(JSON.parse(savedTools));
-      } catch (e) {}
-    }
-  }, []);
-
-  const saveTools = (newTools: string[]) => {
-    setAvailableTools(newTools);
-    localStorage.setItem("aiml_tools", JSON.stringify(newTools));
-  };
-
-  const handleAddGlobalTool = () => {
-    const t = newToolInput.trim();
-    if (t && !availableTools.includes(t)) {
-      saveTools([...availableTools, t]);
-      setNewToolInput("");
-    }
-  };
-
-  const handleRemoveGlobalTool = (tool: string) => {
-    saveTools(availableTools.filter((x) => x !== tool));
-  };
-
-  // ── Data loading ──────────────────────────────────────────────────────────
-
+  // ---- Data Loading ----
   const reload = useCallback(async () => {
     try {
-      setLoading(true);
-      const items = await getGalleryItemsByCategory("ai-ml");
-      setProjects(isAdmin ? items : items.filter((p) => !p.isPrivate));
+      setIsLoading(true);
+      const items = await getGalleryItemsByCategory('ai-ml');
+      setCloudProjects(items);
     } catch {
-      toast({
-        title: "Eroare",
-        description: "Nu s-au putut încărca proiectele.",
-        variant: "destructive",
-      });
+      toast({ variant: 'destructive', title: 'Eroare', description: 'Nu s-au putut încărca modelele.' });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [isAdmin]);
+  }, [toast]);
 
   const reloadTrash = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const items = await getTrashedGalleryItemsByCategory("ai-ml");
-      setTrashed(items as AiMlProject[]);
-    } catch {
-      /* silent */
-    }
+      const items = await getTrashedGalleryItemsByCategory('ai-ml');
+      setTrashedCloud(items);
+    } catch { /* silent */ }
   }, [isAdmin]);
 
-  useEffect(() => {
-    reload();
-    reloadTrash();
-  }, [reload, reloadTrash]);
+  useEffect(() => { reload(); reloadTrash(); }, [reload, reloadTrash]);
 
-  // ── Filtered list ─────────────────────────────────────────────────────────
+  // ---- Map cloud data → MLProject ----
+  const processedProjects: MLProject[] = useMemo(() => {
+    const allItems = showTrash ? trashedCloud : cloudProjects;
+    const source = isAdmin ? allItems : allItems.filter((p) => !p.isPrivate);
 
-  const visible = projects.filter((p) => {
-    const mSearch =
-      p.title.toLowerCase().includes(search.toLowerCase()) ||
-      (p.description || "").toLowerCase().includes(search.toLowerCase());
-    const mType = filterType === "all" || p.subcategory === filterType;
-    const mStatus =
-      filterStatus === "all" || (p as any).medium === filterStatus;
-    return mSearch && mType && mStatus;
-  });
+    return source.map((p: any) => {
+      const meta = parseMeta(p.description);
+      const stack: string[] = p.materials || [];
+      // featured encoded in date field as prefix "featured:" or in location for demo URL
+      const isFeatured = (p.date || '').includes('featured:true');
 
-  // ── Form helpers ──────────────────────────────────────────────────────────
-
-  const resetForm = () => {
-    setForm({ ...EMPTY_FORM });
-    setImageFiles([]);
-    setImagePreviews([]);
-    setSingleFile(null);
-    setToolSearch("");
-  };
-
-  const populateForm = (p: AiMlProject) => {
-    const meta = parseMeta(p.description);
-    const tools: string[] = (p as any).materials || [];
-    setForm({
-      title: p.title,
-      brief: meta.brief,
-      problem: meta.problem,
-      dataset: meta.dataset,
-      architecture: meta.architecture,
-      metrics: meta.metrics,
-      type: p.subcategory || "nlp",
-      status: (p as any).medium || "experiment",
-      modelSize: (p as any).dimensions || "",
-      compute: (p as any).device || "",
-      tools,
-      demoUrl: (p as any).location || "",
-      repoUrl: meta.repoUrl || "",
-      isPrivate: p.isPrivate || false,
+      return {
+        id: p.id,
+        title: p.title || '',
+        brief: meta.brief,
+        problem: meta.problem,
+        dataset: meta.dataset,
+        architecture: meta.architecture,
+        metricsText: meta.metrics,
+        repoUrl: meta.repoUrl,
+        demoUrl: p.location || '',
+        accuracy: meta.accuracy || '',
+        inferenceTime: meta.inferenceTime || '',
+        modelSize: meta.modelSize || '',
+        trainingTime: meta.trainingTime || '',
+        task: p.subcategory || 'nlp',
+        status: p.medium || 'experiment',
+        stack,
+        gradient: '',
+        featured: isFeatured,
+        isPrivate: p.isPrivate || false,
+        isDeleted: !!p.deletedAt,
+        compute: p.device || '',
+        image: p.image || '',
+      };
     });
-    setImagePreviews(getImages(p));
-    setSingleFile(null);
-    setImageFiles([]);
-  };
+  }, [cloudProjects, trashedCloud, showTrash, isAdmin]);
 
-  const handleMultipleImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    setImageFiles((prev) => [...prev, ...files]);
+  const activeProjects = processedProjects.filter((p) => !p.isDeleted);
+  const deletedProjects = processedProjects.filter((p) => p.isDeleted);
+  const visibleProjects = showTrash ? deletedProjects : activeProjects;
 
-    files.forEach((f) => {
-      const r = new FileReader();
-      r.onloadend = () =>
-        setImagePreviews((prev) => [...prev, r.result as string]);
-      r.readAsDataURL(f);
+  // ---- Filter & Sort ----
+  const filtered = useMemo(() => {
+    let result = visibleProjects.filter((p) => {
+      const ms = p.title.toLowerCase().includes(search.toLowerCase()) ||
+        p.brief.toLowerCase().includes(search.toLowerCase());
+      return ms && (fTask === 'all' || p.task === fTask) && (fStatus === 'all' || p.status === fStatus);
     });
-  };
-
-  const handleRemovePreviewImage = (index: number) => {
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-    setImageFiles((prev) => {
-      if (prev.length > index) return prev.filter((_, i) => i !== index);
-      return prev;
+    result.sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title);
+      if (sortBy === 'accuracy') return (parseFloat(b.accuracy) || 0) - (parseFloat(a.accuracy) || 0);
+      return b.id - a.id;
     });
-  };
+    return result;
+  }, [visibleProjects, search, fTask, fStatus, sortBy]);
 
-  const handleSingleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setSingleFile(f);
-    const r = new FileReader();
-    r.onloadend = () => setImagePreviews([r.result as string]);
-    r.readAsDataURL(f);
-  };
+  const totalPages = Math.ceil(filtered.length / PROJECTS_PER_PAGE);
+  const paginatedProjects = filtered.slice((currentPage - 1) * PROJECTS_PER_PAGE, currentPage * PROJECTS_PER_PAGE);
 
-  const toggleToolForm = (tool: string) => {
-    setForm((f) => ({
-      ...f,
-      tools: f.tools.includes(tool)
-        ? f.tools.filter((t) => t !== tool)
-        : [...f.tools, tool],
-    }));
-  };
+  useEffect(() => { setCurrentPage(1); }, [search, fTask, fStatus, sortBy, showTrash]);
 
-  // ── CRUD operations ───────────────────────────────────────────────────────
+  // ---- Stats ----
+  // For stats, always use non-trashed projects from cloud
+  const allActiveFromCloud: MLProject[] = useMemo(() => {
+    return cloudProjects.filter((p: any) => !p.deletedAt).map((p: any) => {
+      const meta = parseMeta(p.description);
+      return {
+        id: p.id, title: p.title || '', brief: meta.brief, problem: meta.problem, dataset: meta.dataset,
+        architecture: meta.architecture, metricsText: meta.metrics, repoUrl: meta.repoUrl, demoUrl: p.location || '',
+        accuracy: meta.accuracy || '', inferenceTime: meta.inferenceTime || '', modelSize: meta.modelSize || '',
+        trainingTime: meta.trainingTime || '', task: p.subcategory || 'nlp', status: p.medium || 'experiment',
+        stack: p.materials || [], gradient: '', featured: false, isPrivate: p.isPrivate || false, isDeleted: false,
+        compute: p.device || '', image: p.image || '',
+      };
+    });
+  }, [cloudProjects]);
 
-  const buildPayload = (imageUrl: string, allImages: string) => ({
-    category: "ai-ml" as const,
-    subcategory: form.type,
-    title: form.title,
-    image: imageUrl,
-    description: encodeMeta({
-      brief: form.brief,
-      problem: form.problem,
-      dataset: form.dataset,
-      architecture: form.architecture,
-      metrics: form.metrics,
-      repoUrl: form.repoUrl,
-      role: "",
-      process: [],
-      solution: "",
-      users: "",
-      outcomes: "", // filler for old schema
-    }),
-    device: form.compute,
-    dimensions: form.modelSize,
-    materials: form.tools,
-    location: form.demoUrl,
-    medium: form.status,
-    isPrivate: form.isPrivate,
-    date: allImages,
-  });
+  const deployedCount = allActiveFromCloud.filter((p) => p.status === 'deployed').length;
+  const avgAccuracy = allActiveFromCloud.length > 0
+    ? (allActiveFromCloud.reduce((s, p) => s + (parseFloat(p.accuracy) || 0), 0) / allActiveFromCloud.filter(p => parseFloat(p.accuracy) > 0).length).toFixed(1)
+    : '0';
+  const totalTrainingHours = allActiveFromCloud.reduce((s, p) => {
+    const match = p.trainingTime.match(/(\d+)/);
+    return s + (match ? parseInt(match[1], 10) : 0);
+  }, 0);
 
-  const handleAdd = async () => {
-    if (!form.title || imageFiles.length === 0) {
-      toast({
-        title: "Eroare",
-        description: "Titlul și cel puțin o imagine sunt obligatorii.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const statsData = [
+    { l: 'Modele ML', v: allActiveFromCloud.length, icon: BrainCircuit },
+    { l: 'Deployate Live', v: deployedCount, icon: Activity },
+    { l: 'Acuratețe Medie', v: `${avgAccuracy}%`, icon: BarChart3 },
+    { l: 'Timp Antrenare', v: `${totalTrainingHours}h`, icon: Cpu },
+  ];
+
+  // ---- CRUD Operations ----
+  const handleSaveProject = async (proj: MLProject) => {
+    const meta: AIMLMeta = {
+      brief: proj.brief,
+      problem: proj.problem,
+      dataset: proj.dataset,
+      architecture: proj.architecture,
+      metrics: proj.metricsText,
+      repoUrl: proj.repoUrl,
+      accuracy: proj.accuracy,
+      inferenceTime: proj.inferenceTime,
+      modelSize: proj.modelSize,
+      trainingTime: proj.trainingTime,
+    };
+
+    const apiPayload: any = {
+      title: proj.title,
+      image: proj.image || 'placeholder',
+      category: 'ai-ml',
+      subcategory: proj.task,
+      isPrivate: proj.isPrivate,
+      medium: proj.status,
+      description: encodeMeta(meta),
+      materials: proj.stack,
+      dimensions: proj.dataset,
+      device: proj.compute,
+      location: proj.demoUrl,
+      date: proj.featured ? 'featured:true' : '',
+    };
+
     try {
-      setUploading(true);
-      const urls: string[] = [];
-      for (const file of imageFiles) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("folder", "aiml");
-        const res = await fetch("/api/upload/image", {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) throw new Error("Upload failed");
-        const { url } = await res.json();
-        urls.push(url);
+      if (editingProj && editingProj.id > 0) {
+        await updateGalleryItem(proj.id, apiPayload);
+        toast({ title: 'Actualizat', description: 'Modelul a fost salvat.' });
+      } else {
+        await createGalleryItem(apiPayload);
+        toast({ title: 'Creat', description: 'Noul model a fost adăugat.' });
       }
-      await createGalleryItem(buildPayload(urls[0], urls.join("|")) as any);
-      toast({ title: "Succes", description: "Proiectul AI a fost publicat." });
       setShowAdd(false);
-      resetForm();
-      await reload();
+      setEditingProj(null);
+      reload();
     } catch {
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut salva proiectul.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
+      toast({ variant: 'destructive', title: 'Eroare', description: 'Salvarea a eșuat.' });
     }
   };
 
-  const handleEdit = async () => {
-    if (!selected || !form.title) return;
+  const handleSoftDelete = (id: number) => {
+    const project = processedProjects.find((p) => p.id === id);
+    if (!project) return;
+    setPendingAction({ type: 'soft-delete', project });
+  };
+
+  const handleRestore = async (id: number) => {
     try {
-      setUploading(true);
-      let imageUrl = selected.image;
+      await restoreGalleryItem(id);
+      toast({ title: 'Restaurat', description: 'Modelul a fost recuperat.' });
+      reload();
+      reloadTrash();
+    } catch {
+      toast({ variant: 'destructive', title: 'Eroare', description: 'Operațiunea a eșuat.' });
+    }
+  };
 
-      const existingUrls = imagePreviews.filter((p) => p.startsWith("http"));
-      let allUrls = [...existingUrls];
+  const handleHardDelete = (id: number) => {
+    const project = processedProjects.find((p) => p.id === id);
+    if (!project) return;
+    setPendingAction({ type: 'hard-delete', project });
+  };
 
-      if (singleFile) {
-        const fd = new FormData();
-        fd.append("file", singleFile);
-        fd.append("folder", "aiml");
-        const res = await fetch("/api/upload/image", {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) throw new Error("Upload failed");
-        const { url } = await res.json();
-        imageUrl = url;
-        allUrls = [url];
-      } else if (imageFiles.length > 0) {
-        for (const file of imageFiles) {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("folder", "aiml");
-          const res = await fetch("/api/upload/image", {
-            method: "POST",
-            body: fd,
-          });
-          if (!res.ok) throw new Error("Upload failed");
-          const { url } = await res.json();
-          allUrls.push(url);
-        }
+  const handleRestoreAll = () => {
+    if (deletedProjects.length === 0) return;
+    setPendingAction({ type: 'restore-all', count: deletedProjects.length });
+  };
+
+  const handleDeleteAll = () => {
+    if (deletedProjects.length === 0) return;
+    setPendingAction({ type: 'delete-all', count: deletedProjects.length });
+  };
+
+  const executePendingAction = async () => {
+    if (!pendingAction || isActionProcessing) return;
+    setIsActionProcessing(true);
+    try {
+      if (pendingAction.type === 'soft-delete') {
+        await softDeleteGalleryItem(pendingAction.project.id);
+        toast({ title: 'Arhivat', description: 'Modelul a fost mutat în coș.' });
+      } else if (pendingAction.type === 'hard-delete') {
+        await deleteGalleryItem(pendingAction.project.id);
+        toast({ title: 'Șters Definitiv', description: 'Modelul a fost eliminat.' });
+      } else if (pendingAction.type === 'restore-all') {
+        await Promise.allSettled(deletedProjects.map((p) => restoreGalleryItem(p.id)));
+        toast({ title: 'Restaurate', description: `${deletedProjects.length} modele recuperate.` });
+      } else if (pendingAction.type === 'delete-all') {
+        await Promise.allSettled(deletedProjects.map((p) => deleteGalleryItem(p.id)));
+        toast({ title: 'Șterse Definitiv', description: `${deletedProjects.length} modele eliminate.` });
       }
-
-      if (allUrls.length > 0 && !singleFile) imageUrl = allUrls[0];
-
-      await updateGalleryItem(
-        selected.id!,
-        buildPayload(imageUrl, allUrls.join("|")) as any,
-      );
-      toast({
-        title: "Succes",
-        description: "Proiectul AI a fost actualizat.",
-      });
-      setShowEdit(false);
-      setSelected(null);
-      resetForm();
-      await reload();
+      setPendingAction(null);
+      reload();
+      reloadTrash();
     } catch {
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut actualiza proiectul.",
-        variant: "destructive",
-      });
+      toast({ variant: 'destructive', title: 'Eroare', description: 'Operațiunea a eșuat.' });
     } finally {
-      setUploading(false);
+      setIsActionProcessing(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!toDelete) return;
-    try {
-      await softDeleteGalleryItem(toDelete.id!);
-      toast({ title: "Succes", description: "Mutat în coș." });
-      setShowDeleteConfirm(false);
-      setToDelete(null);
-      setSelected(null);
-      await reload();
-      await reloadTrash();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Ștergere eșuată.",
-        variant: "destructive",
-      });
-    }
-  };
+  useEffect(() => {
+    if (showTrash && trashedCloud.length === 0) setShowTrash(false);
+  }, [trashedCloud.length, showTrash]);
 
-  const handleRestore = async (p: AiMlProject) => {
-    try {
-      await restoreGalleryItem(p.id!);
-      toast({ title: "Restaurat", description: p.title });
-      await reload();
-      await reloadTrash();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Restaurare eșuată.",
-        variant: "destructive",
-      });
-    }
-  };
+  // ---- Filter Options ----
+  const taskOptions = [{ value: 'all', label: 'Toate Task-urile' }, ...tasks.map((t) => ({ value: t.id, label: t.label }))];
+  const statusOptions = [{ value: 'all', label: 'Toate Statusurile' }, ...statuses.map((s) => ({ value: s.id, label: s.label }))];
+  const sortOptions = [
+    { value: 'newest', label: 'Cele mai noi' },
+    { value: 'title', label: 'Alfabetic (A-Z)' },
+    { value: 'accuracy', label: 'Accuracy ↓' },
+  ];
 
-  const handlePermDelete = async (p: AiMlProject) => {
-    try {
-      await deleteGalleryItem(p.id!);
-      toast({ title: "Șters definitiv", description: p.title });
-      await reloadTrash();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Ștergere permanentă eșuată.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  const typeCount = Object.fromEntries(
-    Object.keys(AI_TYPES).map((k) => [
-      k,
-      projects.filter((p) => p.subcategory === k).length,
-    ]),
-  );
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <div className="min-h-screen flex items-center justify-center bg-[#080810]">
+          <Loader2 className="animate-spin w-12 h-12 text-purple-500" />
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout>
-      {/* Hero */}
-      <section className="page-hero-section">
-        <div className="page-container">
-          <div className="text-center mb-6 animate-fade-in">
-            <div className="flex items-center justify-center gap-3 mb-3">
-              <BrainCircuit className="h-8 w-8 text-blue-500" />
-              <h1 className="text-2xl sm:text-3xl font-bold gradient-text">
-                AI & Machine Learning
-              </h1>
-            </div>
-            <p className="text-sm text-muted-foreground max-w-xl mx-auto">
-              Modele, experimente data science și aplicații inteligente
-              construite de la zero sau prin fine-tuning.
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.5); }
+      `}</style>
+
+      <div className="min-h-screen bg-[#080810] text-white overflow-hidden font-sans pt-24 sm:pt-32 px-4 sm:px-6 md:px-10">
+        {/* HEADER & STATS */}
+        <div className="flex flex-col xl:flex-row gap-10 mb-12">
+          <div className="xl:w-1/3 flex flex-col justify-center">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-3">
+              AI &{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500">
+                Machine Learning
+              </span>
+            </h1>
+            <p className="text-slate-400 leading-relaxed text-sm md:text-base max-w-md">
+              NLP, Computer Vision, Recommendation & Anomaly Detection — {allActiveFromCloud.length} modele antrenate și deployate.
             </p>
           </div>
 
-          {/* Stats mini-row */}
-          {!loading && projects.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-3 mt-6">
-              {Object.entries(typeCount)
-                .filter(([, c]) => c > 0)
-                .map(([k, c]) => {
-                  const info = AI_TYPES[k];
-                  return (
-                    <div
-                      key={k}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${info.bg} shadow-sm`}
-                    >
-                      <span className={`font-bold ${info.color}`}>{c}</span>
-                      <span className="text-foreground/80">{info.label}</span>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="page-content-section flex-1 mt-4">
-        <div className="page-container">
-          {/* Toolbar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-              <div className="relative w-full sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  type="search"
-                  placeholder="Caută modele, dataset-uri..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-card border-border"
-                />
-              </div>
-
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-full sm:w-[160px] bg-card border-border">
-                  <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Domeniu AI" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toate domeniile</SelectItem>
-                  {Object.entries(AI_TYPES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-[160px] bg-card border-border">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Orice Status</SelectItem>
-                  {Object.entries(STATUSES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between md:justify-end gap-3">
-              <div className="flex items-center border border-border bg-card rounded-md p-1 gap-0.5">
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  className="h-7 w-7 p-0 rounded-sm"
-                >
-                  <Grid3x3 className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                  className="h-7 w-7 p-0 rounded-sm"
-                >
-                  <List className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {isAdmin && !isMobile && trashed.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowTrash(true)}
-                    className="relative gap-2 bg-card"
-                  >
-                    <Trash className="h-4 w-4" />
-                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center font-bold">
-                      {trashed.length}
-                    </span>
-                  </Button>
-                )}
-                {isAdmin && !isMobile && (
-                  <Button
-                    onClick={() => {
-                      resetForm();
-                      setShowAdd(true);
-                    }}
-                    className="gap-2"
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4" /> Adaugă Model AI
-                  </Button>
-                )}
-              </div>
-            </div>
+          <div className="xl:w-2/3 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {statsData.map((m) => {
+              const Icon = m.icon;
+              return (
+                <div key={m.l} className="group relative bg-[#12121a] border border-white/5 rounded-[1.25rem] p-5 flex flex-col justify-between transition-all duration-500 hover:border-purple-500/30 hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.15)] hover:-translate-y-1 overflow-hidden">
+                  <div className="absolute -inset-4 bg-gradient-to-br from-purple-500/0 via-indigo-500/0 to-purple-500/0 group-hover:from-purple-500/5 group-hover:to-indigo-500/5 transition-all duration-500 rounded-[1.25rem] pointer-events-none" />
+                  <Icon className="w-5 h-5 text-slate-500 mb-3 group-hover:text-purple-400 transition-colors duration-300" />
+                  <div className="relative z-10 mt-1">
+                    <div className="text-3xl font-black text-white group-hover:text-purple-50 font-mono tracking-tighter mb-1 transition-colors">{m.v}</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-purple-200/70 transition-colors">{m.l}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Content Grid */}
-          {loading ? (
-            <div className="text-center py-20 text-muted-foreground animate-pulse">
-              Se încarcă modelele...
+        {/* TOOLBAR */}
+        <div className="mb-12">
+          <div className="bg-[#111111] border border-white/10 rounded-2xl p-2 md:p-3 flex flex-col lg:flex-row gap-3 items-center justify-between shadow-lg">
+            <div className="flex flex-col md:flex-row w-full lg:w-auto gap-3 flex-1 items-center">
+              <div className="relative flex-1 min-w-[200px] w-full group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
+                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Caută modele AI/ML..."
+                  className="w-full bg-[#09090b] border border-white/5 rounded-xl py-2.5 pl-11 pr-4 text-sm text-white outline-none focus:border-purple-500/50 hover:border-white/20 transition-all placeholder:text-slate-600 shadow-sm" />
+              </div>
+              <div className="flex gap-3 flex-wrap sm:flex-nowrap w-full md:w-auto">
+                <CustomSelect value={fTask} onChange={setFTask} options={taskOptions} icon={Filter} onManage={() => setManageFilterType('task')} />
+                <CustomSelect value={fStatus} onChange={setFStatus} options={statusOptions} onManage={() => setManageFilterType('status')} />
+                <div className="hidden sm:block">
+                  <CustomSelect value={sortBy} onChange={setSortBy} options={sortOptions} icon={ArrowUpDown} />
+                </div>
+              </div>
             </div>
-          ) : visible.length === 0 ? (
-            <div className="text-center py-24 bg-card/50 rounded-2xl border border-border/50">
-              <BrainCircuit className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground">
-                {search || filterType !== "all" || filterStatus !== "all"
-                  ? "Niciun proiect AI nu corespunde filtrelor tale."
-                  : "Nu ai încărcat niciun proiect AI/ML."}
-              </p>
-              {isAdmin && !search && filterType === "all" && (
-                <Button
-                  className="mt-6 gap-2"
-                  onClick={() => {
-                    resetForm();
-                    setShowAdd(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4" /> Adaugă primul model
-                </Button>
+            <div className="flex items-center justify-end gap-3 w-full lg:w-auto mt-2 lg:mt-0">
+              {isAdmin && trashedCloud.length > 0 && (
+                <button type="button" onClick={() => { setShowTrash(!showTrash); }}
+                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap border ${showTrash ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-[#09090b] text-slate-400 border-white/10 hover:bg-white/5 hover:text-white'}`}>
+                  <Trash2 className="w-4 h-4" /><span>({trashedCloud.length})</span>
+                </button>
+              )}
+              {isAdmin && (
+                <button type="button" onClick={() => { setShowAdd(true); setShowTrash(false); }}
+                  className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all whitespace-nowrap transform hover:scale-[1.02]">
+                  <BrainCircuit className="w-4 h-4" /> Adaugă Model
+                </button>
               )}
             </div>
-          ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {visible.map((p, i) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  index={i}
-                  isAdmin={isAdmin}
-                  viewMode="grid"
-                  onClick={() => setSelected(p)}
-                  onEdit={(e) => {
-                    e.stopPropagation();
-                    populateForm(p);
-                    setSelected(p);
-                    setShowEdit(true);
-                  }}
-                  onDelete={(e) => {
-                    e.stopPropagation();
-                    setToDelete(p);
-                    setShowDeleteConfirm(true);
-                  }}
-                />
-              ))}
+          </div>
+        </div>
+
+        {/* TRASH VIEW HEADER */}
+        {showTrash && (
+          <div className="mb-6 flex items-center gap-3 flex-wrap">
+            <div className="p-2 bg-red-500/20 rounded-lg"><Trash2 className="w-5 h-5 text-red-400" /></div>
+            <h2 className="text-xl font-bold text-red-400">Modele Șterse</h2>
+            <p className="text-sm text-slate-500 ml-2">Restaurează sau șterge definitiv modelele.</p>
+            <div className="ml-auto flex items-center gap-2">
+              <button type="button" onClick={handleRestoreAll}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap border bg-[#09090b] text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10">
+                <RotateCcw className="w-4 h-4" /><span>Restabilește toate</span>
+              </button>
+              <button type="button" onClick={handleDeleteAll}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap border bg-[#09090b] text-red-400 border-red-500/20 hover:bg-red-500/10">
+                <Trash2 className="w-4 h-4" /><span>Șterge toate</span>
+              </button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {visible.map((p, i) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  index={i}
-                  isAdmin={isAdmin}
-                  viewMode="list"
-                  onClick={() => setSelected(p)}
-                  onEdit={(e) => {
-                    e.stopPropagation();
-                    populateForm(p);
-                    setSelected(p);
-                    setShowEdit(true);
-                  }}
-                  onDelete={(e) => {
-                    e.stopPropagation();
-                    setToDelete(p);
-                    setShowDeleteConfirm(true);
-                  }}
-                />
+          </div>
+        )}
+
+        {/* PROJECT GRID */}
+        <div className="pb-4">
+          {paginatedProjects.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedProjects.map((p, index) => (
+                <div key={p.id} className="animate-in fade-in zoom-in-95"
+                  style={{ animationDelay: `${index * 80}ms`, animationFillMode: 'both', animationDuration: '400ms' }}>
+                  <MLCard p={p} admin={isAdmin} onClick={() => !showTrash && setSel(p)}
+                    onEdit={() => { setEditingProj(p); setShowTrash(false); }}
+                    onDel={() => showTrash ? handleHardDelete(p.id) : handleSoftDelete(p.id)}
+                    onRestore={() => handleRestore(p.id)} isTrashView={showTrash} tasksList={tasks} />
+                </div>
               ))}
             </div>
           )}
-        </div>
-      </section>
 
-      {/* FAB (mobile admin) */}
-      {isAdmin && isMobile && (
-        <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
-          {trashed.length > 0 && (
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-12 w-12 rounded-full shadow-lg bg-background relative border-border"
-              onClick={() => setShowTrash(true)}
-            >
-              <Trash className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] h-5 min-w-[20px] px-1 rounded-full flex items-center justify-center font-bold">
-                {trashed.length}
-              </span>
-            </Button>
-          )}
-          <Button
-            size="icon"
-            className="h-14 w-14 rounded-full shadow-xl bg-blue-600 text-white hover:bg-blue-700"
-            onClick={() => {
-              resetForm();
-              setShowAdd(true);
-            }}
-          >
-            <Plus className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
-
-      {/* Project Modal View */}
-      {selected && !showEdit && !showDeleteConfirm && (
-        <ProjectModal
-          project={selected}
-          projects={visible}
-          onClose={() => setSelected(null)}
-          isAdmin={isAdmin}
-          onEdit={
-            isAdmin
-              ? () => {
-                  populateForm(selected);
-                  setShowEdit(true);
-                }
-              : undefined
-          }
-          onDelete={
-            isAdmin
-              ? () => {
-                  setToDelete(selected);
-                  setSelected(null);
-                  setShowDeleteConfirm(true);
-                }
-              : undefined
-          }
-        />
-      )}
-
-      {/* =========================================================================
-          INLINED FORM DIALOG (Add/Edit)
-          ========================================================================= */}
-      {isAdmin && (
-        <Dialog
-          open={showAdd || showEdit}
-          onOpenChange={(v) => {
-            if (!v) {
-              setShowAdd(false);
-              setShowEdit(false);
-              resetForm();
-            }
-          }}
-        >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-border bg-card">
-            <DialogHeader className="px-6 py-5 bg-card border-b border-border/50 shadow-sm z-10">
-              <DialogTitle className="flex items-center gap-2 text-blue-400">
-                <BrainCircuit className="h-5 w-5" />
-                {showEdit ? "Editează Model AI" : "Adaugă Proiect AI / ML"}
-              </DialogTitle>
-            </DialogHeader>
-
-            <Tabs
-              defaultValue="basics"
-              className="flex-1 flex flex-col min-h-0 bg-muted/10"
-            >
-              <TabsList className="grid w-full grid-cols-4 text-xs mx-6 mt-4 max-w-[calc(100%-3rem)] bg-muted/50 border border-border/50">
-                <TabsTrigger value="basics">Esențial</TabsTrigger>
-                <TabsTrigger value="model">Model & Date</TabsTrigger>
-                <TabsTrigger value="stack">Stack Tehnic</TabsTrigger>
-                <TabsTrigger value="media">Media & Link</TabsTrigger>
-              </TabsList>
-
-              {/* TAB 1: Basics */}
-              <TabsContent
-                value="basics"
-                className="flex-1 px-6 pt-5 space-y-4 m-0"
-              >
-                <div className="space-y-1.5">
-                  <Label>Titlu Proiect *</Label>
-                  <Input
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, title: e.target.value }))
-                    }
-                    placeholder="ex: Ro-LLM Fine-Tuned"
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Scurtă descriere (pentru card)</Label>
-                  <Input
-                    value={form.brief}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, brief: e.target.value }))
-                    }
-                    placeholder="Ce face modelul pe scurt..."
-                    className="h-9"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Domeniu AI</Label>
-                    <Select
-                      value={form.type}
-                      onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(AI_TYPES).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Status</Label>
-                    <Select
-                      value={form.status}
-                      onValueChange={(v) =>
-                        setForm((f) => ({ ...f, status: v }))
-                      }
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUSES).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1 text-muted-foreground">
-                      <Database className="h-3 w-3" /> Dimensiune Model
-                    </Label>
-                    <Input
-                      value={form.modelSize}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, modelSize: e.target.value }))
-                      }
-                      placeholder="ex: 7B params / 2.5 GB"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1 text-muted-foreground">
-                      <Cpu className="h-3 w-3" /> Hardware (Compute)
-                    </Label>
-                    <Input
-                      value={form.compute}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, compute: e.target.value }))
-                      }
-                      placeholder="ex: 1x RTX 4090 / Cloud TPU"
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* TAB 2: Model & Date (Fără Scroll necesar) */}
-              <TabsContent
-                value="model"
-                className="flex-1 px-6 pt-5 space-y-4 m-0"
-              >
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 uppercase tracking-widest">
-                    <Target className="h-3 w-3" /> Obiectivul / Problema
-                  </Label>
-                  <Textarea
-                    value={form.problem}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, problem: e.target.value }))
-                    }
-                    placeholder="Ce prezice sau ce generează acest model?"
-                    className="resize-none h-[64px] text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 uppercase tracking-widest">
-                    <Database className="h-3 w-3" /> Setul de Date (Dataset)
-                  </Label>
-                  <Textarea
-                    value={form.dataset}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, dataset: e.target.value }))
-                    }
-                    placeholder="ex: Kaggle Titanic, 50k imagini custom scraped, curățate cu Pandas..."
-                    className="resize-none h-[64px] text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-purple-400 uppercase tracking-widest">
-                    <Network className="h-3 w-3" /> Arhitectură Model
-                  </Label>
-                  <Textarea
-                    value={form.architecture}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, architecture: e.target.value }))
-                    }
-                    placeholder="ex: ResNet-50 modificat cu 3 head-uri dense, LoRA Fine-Tuning pe Mistral 7B..."
-                    className="resize-none h-[64px] text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 uppercase tracking-widest">
-                    <BarChart3 className="h-3 w-3" /> Performanță / Metrici
-                  </Label>
-                  <Input
-                    value={form.metrics}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, metrics: e.target.value }))
-                    }
-                    placeholder="ex: 95% Accuracy, F1-Score: 0.92, 50ms Inference"
-                    className="h-9 text-sm"
-                  />
-                </div>
-              </TabsContent>
-
-              {/* TAB 3: Process & Tools */}
-              <TabsContent
-                value="stack"
-                className="flex-1 px-6 pt-5 space-y-6 m-0"
-              >
-                <div className="space-y-2 relative">
-                  <Label className="text-sm font-semibold">
-                    Tehnologii și Framework-uri
-                  </Label>
-
-                  {/* Căutare / Adăugare Tool cu Popover (Portal) pt a scapa de z-index issues */}
-                  <Popover
-                    open={showToolDropdown}
-                    onOpenChange={setShowToolDropdown}
-                  >
-                    <PopoverTrigger asChild>
-                      <div
-                        className={`flex items-center border rounded-md transition-all px-3 py-1 cursor-text ${showToolDropdown ? "border-blue-500/50 ring-1 ring-blue-500/20 bg-background" : "border-border bg-card"}`}
-                      >
-                        <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
-                        <Input
-                          className="border-0 focus-visible:ring-0 shadow-none bg-transparent h-8 px-0 text-sm"
-                          placeholder="Caută framework (ex: PyTorch)..."
-                          value={toolSearch}
-                          onChange={(e) => {
-                            setToolSearch(e.target.value);
-                            setShowToolDropdown(true);
-                          }}
-                          onFocus={() => setShowToolDropdown(true)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              if (toolSearch.trim()) {
-                                if (
-                                  !availableTools.includes(toolSearch.trim())
-                                ) {
-                                  saveTools([
-                                    ...availableTools,
-                                    toolSearch.trim(),
-                                  ]);
-                                }
-                                toggleToolForm(toolSearch.trim());
-                                setToolSearch("");
-                              }
-                            }
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 ml-1 text-muted-foreground shrink-0"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowToolDropdown(!showToolDropdown);
-                          }}
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[var(--radix-popover-trigger-width)] p-0 border-border shadow-xl rounded-lg overflow-hidden z-[100]"
-                      align="start"
-                      onOpenAutoFocus={(e) => e.preventDefault()}
-                    >
-                      <div className="max-h-48 overflow-y-auto p-1 custom-scrollbar bg-card">
-                        {availableTools
-                          .filter((t) =>
-                            t.toLowerCase().includes(toolSearch.toLowerCase()),
-                          )
-                          .map((t) => (
-                            <button
-                              key={t}
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded flex items-center justify-between"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                toggleToolForm(t);
-                                setToolSearch("");
-                                setShowToolDropdown(false);
-                              }}
-                            >
-                              {t}{" "}
-                              {form.tools.includes(t) && (
-                                <Check className="h-3.5 w-3.5 text-blue-400" />
-                              )}
-                            </button>
-                          ))}
-                        {toolSearch.trim() &&
-                          !availableTools.some(
-                            (t) => t.toLowerCase() === toolSearch.toLowerCase(),
-                          ) && (
-                            <button
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded text-blue-400 font-medium"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                saveTools([
-                                  ...availableTools,
-                                  toolSearch.trim(),
-                                ]);
-                                toggleToolForm(toolSearch.trim());
-                                setToolSearch("");
-                                setShowToolDropdown(false);
-                              }}
-                            >
-                              <Plus className="inline w-3.5 h-3.5 mr-1" />{" "}
-                              Adaugă noul framework "{toolSearch.trim()}"
-                            </button>
-                          )}
-                      </div>
-                      <div className="border-t border-border p-1 bg-muted/30">
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted rounded flex items-center gap-1.5 text-muted-foreground font-bold uppercase tracking-wider"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setShowToolDropdown(false);
-                            setShowToolManager(true);
-                          }}
-                        >
-                          <Settings2 className="h-3.5 w-3.5" /> Gestionează
-                          Lista
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-
-                  {/* Chips pt Tool-uri selectate */}
-                  {form.tools.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-3">
-                      {form.tools.map((t) => (
-                        <span
-                          key={t}
-                          className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium"
-                        >
-                          {t}
-                          <button
-                            onClick={() => toggleToolForm(t)}
-                            className="hover:text-red-400 ml-1.5 text-blue-400/50 hover:bg-red-500/10 rounded-full p-0.5 transition-colors"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-
-              {/* TAB 4: Media & Links */}
-              <TabsContent
-                value="media"
-                className="flex-1 px-6 pt-5 space-y-5 m-0"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1.5 text-blue-400">
-                      <ExternalLink className="w-3.5 h-3.5" /> Live Demo URL
-                    </Label>
-                    <Input
-                      value={form.demoUrl}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, demoUrl: e.target.value }))
-                      }
-                      placeholder="https://..."
-                      className="h-10"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1.5 text-slate-400">
-                      <Github className="w-3.5 h-3.5" /> Repository URL (Cod)
-                    </Label>
-                    <Input
-                      value={form.repoUrl}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, repoUrl: e.target.value }))
-                      }
-                      placeholder="https://github.com/..."
-                      className="h-10"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center bg-card border border-border p-3 rounded-xl shadow-sm">
-                  <Label className="text-sm font-semibold pl-1">
-                    Vizibilitate Proiect
-                  </Label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setForm((f) => ({ ...f, isPrivate: !f.isPrivate }))
-                    }
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 border font-bold text-xs uppercase tracking-wider ${
-                      form.isPrivate
-                        ? "bg-red-500/10 border-red-500/30 text-red-400"
-                        : "bg-muted border-transparent text-muted-foreground hover:bg-muted/80"
-                    }`}
-                  >
-                    {form.isPrivate ? (
-                      <>
-                        <Lock className="w-3.5 h-3.5" /> Privat
-                      </>
-                    ) : (
-                      <>
-                        <Unlock className="w-3.5 h-3.5" /> Public
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="space-y-2 pt-2">
-                  <Label>Imagini proiect (Prima e Cover)</Label>
-                  {showEdit ? (
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleSingleImage}
-                      className="cursor-pointer"
-                    />
-                  ) : (
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleMultipleImages}
-                      className="cursor-pointer"
-                    />
-                  )}
-
-                  {imagePreviews.length > 0 && (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-3">
-                      {imagePreviews.map((src, i) => (
-                        <div
-                          key={i}
-                          className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted group shadow-sm"
-                        >
-                          <img
-                            src={src}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute top-1 left-1 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
-                            {i === 0 ? "Cover" : i + 1}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePreviewImage(i)}
-                            className="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-md backdrop-blur-sm"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            <div className="px-6 py-4 flex justify-end gap-3 bg-card border-t border-border/50">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  showEdit ? setShowEdit(false) : setShowAdd(false);
-                  resetForm();
-                }}
-                disabled={uploading}
-              >
-                Anulează
-              </Button>
-              <Button
-                onClick={showEdit ? handleEdit : handleAdd}
-                disabled={uploading}
-                className="gap-2 min-w-[120px] bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {uploading
-                  ? "Se salvează..."
-                  : showEdit
-                    ? "Salvează"
-                    : "Publică"}
-              </Button>
+          {filtered.length === 0 && (
+            <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-[#0b0b10]">
+              <div className="text-4xl mb-4 opacity-50">🧠</div>
+              <div className="text-slate-400 font-medium">
+                {showTrash ? 'Nu există modele în coșul de gunoi.' : 'Niciun model nu corespunde filtrelor aplicate.'}
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          )}
 
-      {/* Delete confirm */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent className="border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Șterge proiect</AlertDialogTitle>
-            <AlertDialogDescription>
-              "{toDelete?.title}" va fi mutat în coșul de gunoi. Poți să îl
-              restaurezi oricând de acolo.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Anulează</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90 text-white"
-            >
-              Mută în coș
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {totalPages > 1 && (
+            <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={filtered.length} onPageChange={setCurrentPage} />
+          )}
+        </div>
 
-      {/* Trash dialog */}
-      <Dialog open={showTrash} onOpenChange={setShowTrash}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5" /> Coș de gunoi
-            </DialogTitle>
-            <DialogDescription>
-              Modelele șterse pot fi restaurate sau eliminate definitiv.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-4">
-            {trashed.length === 0 && (
-              <p className="text-center text-muted-foreground py-10 bg-muted/30 rounded-lg">
-                Coșul e gol.
-              </p>
-            )}
-            {trashed.map((p) => (
-              <div
-                key={p.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 border border-border rounded-xl bg-card hover:bg-accent/30 transition-colors"
-              >
-                <div className="w-full sm:w-24 h-24 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-muted">
-                  <img
-                    src={p.image}
-                    alt={p.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{p.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {AI_TYPES[p.subcategory || ""]?.label || p.subcategory}
-                  </p>
-                </div>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRestore(p)}
-                    className="flex-1 sm:flex-none gap-1.5 h-8 text-xs"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> Restaurează
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handlePermDelete(p)}
-                    className="flex-1 sm:flex-none gap-1.5 h-8 text-xs"
-                  >
-                    <Trash className="h-3.5 w-3.5" /> Șterge definitiv
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Gestionează Tools Dialog */}
-      <Dialog open={showToolManager} onOpenChange={setShowToolManager}>
-        <DialogContent className="max-w-sm border-border z-[110]">
-          <DialogHeader>
-            <DialogTitle>Gestionează Instrumente AI</DialogTitle>
-            <DialogDescription>
-              Acestea apar automat la scrierea unui framework.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2 mt-2">
-            <Input
-              value={newToolInput}
-              onChange={(e) => setNewToolInput(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && (e.preventDefault(), handleAddGlobalTool())
-              }
-              placeholder="Adaugă framework..."
-            />
-            <Button onClick={handleAddGlobalTool}>Adaugă</Button>
-          </div>
-          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-            {availableTools.map((t) => (
-              <div
-                key={t}
-                className="flex items-center justify-between p-2 border border-border rounded-lg bg-card"
-              >
-                <span className="text-sm font-medium">{t}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-red-500"
-                  onClick={() => handleRemoveGlobalTool(t)}
-                >
-                  <Trash className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+        {/* MODALS */}
+        {sel && <ProjectDetailModal p={sel} onClose={() => setSel(null)} allProjects={filtered} onNavigate={(p) => setSel(p)} tasksList={tasks} />}
+        {(showAdd || editingProj) && (
+          <EditModal key={editingProj ? editingProj.id : 'add'} project={editingProj || undefined}
+            onClose={() => { setShowAdd(false); setEditingProj(null); }} onSave={handleSaveProject} tasksList={tasks} />
+        )}
+        {manageFilterType && (
+          <ManageFiltersModal
+            title={manageFilterType === 'task' ? 'Gestionează Task-uri AI' : 'Gestionează Statusuri'}
+            items={manageFilterType === 'task' ? tasks : statuses}
+            onClose={() => setManageFilterType(null)}
+            onSave={(newItems) => { if (manageFilterType === 'task') setTasks(newItems); else setStatuses(newItems); setManageFilterType(null); }}
+          />
+        )}
+        {pendingAction && (
+          <ActionConfirmationModal action={pendingAction} onClose={() => { if (!isActionProcessing) setPendingAction(null); }}
+            onConfirm={executePendingAction} isProcessing={isActionProcessing} />
+        )}
+      </div>
     </PageLayout>
   );
 }
