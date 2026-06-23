@@ -1,94 +1,27 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { PageLayout } from "@/components/PageLayout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-import {
-  Figma,
-  Search,
-  Filter,
-  EyeOff,
-  ExternalLink,
-  Edit,
-  Trash2,
-  Trash,
-  RotateCcw,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Plus,
-  Monitor,
-  Smartphone,
-  Tablet,
-  Grid3x3,
-  List,
-  Users,
-  Target,
-  Layers,
-  Zap,
-  CheckCircle2,
-  ImagePlus,
-  BarChart3,
-  Star,
-  Lightbulb,
-  Check,
-  Settings2,
-  Lock,
-  Unlock,
-  ChevronDown,
-  Sparkles,
-} from "lucide-react";
-import { useAdmin } from "@/contexts/AdminContext";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { PageLayout } from '@/components/PageLayout';
+import { useAdmin } from '@/contexts/AdminContext';
+import { useToast } from '@/hooks/use-toast';
 import {
   getGalleryItemsByCategory,
   createGalleryItem,
   updateGalleryItem,
-  deleteGalleryItem,
   softDeleteGalleryItem,
   restoreGalleryItem,
+  deleteGalleryItem,
   getTrashedGalleryItemsByCategory,
-} from "@/lib/api";
-import type { GalleryItem } from "@shared/schema";
+} from '@/lib/api';
+import type { GalleryItem } from '@shared/schema';
+import {
+  Search, Plus, Filter, ArrowUpDown, X, Edit3, Trash2, RotateCcw,
+  ChevronLeft, ChevronRight, ChevronDown, Loader2, Check, AlertTriangle,
+  Lock, Unlock, Star, Figma, Monitor, Smartphone, Tablet, Target, Lightbulb,
+  BarChart3, Users, Layers, Sparkles, CheckCircle2, Settings, ImagePlus,
+  ExternalLink, Eye, Layout, Link as LinkIcon, UploadCloud, Zap,
+  Image as ImageIcon,
+} from 'lucide-react';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
+// ─── Types ─────────────────────────────────────────────────────────────────
 type UiUxProject = GalleryItem;
 
 interface ProjectMeta {
@@ -101,896 +34,524 @@ interface ProjectMeta {
   outcomes: string;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
+// ─── Constants ─────────────────────────────────────────────────────────────
 const PROCESS_PHASES = [
-  "Discovery & Research",
-  "Info Architecture",
-  "Wireframing & Flows",
-  "UI & Visual Design",
-  "Interactive Prototyping",
-  "Usability Testing",
+  'Discovery & Research',
+  'Info Architecture',
+  'Wireframing & Flows',
+  'UI & Visual Design',
+  'Interactive Prototyping',
+  'Usability Testing',
 ];
 
-const INITIAL_TOOLS = [
-  "Figma",
-  "Adobe XD",
-  "Miro",
-  "Notion",
-  "ProtoPie",
-  "Spline",
+const INITIAL_TOOLS = ['Figma', 'Adobe XD', 'Miro', 'Notion', 'ProtoPie', 'Spline'];
+
+const PROJECT_TYPES: Record<string, { label: string; color: string; bg: string; textColor: string; gradient: string }> = {
+  'mobile-app': { label: 'Mobile App', color: 'text-amber-400', bg: 'bg-amber-400/15 border-amber-400/30', textColor: '#fbbf24', gradient: 'from-amber-500 via-orange-500 to-red-500' },
+  'web-app': { label: 'Web App', color: 'text-blue-400', bg: 'bg-blue-400/15 border-blue-400/30', textColor: '#60a5fa', gradient: 'from-blue-500 via-indigo-500 to-purple-600' },
+  'dashboard': { label: 'Dashboard B2B', color: 'text-violet-400', bg: 'bg-violet-400/15 border-violet-400/30', textColor: '#a78bfa', gradient: 'from-purple-600 via-violet-500 to-indigo-600' },
+  'landing-page': { label: 'Landing Page', color: 'text-emerald-400', bg: 'bg-emerald-400/15 border-emerald-400/30', textColor: '#34d399', gradient: 'from-emerald-500 via-teal-500 to-cyan-500' },
+  'design-system': { label: 'Design System', color: 'text-cyan-400', bg: 'bg-cyan-400/15 border-cyan-400/30', textColor: '#22d3ee', gradient: 'from-cyan-500 via-blue-500 to-indigo-600' },
+};
+
+const STATUSES: Record<string, { label: string; dot: string }> = {
+  concept: { label: 'Concept / Redesign', dot: 'bg-purple-400' },
+  prototype: { label: 'Prototip Interactiv', dot: 'bg-amber-400' },
+  implemented: { label: 'Produs Lansat (Live)', dot: 'bg-emerald-400' },
+};
+
+const PLATFORMS: Record<string, { label: string }> = {
+  ios: { label: 'iOS' },
+  android: { label: 'Android' },
+  web: { label: 'Web' },
+  desktop: { label: 'Desktop' },
+  'cross-platform': { label: 'Cross-platform' },
+};
+
+const PROJECTS_PER_PAGE = 9;
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Cel mai nou' },
+  { value: 'oldest', label: 'Cel mai vechi' },
+  { value: 'az', label: 'A → Z' },
+  { value: 'za', label: 'Z → A' },
 ];
 
-const PROJECT_TYPES: Record<
-  string,
-  { label: string; color: string; bg: string }
-> = {
-  "mobile-app": {
-    label: "Mobile App",
-    color: "text-amber-400",
-    bg: "bg-amber-400/15 border-amber-400/30",
-  },
-  "web-app": {
-    label: "Web App",
-    color: "text-blue-400",
-    bg: "bg-blue-400/15 border-blue-400/30",
-  },
-  dashboard: {
-    label: "Dashboard B2B",
-    color: "text-violet-400",
-    bg: "bg-violet-400/15 border-violet-400/30",
-  },
-  "landing-page": {
-    label: "Landing Page",
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/15 border-emerald-400/30",
-  },
-  "design-system": {
-    label: "Design System",
-    color: "text-cyan-400",
-    bg: "bg-cyan-400/15 border-cyan-400/30",
-  },
-};
+const TOOL_TAG_COLORS = [
+  'text-rose-400 border-rose-400/20',
+  'text-emerald-400 border-emerald-400/20',
+  'text-blue-400 border-blue-400/20',
+  'text-amber-400 border-amber-400/20',
+  'text-violet-400 border-violet-400/20',
+  'text-cyan-400 border-cyan-400/20',
+  'text-orange-400 border-orange-400/20',
+  'text-pink-400 border-pink-400/20',
+];
 
-const STATUSES: Record<string, { label: string; color: string }> = {
-  concept: {
-    label: "Concept / Redesign",
-    color: "text-purple-400 bg-purple-400/10 border-purple-400/20",
-  },
-  prototype: {
-    label: "Prototip Interactiv",
-    color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-  },
-  implemented: {
-    label: "Produs Lansat (Live)",
-    color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  },
-};
+const InputStyle = 'w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all placeholder:text-slate-600';
+const LabelStyle = 'block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5';
 
-const PLATFORMS: Record<string, { label: string; icon: React.ReactNode }> = {
-  ios: { label: "iOS", icon: <Smartphone className="h-3.5 w-3.5" /> },
-  android: { label: "Android", icon: <Smartphone className="h-3.5 w-3.5" /> },
-  web: { label: "Web", icon: <Monitor className="h-3.5 w-3.5" /> },
-  desktop: { label: "Desktop", icon: <Monitor className="h-3.5 w-3.5" /> },
-  "cross-platform": {
-    label: "Cross-platform",
-    icon: <Tablet className="h-3.5 w-3.5" />,
-  },
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
+// ─── Helpers ──────────────────────────────────────────────────────────────
 function parseMeta(desc: string | null | undefined): ProjectMeta {
-  const empty: ProjectMeta = {
-    brief: "",
-    problem: "",
-    solution: "",
-    users: "",
-    role: "",
-    process: [],
-    outcomes: "",
-  };
+  const empty: ProjectMeta = { brief: '', problem: '', solution: '', users: '', role: '', process: [], outcomes: '' };
   if (!desc) return empty;
   try {
     const p = JSON.parse(desc);
-    if (typeof p === "object" && p !== null) return { ...empty, ...p };
-  } catch {
-    /* legacy text */
-  }
+    if (typeof p === 'object' && p !== null) return { ...empty, ...p };
+  } catch { /* legacy */ }
   return { ...empty, brief: desc };
 }
 
-function encodeMeta(m: ProjectMeta): string {
-  return JSON.stringify(m);
-}
+function encodeMeta(m: ProjectMeta): string { return JSON.stringify(m); }
 
 function getImages(project: UiUxProject): string[] {
-  if (project.date?.includes("|"))
-    return project.date.split("|").filter(Boolean);
+  if (project.date?.includes('|')) return project.date.split('|').filter(Boolean);
   return [project.image].filter(Boolean);
 }
 
-// ─── Sub-component: Project Card ─────────────────────────────────────────────
-
-interface ProjectCardProps {
-  project: UiUxProject;
-  index: number;
-  isAdmin: boolean;
-  viewMode: "grid" | "list";
-  onClick: () => void;
-  onEdit: (e: React.MouseEvent) => void;
-  onDelete: (e: React.MouseEvent) => void;
+// ─── Hooks ────────────────────────────────────────────────────────────────
+function useModalEffects(isOpen: boolean) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({
-  project,
-  index,
-  isAdmin,
-  viewMode,
-  onClick,
-  onEdit,
-  onDelete,
-}) => {
-  const meta = parseMeta(project.description);
-  const typeInfo =
-    PROJECT_TYPES[project.subcategory || "mobile-app"] ||
-    PROJECT_TYPES["mobile-app"];
-  const statusInfo =
-    STATUSES[(project as any).medium || "concept"] || STATUSES.concept;
-  const tools: string[] = (project as any).materials || [];
-  const process: string[] = meta.process || [];
-  const images = getImages(project);
-  const platformInfo =
-    PLATFORMS[(project as any).device || "web"] || PLATFORMS.web;
-  const isLive = (project as any).medium === "implemented"; // Corecție logica "Live"
+function useOutsideClick(ref: React.RefObject<HTMLElement | null>, callback: () => void) {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) callback();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ref, callback]);
+}
 
-  if (viewMode === "list") {
-    return (
-      <div
-        className="group flex gap-4 p-4 rounded-xl border border-border/50 hover:border-art-accent/40 bg-card/50 hover:bg-card/80 transition-all duration-300 cursor-pointer animate-scale-in"
-        style={{ animationDelay: `${index * 40}ms` }}
-        onClick={onClick}
-      >
-        <div className="relative w-32 sm:w-48 flex-shrink-0 aspect-[4/3] rounded-lg overflow-hidden bg-muted border border-border/50">
-          <img
-            src={project.image}
-            alt={project.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-          {images.length > 1 && (
-            <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
-              +{images.length - 1}
-            </div>
-          )}
-          {project.isPrivate && (
-            <div className="absolute top-1.5 left-1.5 bg-black/70 p-1 rounded">
-              <EyeOff className="w-3 h-3 text-white" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-          <div className="space-y-1.5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span
-                  className={`text-[11px] font-semibold uppercase tracking-widest ${typeInfo.color}`}
-                >
-                  {typeInfo.label}
-                </span>
-                <h3 className="font-semibold text-base leading-tight mt-0.5 line-clamp-1">
-                  {project.title}
-                </h3>
-              </div>
-              {isAdmin && (
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 hover:bg-blue-500/10 hover:text-blue-400"
-                    onClick={onEdit}
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 hover:bg-red-500/10 hover:text-red-400"
-                    onClick={onDelete}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-            <p className="text-muted-foreground text-sm line-clamp-1">
-              {meta.brief || meta.problem || "Fără descriere"}
-            </p>
-            {process.length > 0 && (
-              <div className="hidden sm:flex flex-wrap gap-1 pt-0.5">
-                {process.slice(0, 4).map((p) => (
-                  <span
-                    key={p}
-                    className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/50"
-                  >
-                    {p}
-                  </span>
-                ))}
-                {process.length > 4 && (
-                  <span className="text-[10px] px-2 py-0.5 text-muted-foreground">
-                    +{process.length - 4}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap pt-2">
-            <Badge
-              variant="outline"
-              className={`text-[10px] h-5 ${statusInfo.color}`}
-            >
-              {statusInfo.label}
-            </Badge>
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              {platformInfo.icon} {platformInfo.label}
-            </span>
-            {tools.slice(0, 2).map((t) => (
-              <span
-                key={t}
-                className="text-[11px] text-muted-foreground hidden md:inline"
-              >
-                {t}
-              </span>
-            ))}
-            {isLive && (
-              <span className="text-[10px] text-emerald-400 flex items-center gap-0.5 ml-auto font-medium">
-                <Zap className="h-3 w-3" /> Live
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+// ─── CustomSelect ─────────────────────────────────────────────────────────
+function CustomSelect({ value, onChange, options, icon: Icon }: {
+  value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  icon?: React.ElementType;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useOutsideClick(ref, () => setOpen(false));
+  const selected = options.find(o => o.value === value);
 
   return (
-    <div
-      className="group relative rounded-xl overflow-hidden border border-border/40 hover:border-art-accent/50 bg-card/60 hover:bg-card/90 transition-all duration-300 cursor-pointer animate-scale-in hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 flex flex-col h-full"
-      style={{ animationDelay: `${index * 60}ms` }}
-      onClick={onClick}
-    >
-      <div
-        className={`absolute top-0 left-0 right-0 h-[3px] z-10 ${typeInfo.bg.replace("bg-", "bg-").replace("/15", "/80").split(" ")[0]}`}
-      />
-
-      <div className="relative aspect-[16/10] overflow-hidden bg-muted border-b border-border/20">
-        <img
-          src={project.image}
-          alt={project.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-        <div className="absolute top-3 left-3 flex gap-2">
-          {images.length > 1 && (
-            <div className="bg-black/70 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md font-mono flex items-center gap-1 border border-white/10">
-              <ImagePlus className="h-3 w-3" /> {images.length}
-            </div>
-          )}
-          {project.isPrivate && (
-            <div className="bg-black/70 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
-              <EyeOff className="w-3 h-3 text-white" />
-            </div>
-          )}
+    <div ref={ref} className="relative w-full sm:w-auto min-w-[170px] z-20">
+      <div onClick={() => setOpen(!open)}
+        className={`flex items-center justify-between w-full bg-[#09090b] border ${open ? 'border-purple-500/50' : 'border-white/5'} hover:border-white/20 rounded-xl px-4 py-2.5 text-sm text-slate-300 cursor-pointer transition-all shadow-sm`}>
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-slate-500" />}
+          <span className="truncate">{selected?.label || 'Selectează'}</span>
         </div>
-
-        {isLive && (
-          <div className="absolute top-3 right-3">
-            <div className="bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-[10px] px-2 py-1 rounded-md flex items-center gap-1 shadow-lg font-bold">
-              <Zap className="h-3 w-3" /> Live
-            </div>
-          </div>
-        )}
-
-        {isAdmin && (
-          <div className="absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 bg-black/60 hover:bg-blue-500/80 text-white rounded-lg backdrop-blur-sm"
-              onClick={onEdit}
-            >
-              <Edit className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 bg-black/60 hover:bg-red-500/80 text-white rounded-lg backdrop-blur-sm"
-              onClick={onDelete}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
+        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-300 shrink-0 ml-2 ${open ? 'rotate-180' : ''}`} />
       </div>
-
-      <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">
-        <div>
-          <span
-            className={`text-[10px] font-bold uppercase tracking-[0.15em] ${typeInfo.color}`}
-          >
-            {typeInfo.label}
-          </span>
-          <h3 className="font-semibold text-base mt-0.5 leading-snug line-clamp-1">
-            {project.title}
-          </h3>
-          <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2 leading-relaxed">
-            {meta.brief || meta.problem || "Nicio descriere adăugată."}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {process.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {process.slice(0, 3).map((p) => (
-                <span
-                  key={p}
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-muted/80 text-muted-foreground border border-border/40"
-                >
-                  {p}
-                </span>
-              ))}
-              {process.length > 3 && (
-                <span className="text-[10px] px-2 py-0.5 text-muted-foreground">
-                  +{process.length - 3}
-                </span>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between pt-3 border-t border-border/40">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className={`text-[10px] h-5 ${statusInfo.color}`}
-              >
-                {statusInfo.label}
-              </Badge>
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                {platformInfo.icon}{" "}
-                <span className="hidden sm:inline">{platformInfo.label}</span>
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {tools.slice(0, 2).map((t) => (
-                <span
-                  key={t}
-                  className="text-[10px] text-muted-foreground hidden lg:inline border border-border/40 px-1.5 py-0.5 rounded bg-muted/30"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
+      {open && (
+        <div className="absolute top-full left-0 mt-2 w-full bg-[#111111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 py-1.5 z-50">
+          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+            {options.map(o => (
+              <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-colors ${value === o.value ? 'bg-purple-500/10 text-purple-400 font-medium' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                {o.label}
+                {value === o.value && <Check className="w-4 h-4" />}
+              </div>
+            ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ConfirmModal ─────────────────────────────────────────────────────────
+function ConfirmModal({ title, desc, onClose, onConfirm, confirmLabel, danger }: {
+  title: string; desc: string; onClose: () => void; onConfirm: () => void;
+  confirmLabel: string; danger?: boolean;
+}) {
+  useModalEffects(true);
+  return (
+    <div className="fixed inset-0 z-[10020] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+        <div className="p-6 text-center">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${danger ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
+            {danger ? <AlertTriangle className="w-7 h-7 text-red-400" /> : <RotateCcw className="w-7 h-7 text-emerald-400" />}
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">{desc}</p>
+        </div>
+        <div className="p-5 border-t border-white/5 flex gap-3 justify-center">
+          <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors">Anulează</button>
+          <button onClick={onConfirm}
+            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${danger ? 'bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30'}`}>
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-// ─── Sub-component: Project Modal (Tabbed, Artistic, Clean) ──────────────────
-
-interface ProjectModalProps {
-  project: UiUxProject;
-  projects: UiUxProject[];
-  onClose: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  isAdmin: boolean;
 }
 
-const ProjectModal: React.FC<ProjectModalProps> = ({
-  project,
-  projects,
-  onClose,
-  onEdit,
-  onDelete,
-  isAdmin,
-}) => {
-  const [imgIdx, setImgIdx] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(true);
-  const meta = parseMeta(project.description);
-  const images = getImages(project);
-  const typeInfo =
-    PROJECT_TYPES[project.subcategory || "mobile-app"] ||
-    PROJECT_TYPES["mobile-app"];
-  const statusInfo =
-    STATUSES[(project as any).medium || "concept"] || STATUSES.concept;
-  const tools: string[] = (project as any).materials || [];
-  const platformInfo =
-    PLATFORMS[(project as any).device || "web"] || PLATFORMS.web;
-
-  useEffect(() => {
-    if (!autoPlay || images.length <= 1) return;
-    const t = setInterval(
-      () => setImgIdx((i) => (i + 1) % images.length),
-      4000,
-    );
-    return () => clearInterval(t);
-  }, [autoPlay, images.length]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft" && images.length > 1) {
-        setAutoPlay(false);
-        setImgIdx((i) => (i - 1 + images.length) % images.length);
-      }
-      if (e.key === "ArrowRight" && images.length > 1) {
-        setAutoPlay(false);
-        setImgIdx((i) => (i + 1) % images.length);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [images.length, onClose]);
+// ─── Project Card ──────────────────────────────────────────────────────────
+function UiCard({ p, admin, onClick, onEdit, onDel, onRestore, isTrashView }: {
+  p: UiUxProject; admin: boolean; onClick: () => void; onEdit: () => void;
+  onDel: () => void; onRestore?: () => void; isTrashView: boolean;
+}) {
+  const meta = parseMeta(p.description);
+  const typeInfo = PROJECT_TYPES[(p.subcategory as string) || 'mobile-app'] || PROJECT_TYPES['mobile-app'];
+  const statusInfo = STATUSES[(p as any).medium || 'concept'] || STATUSES.concept;
+  const tools: string[] = (p as any).materials || [];
+  const images = getImages(p);
+  const isLive = (p as any).medium === 'implemented';
+  const isFeatured = (p as any).featured || false;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
-      onClick={onClose}
+    <div className="group relative bg-[#12121a] border border-white/5 rounded-[1.25rem] overflow-hidden cursor-pointer transition-all duration-[350ms]"
+      style={{ transitionTimingFunction: 'cubic-bezier(0.34,1.56,0.64,1)' }}
+      onClick={onClick}
+      onMouseEnter={e => { const el = e.currentTarget; el.style.transform = 'translateY(-5px)'; el.style.borderColor = 'rgba(255,255,255,0.15)'; el.style.boxShadow = '0 8px 30px rgba(139,92,246,0.12)'; }}
+      onMouseLeave={e => { const el = e.currentTarget; el.style.transform = 'translateY(0)'; el.style.borderColor = 'rgba(255,255,255,0.05)'; el.style.boxShadow = 'none'; }}
     >
-      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
-      <div
-        className="relative w-full max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col lg:flex-row rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-card border border-border"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* LEFT: Image Gallery */}
-        <div className="relative h-[40vh] lg:h-full lg:w-[55%] xl:w-[60%] flex flex-col bg-muted/20 border-b lg:border-b-0 lg:border-r border-border">
-          <div className="relative flex-1 flex items-center justify-center p-2 sm:p-8 overflow-hidden">
-            <img
-              src={images[imgIdx] || project.image}
-              alt={`${project.title} — ecran ${imgIdx + 1}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
-            />
-            {images.length > 1 && (
+      {/* Image area */}
+      <div className="relative aspect-[16/10] overflow-hidden bg-[#0d0d15]">
+        {p.image ? (
+          <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+        ) : (
+          <div className={`w-full h-full bg-gradient-to-br ${typeInfo.gradient} flex items-center justify-center`}>
+            <Figma className="w-12 h-12 text-white/30" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* Badges top-left */}
+        <div className="absolute top-3 left-3 flex gap-2">
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${typeInfo.bg} ${typeInfo.color} backdrop-blur-sm`}>
+            {typeInfo.label}
+          </span>
+          {images.length > 1 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-black/50 text-white border border-white/10 backdrop-blur-sm">
+              <ImageIcon className="w-3 h-3" /> {images.length}
+            </span>
+          )}
+        </div>
+
+        {/* Status top-right */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          {isFeatured && <Star className="w-4 h-4 fill-amber-400 text-amber-400 drop-shadow" />}
+          {isLive && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 backdrop-blur-sm">
+              <Zap className="w-3 h-3" /> Live
+            </span>
+          )}
+          {p.isPrivate && (
+            <span className="p-1.5 rounded-lg bg-black/40 border border-white/10 backdrop-blur-sm">
+              <Lock className="w-3 h-3 text-white/70" />
+            </span>
+          )}
+        </div>
+
+        {/* Admin actions */}
+        {admin && (
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {isTrashView ? (
               <>
-                <button
-                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 hover:bg-background border border-border flex items-center justify-center text-foreground transition-all shadow-md"
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setImgIdx((i) => (i - 1 + images.length) % images.length);
-                  }}
-                >
-                  <ChevronLeft className="h-5 w-5" />
+                <button type="button" onClick={e => { e.stopPropagation(); onRestore?.(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-emerald-400 hover:bg-emerald-500/20 transition-colors border border-white/10" title="Restaurează">
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 hover:bg-background border border-border flex items-center justify-center text-foreground transition-all shadow-md"
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setImgIdx((i) => (i + 1) % images.length);
-                  }}
-                >
-                  <ChevronRight className="h-5 w-5" />
+                <button type="button" onClick={e => { e.stopPropagation(); onDel(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-red-400 hover:bg-red-500/20 transition-colors border border-white/10" title="Șterge definitiv">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={e => { e.stopPropagation(); onEdit(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-white hover:bg-white/20 transition-colors border border-white/10" title="Editează">
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+                <button type="button" onClick={e => { e.stopPropagation(); onDel(); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 backdrop-blur-sm text-red-400 hover:bg-red-500/20 transition-colors border border-white/10" title="Mută în coș">
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </>
             )}
           </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="p-5">
+        <h3 className="text-[15px] font-bold text-white line-clamp-1">{p.title}</h3>
+        <p className="text-[11px] text-slate-400 font-mono mt-1 line-clamp-1">{meta.brief || meta.problem || '—'}</p>
+
+        <div className="flex items-center gap-2 mt-4">
+          <span className={`w-2 h-2 rounded-full ${statusInfo.dot}`} />
+          <span className="text-[11px] text-slate-400">{statusInfo.label}</span>
+          {(p as any).device && (
+            <span className="text-[11px] text-slate-500 ml-auto">{PLATFORMS[(p as any).device]?.label || (p as any).device}</span>
+          )}
+        </div>
+
+        {tools.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {tools.slice(0, 4).map((t, i) => (
+              <span key={t} className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-white/[0.03] border ${TOOL_TAG_COLORS[i % TOOL_TAG_COLORS.length]}`}>{t}</span>
+            ))}
+            {tools.length > 4 && <span className="text-[10px] text-slate-500">+{tools.length - 4}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Project Detail Modal (keeps image-forward split layout) ───────────────
+function ProjectModal({ project, projects, onClose, onEdit, onDelete, isAdmin }: {
+  project: UiUxProject; projects: UiUxProject[]; onClose: () => void;
+  onEdit?: () => void; onDelete?: () => void; isAdmin: boolean;
+}) {
+  useModalEffects(true);
+  const [imgIdx, setImgIdx] = useState(0);
+  const [activeTab, setActiveTab] = useState<'overview' | 'casestudy' | 'process'>('overview');
+  const meta = parseMeta(project.description);
+  const images = getImages(project);
+  const typeInfo = PROJECT_TYPES[(project.subcategory as string) || 'mobile-app'] || PROJECT_TYPES['mobile-app'];
+  const statusInfo = STATUSES[(project as any).medium || 'concept'] || STATUSES.concept;
+  const tools: string[] = (project as any).materials || [];
+
+  const currentIdx = projects.findIndex(p => p.id === project.id);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const t = setInterval(() => setImgIdx(i => (i + 1) % images.length), 4000);
+    return () => clearInterval(t);
+  }, [images.length]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && images.length > 1) setImgIdx(i => (i - 1 + images.length) % images.length);
+      if (e.key === 'ArrowRight' && images.length > 1) setImgIdx(i => (i + 1) % images.length);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [images.length, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-md" />
+      <div className="relative w-full max-w-7xl h-[92vh] sm:h-[88vh] flex flex-col lg:flex-row rounded-2xl overflow-hidden shadow-2xl bg-[#0e0e16] border border-white/10 animate-in zoom-in-95 duration-300"
+        onClick={e => e.stopPropagation()}>
+
+        {/* LEFT: Image Gallery */}
+        <div className="relative h-[40vh] lg:h-full lg:w-[58%] flex flex-col bg-[#08080f] border-b lg:border-b-0 lg:border-r border-white/5">
+          <div className="relative flex-1 flex items-center justify-center p-4 sm:p-8 overflow-hidden">
+            {images[imgIdx] ? (
+              <img src={images[imgIdx]} alt={`${project.title} — ecran ${imgIdx + 1}`}
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+            ) : (
+              <div className={`w-full h-full bg-gradient-to-br ${typeInfo.gradient} rounded-xl flex items-center justify-center`}>
+                <Figma className="w-24 h-24 text-white/20" />
+              </div>
+            )}
+
+            {images.length > 1 && (
+              <>
+                <button onClick={() => setImgIdx(i => (i - 1 + images.length) % images.length)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors border border-white/10">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button onClick={() => setImgIdx(i => (i + 1) % images.length)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors border border-white/10">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
+            )}
+
+            {/* Badges overlay */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border ${typeInfo.bg} ${typeInfo.color} backdrop-blur-sm`}>
+                {typeInfo.label}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-black/40 backdrop-blur-sm border border-white/10 text-white`}>
+                <span className={`w-2 h-2 rounded-full ${statusInfo.dot}`} /> {statusInfo.label}
+              </span>
+            </div>
+          </div>
 
           {/* Thumbnails */}
           {images.length > 1 && (
-            <div className="flex gap-2 px-4 pb-4 overflow-x-auto custom-scrollbar flex-shrink-0">
+            <div className="flex gap-2 px-4 pb-4 overflow-x-auto custom-scrollbar shrink-0">
               {images.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setImgIdx(i);
-                  }}
-                  className={`h-14 w-20 flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${i === imgIdx ? "border-art-accent opacity-100" : "border-transparent opacity-60 hover:opacity-100"}`}
-                >
-                  <img
-                    src={img}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                <button key={i} onClick={() => setImgIdx(i)}
+                  className={`h-14 w-20 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${i === imgIdx ? 'border-purple-500 opacity-100' : 'border-transparent opacity-50 hover:opacity-100'}`}>
+                  <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* RIGHT: Tabbed Details Panel */}
-        <div className="flex-1 flex flex-col min-h-0 bg-card/80 backdrop-blur-sm relative">
-          {/* Header Sticky */}
-          <div className="z-20 bg-card/50 px-6 py-5 flex items-start justify-between gap-4">
+        {/* RIGHT: Details */}
+        <div className="flex-1 flex flex-col min-h-0 bg-[#0e0e16] relative">
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-white/5 flex items-start justify-between gap-4 shrink-0">
             <div>
-              <span
-                className={`text-[10px] font-bold uppercase tracking-[0.15em] ${typeInfo.color}`}
-              >
-                {typeInfo.label}
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-bold leading-tight mt-1">
-                {project.title}
-              </h2>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{project.title}</h2>
+              {meta.brief && <p className="text-sm text-slate-400 mt-1 leading-relaxed font-mono">{meta.brief}</p>}
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {isAdmin && onEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-blue-500/10 hover:text-blue-400"
-                  onClick={onEdit}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
+                <button onClick={onEdit} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors">
+                  <Edit3 className="w-4 h-4" />
+                </button>
               )}
               {isAdmin && onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-red-500/10 hover:text-red-400"
-                  onClick={onDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <button onClick={onDelete} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 bg-muted hover:bg-muted/80 rounded-full ml-1"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-colors ml-1">
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <Tabs
-            defaultValue="overview"
-            className="flex-1 flex flex-col min-h-0"
-          >
-            <TabsList className="mx-6 justify-start border-b border-border/50 rounded-none bg-transparent p-0 h-auto gap-4">
-              <TabsTrigger
-                value="overview"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-art-accent data-[state=active]:bg-transparent px-2 py-2"
-              >
-                Despre Proiect
-              </TabsTrigger>
-              <TabsTrigger
-                value="casestudy"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-art-accent data-[state=active]:bg-transparent px-2 py-2"
-              >
-                Case Study
-              </TabsTrigger>
-              <TabsTrigger
-                value="process"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-art-accent data-[state=active]:bg-transparent px-2 py-2"
-              >
-                Proces & Tools
-              </TabsTrigger>
-            </TabsList>
+          {/* Tabs */}
+          <div className="flex gap-6 border-b border-white/5 px-6 shrink-0">
+            {(['overview', 'casestudy', 'process'] as const).map(tab => (
+              <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+                className={`pb-3 pt-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === tab ? 'border-purple-500 text-purple-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                {tab === 'overview' ? 'Despre Proiect' : tab === 'casestudy' ? 'Case Study' : 'Proces & Tools'}
+              </button>
+            ))}
+          </div>
 
-            {/* TAB: Overview */}
-            <TabsContent
-              value="overview"
-              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-6"
-            >
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn("px-3 py-1 bg-background", statusInfo.color)}
-                >
-                  {statusInfo.label}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="px-3 py-1 border-border text-muted-foreground gap-1 bg-background"
-                >
-                  {platformInfo.icon} {platformInfo.label}
-                </Badge>
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-5">
+            {activeTab === 'overview' && (
+              <div className="animate-in fade-in space-y-5">
+                {meta.brief && <p className="text-base text-slate-300 leading-relaxed">{meta.brief}</p>}
+                <div className="grid grid-cols-2 gap-4">
+                  {meta.users && (
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1.5"><Users className="h-3 w-3" /> Target Users</p>
+                      <p className="text-sm font-semibold text-slate-200">{meta.users}</p>
+                    </div>
+                  )}
+                  {meta.role && (
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1.5"><Star className="h-3 w-3" /> Rolul Meu</p>
+                      <p className="text-sm font-semibold text-slate-200">{meta.role}</p>
+                    </div>
+                  )}
+                </div>
                 {(project as any).dimensions && (
-                  <Badge
-                    variant="outline"
-                    className="px-3 py-1 border-border text-muted-foreground gap-1 bg-background"
-                  >
-                    <Monitor className="h-3.5 w-3.5" />{" "}
-                    {(project as any).dimensions} ecrane
-                  </Badge>
-                )}
-              </div>
-
-              {meta.brief && (
-                <p className="text-lg text-foreground/90 leading-relaxed font-medium">
-                  {meta.brief}
-                </p>
-              )}
-
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                {meta.users && (
-                  <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
-                      <Users className="h-3 w-3" /> Target Users
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      {meta.users}
-                    </p>
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Monitor className="w-4 h-4" /> {(project as any).dimensions} ecrane
                   </div>
                 )}
-                {meta.role && (
-                  <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
-                      <Star className="h-3 w-3" /> Rolul Meu
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      {meta.role}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {(project as any).location && (
-                <div className="pt-4">
-                  <Button
-                    className="w-full gap-2 bg-[#1ABCFE] hover:bg-[#1ABCFE]/90 text-black font-bold h-12 rounded-xl transition-transform hover:-translate-y-0.5"
-                    onClick={() =>
-                      window.open((project as any).location, "_blank")
-                    }
-                  >
+                {(project as any).location && (
+                  <a href={(project as any).location} target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#1ABCFE] hover:bg-[#1ABCFE]/90 text-black font-bold text-sm transition-all">
                     <Figma className="h-5 w-5" /> Deschide Prototip Interactiv
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
+                  </a>
+                )}
+              </div>
+            )}
 
-            {/* TAB: Case Study */}
-            <TabsContent
-              value="casestudy"
-              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-8"
-            >
-              {meta.problem ? (
-                <div className="relative pl-4 border-l-2 border-red-500/50">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Target className="h-4 w-4 text-red-400" /> Problema &
-                    Context
-                  </h4>
-                  <p className="text-[15px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {meta.problem}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-muted-foreground italic text-sm">
-                  Nu a fost definită o problemă.
-                </p>
-              )}
+            {activeTab === 'casestudy' && (
+              <div className="animate-in fade-in space-y-6">
+                {meta.problem ? (
+                  <div className="relative pl-4 border-l-2 border-red-500/50">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5"><Target className="h-4 w-4 text-red-400" /> Problema & Context</h4>
+                    <p className="text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">{meta.problem}</p>
+                  </div>
+                ) : <p className="text-slate-500 italic text-sm">Nu a fost definită o problemă.</p>}
+                {meta.solution && (
+                  <div className="relative pl-4 border-l-2 border-emerald-500/50">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5"><Lightbulb className="h-4 w-4 text-emerald-400" /> Soluția Propusă</h4>
+                    <p className="text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">{meta.solution}</p>
+                  </div>
+                )}
+                {meta.outcomes && (
+                  <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-5">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-purple-400 mb-3 flex items-center gap-1.5"><BarChart3 className="h-4 w-4" /> Impact & Rezultate</h4>
+                    <p className="text-sm leading-relaxed text-slate-200 font-medium whitespace-pre-wrap">{meta.outcomes}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-              {meta.solution && (
-                <div className="relative pl-4 border-l-2 border-emerald-500/50">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Lightbulb className="h-4 w-4 text-emerald-400" /> Soluția
-                    Propusă
-                  </h4>
-                  <p className="text-[15px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {meta.solution}
-                  </p>
-                </div>
-              )}
-
-              {meta.outcomes && (
-                <div className="bg-art-accent/5 border border-art-accent/20 rounded-xl p-5">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-art-accent mb-3 flex items-center gap-1.5">
-                    <BarChart3 className="h-4 w-4" /> Impact & Rezultate
-                  </h4>
-                  <p className="text-sm leading-relaxed text-foreground font-medium whitespace-pre-wrap">
-                    {meta.outcomes}
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* TAB: Process & Tools */}
-            <TabsContent
-              value="process"
-              className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 m-0 space-y-8"
-            >
-              {meta.process && meta.process.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-foreground" /> Etape
-                    Parcurse
-                  </h4>
-                  <div className="relative pl-3">
-                    <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
-                    <div className="space-y-4">
-                      {meta.process.map((step) => (
-                        <div
-                          key={step}
-                          className="flex items-center gap-4 relative z-10"
-                        >
-                          <div className="w-6 h-6 rounded-full bg-card border-2 border-art-accent flex items-center justify-center">
-                            <Check className="h-3 w-3 text-art-accent" />
+            {activeTab === 'process' && (
+              <div className="animate-in fade-in space-y-6">
+                {meta.process && meta.process.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Layers className="h-4 w-4" /> Etape Parcurse</h4>
+                    <div className="relative pl-3">
+                      <div className="absolute left-[11px] top-2 bottom-2 w-px bg-white/5" />
+                      <div className="space-y-4">
+                        {meta.process.map(step => (
+                          <div key={step} className="flex items-center gap-4 relative z-10">
+                            <div className="w-6 h-6 rounded-full bg-[#0e0e16] border-2 border-purple-500 flex items-center justify-center">
+                              <Check className="h-3 w-3 text-purple-400" />
+                            </div>
+                            <span className="font-medium text-sm text-slate-300">{step}</span>
                           </div>
-                          <span className="font-medium text-sm text-foreground/90">
-                            {step}
-                          </span>
-                        </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {tools.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Sparkles className="h-4 w-4" /> Instrumente</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {tools.map((t, i) => (
+                        <span key={t} className={`text-xs px-3 py-1.5 rounded-lg bg-white/[0.03] border font-medium font-mono ${TOOL_TAG_COLORS[i % TOOL_TAG_COLORS.length]}`}>{t}</span>
                       ))}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            )}
+          </div>
 
-              {tools.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-foreground" /> Instrumente
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {tools.map((t) => (
-                      <span
-                        key={t}
-                        className="text-xs px-3 py-1.5 rounded-md bg-muted border border-border text-foreground font-medium"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-white/5 bg-[#08080f] shrink-0">
+            <div className="text-center text-[11px] text-slate-600 font-mono">{currentIdx + 1} / {projects.length}</div>
+          </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
-// ─── Form state type ──────────────────────────────────────────────────────────
-
+// ─── Edit/Add Form Modal ───────────────────────────────────────────────────
 const EMPTY_FORM = {
-  title: "",
-  brief: "",
-  problem: "",
-  solution: "",
-  users: "",
-  role: "",
-  process: [] as string[],
-  outcomes: "",
-  type: "mobile-app",
-  platform: "web",
-  status: "concept",
-  tools: [] as string[],
-  screens: "",
-  prototypeUrl: "",
-  isPrivate: false,
+  title: '', brief: '', problem: '', solution: '', users: '', role: '',
+  process: [] as string[], outcomes: '', type: 'mobile-app', platform: 'web',
+  status: 'concept', tools: [] as string[], screens: '', prototypeUrl: '', isPrivate: false,
 };
-
 type FormState = typeof EMPTY_FORM;
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export default function UiUxDesign() {
-  const { isAdmin } = useAdmin();
-  const isMobile = useIsMobile();
-
-  const [projects, setProjects] = useState<UiUxProject[]>([]);
-  const [trashed, setTrashed] = useState<UiUxProject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-
-  // Dialog state
-  const [selected, setSelected] = useState<UiUxProject | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
-  const [toDelete, setToDelete] = useState<UiUxProject | null>(null);
-
-  // Tools Manager State
-  const [availableTools, setAvailableTools] = useState<string[]>(INITIAL_TOOLS);
-  const [showToolManager, setShowToolManager] = useState(false);
-  const [newToolInput, setNewToolInput] = useState("");
-  const [toolSearch, setToolSearch] = useState("");
-  const [showToolDropdown, setShowToolDropdown] = useState(false);
-
-  // Form
-  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [singleFile, setSingleFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  // ── Init Tools ────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const savedTools = localStorage.getItem("ui_ux_tools");
-    if (savedTools) {
-      try {
-        setAvailableTools(JSON.parse(savedTools));
-      } catch (e) {}
-    }
-  }, []);
-
-  const saveTools = (newTools: string[]) => {
-    setAvailableTools(newTools);
-    localStorage.setItem("ui_ux_tools", JSON.stringify(newTools));
-  };
-
-  const handleAddGlobalTool = () => {
-    const t = newToolInput.trim();
-    if (t && !availableTools.includes(t)) {
-      saveTools([...availableTools, t]);
-      setNewToolInput("");
-    }
-  };
-
-  const handleRemoveGlobalTool = (tool: string) => {
-    saveTools(availableTools.filter((x) => x !== tool));
-  };
-
-  // ── Data loading ──────────────────────────────────────────────────────────
-
-  const reload = useCallback(async () => {
-    try {
-      setLoading(true);
-      const items = await getGalleryItemsByCategory("ui-ux");
-      setProjects(isAdmin ? items : items.filter((p) => !p.isPrivate));
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Nu s-au putut încărca proiectele.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [isAdmin]);
-
-  const reloadTrash = useCallback(async () => {
-    if (!isAdmin) return;
-    try {
-      const items = await getTrashedGalleryItemsByCategory("ui-ux");
-      setTrashed(items as UiUxProject[]);
-    } catch {
-      /* silent */
-    }
-  }, [isAdmin]);
-
-  useEffect(() => {
-    reload();
-    reloadTrash();
-  }, [reload, reloadTrash]);
-
-  // ── Filtered list ─────────────────────────────────────────────────────────
-
-  const visible = projects.filter((p) => {
-    const mSearch =
-      p.title.toLowerCase().includes(search.toLowerCase()) ||
-      (p.description || "").toLowerCase().includes(search.toLowerCase());
-    const mType = filterType === "all" || p.subcategory === filterType;
-    const mStatus =
-      filterStatus === "all" || (p as any).medium === filterStatus;
-    return mSearch && mType && mStatus;
-  });
-
-  // ── Form helpers ──────────────────────────────────────────────────────────
-
-  const resetForm = () => {
-    setForm({ ...EMPTY_FORM });
-    setImageFiles([]);
-    setImagePreviews([]);
-    setSingleFile(null);
-    setToolSearch("");
-  };
-
-  const populateForm = (p: UiUxProject) => {
-    const meta = parseMeta(p.description);
-    const tools: string[] = (p as any).materials || [];
-    setForm({
-      title: p.title,
+function EditModal({ project, onClose, onSave, availableTools, onManageTools }: {
+  project?: UiUxProject; onClose: () => void;
+  onSave: (form: FormState, imageFiles: File[], imagePreviews: string[]) => void;
+  availableTools: string[]; onManageTools: () => void;
+}) {
+  useModalEffects(true);
+  const isEdit = !!project;
+  const [activeTab, setActiveTab] = useState<'info' | 'process' | 'media'>('info');
+  const [form, setForm] = useState<FormState>(() => {
+    if (!project) return { ...EMPTY_FORM };
+    const meta = parseMeta(project.description);
+    return {
+      title: project.title,
       brief: meta.brief,
       problem: meta.problem,
       solution: meta.solution,
@@ -998,89 +559,399 @@ export default function UiUxDesign() {
       role: meta.role,
       process: meta.process || [],
       outcomes: meta.outcomes,
-      type: p.subcategory || "mobile-app",
-      platform: (p as any).device || "web",
-      status: (p as any).medium || "concept",
-      tools,
-      screens: (p as any).dimensions || "",
-      prototypeUrl: (p as any).location || "",
-      isPrivate: p.isPrivate || false,
-    });
-    setImagePreviews(getImages(p));
-    setSingleFile(null);
-    setImageFiles([]);
-  };
+      type: project.subcategory || 'mobile-app',
+      platform: (project as any).device || 'web',
+      status: (project as any).medium || 'concept',
+      tools: (project as any).materials || [],
+      screens: (project as any).dimensions || '',
+      prototypeUrl: (project as any).location || '',
+      isPrivate: project.isPrivate || false,
+    };
+  });
+  const [imagePreviews, setImagePreviews] = useState<string[]>(project ? getImages(project) : []);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [toolSearch, setToolSearch] = useState('');
+  const [showToolDrop, setShowToolDrop] = useState(false);
+  const toolRef = useRef<HTMLDivElement>(null);
+  useOutsideClick(toolRef, () => setShowToolDrop(false));
 
-  const handleMultipleImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const togglePhase = (phase: string) => setForm(f => ({ ...f, process: f.process.includes(phase) ? f.process.filter(p => p !== phase) : [...f.process, phase] }));
+  const toggleTool = (tool: string) => setForm(f => ({ ...f, tools: f.tools.includes(tool) ? f.tools.filter(t => t !== tool) : [...f.tools, tool] }));
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    setImageFiles((prev) => [...prev, ...files]);
-
-    files.forEach((f) => {
+    setImageFiles(prev => [...prev, ...files]);
+    files.forEach(f => {
       const r = new FileReader();
-      r.onloadend = () =>
-        setImagePreviews((prev) => [...prev, r.result as string]);
+      r.onloadend = () => setImagePreviews(prev => [...prev, r.result as string]);
       r.readAsDataURL(f);
     });
   };
 
-  const handleRemovePreviewImage = (index: number) => {
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-    // Logica pentru eliminare File e mai complicată când mixăm poze vechi cu noi,
-    // dar pe moment eliminăm din UI preview, iar la editare, backend-ul va primi noile seturi.
-    setImageFiles((prev) => {
-      // Dacă există fișiere neîncărcate în state, le scoatem
-      // Atenție: Dacă sunt imagini deja pe server, imageFiles ar putea fi gol.
-      if (prev.length > index) {
-        return prev.filter((_, i) => i !== index);
-      }
-      return prev;
+  const filteredTools = availableTools.filter(t => t.toLowerCase().includes(toolSearch.toLowerCase()));
+
+  const tabs = [
+    { id: 'info' as const, label: 'Informații', icon: Layout },
+    { id: 'process' as const, label: 'Proces & Tools', icon: Layers },
+    { id: 'media' as const, label: 'Media & Linkuri', icon: LinkIcon },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[5vh] overflow-y-auto p-4" onClick={onClose}>
+      <form id="uiux-form" onSubmit={e => { e.preventDefault(); if (form.title.trim()) onSave(form, imageFiles, imagePreviews); }}
+        className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-4"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0 rounded-t-3xl">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            {isEdit ? <Edit3 className="w-5 h-5 text-purple-400" /> : <Figma className="w-5 h-5 text-purple-400" />}
+            {isEdit ? 'Editează Design' : 'Adaugă Design UI/UX'}
+          </h2>
+          <div className="flex gap-2 items-center">
+            {/* Featured */}
+            <button type="button" onClick={() => setForm(f => ({ ...f, isPrivate: !f.isPrivate }))}
+              title={form.isPrivate ? 'Proiect Privat 🔒' : 'Proiect Public'}
+              className={`p-2.5 rounded-xl border transition-all duration-300 ${form.isPrivate ? 'bg-rose-500/10 border-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.15)]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+              {form.isPrivate ? <Lock className="w-5 h-5 text-rose-400" /> : <Unlock className="w-5 h-5 text-slate-500" />}
+            </button>
+            <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-white/5 px-6 pt-4 gap-6 bg-[#0c0c0c] overflow-x-auto custom-scrollbar shrink-0">
+          {tabs.map(t => {
+            const TIcon = t.icon;
+            return (
+              <button key={t.id} type="button" onClick={() => setActiveTab(t.id)}
+                className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === t.id ? 'border-purple-500 text-purple-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                <TIcon className="w-4 h-4" /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 space-y-5">
+
+          {/* TAB 1: Informații */}
+          {activeTab === 'info' && (
+            <>
+              <div>
+                <label className={LabelStyle}>Titlu proiect <span className="text-red-400">*</span></label>
+                <input type="text" className={InputStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="ex: EcoTrack App" required />
+              </div>
+              <div>
+                <label className={LabelStyle}>Descriere scurtă</label>
+                <textarea className={`${InputStyle} resize-none`} value={form.brief} onChange={e => setForm(f => ({ ...f, brief: e.target.value }))} rows={2} placeholder="O frază care rezumă proiectul..." />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <label className={LabelStyle}>Tip proiect</label>
+                  <select className={`${InputStyle} appearance-none pr-10 cursor-pointer`} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                    {Object.entries(PROJECT_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
+                </div>
+                <div className="relative">
+                  <label className={LabelStyle}>Status</label>
+                  <select className={`${InputStyle} appearance-none pr-10 cursor-pointer`} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                    {Object.entries(STATUSES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <label className={LabelStyle}>Platformă</label>
+                  <select className={`${InputStyle} appearance-none pr-10 cursor-pointer`} value={form.platform} onChange={e => setForm(f => ({ ...f, platform: e.target.value }))}>
+                    {Object.entries(PLATFORMS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-[30px] w-4 h-4 text-slate-500 pointer-events-none" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>Număr ecrane</label>
+                  <input type="text" className={InputStyle} value={form.screens} onChange={e => setForm(f => ({ ...f, screens: e.target.value }))} placeholder="ex: 24+" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LabelStyle}>Utilizatori țintă</label>
+                  <input type="text" className={InputStyle} value={form.users} onChange={e => setForm(f => ({ ...f, users: e.target.value }))} placeholder="ex: Studenți 18-25 ani" />
+                </div>
+                <div>
+                  <label className={LabelStyle}>Rolul tău</label>
+                  <input type="text" className={InputStyle} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} placeholder="ex: Lead UX Designer" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB 2: Proces & Tools */}
+          {activeTab === 'process' && (
+            <>
+              <div>
+                <label className={LabelStyle}>Etape parcurse în proiect</label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {PROCESS_PHASES.map(phase => {
+                    const isActive = form.process.includes(phase);
+                    return (
+                      <button key={phase} type="button" onClick={() => togglePhase(phase)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all text-left font-medium ${isActive ? 'border-purple-500/40 bg-purple-500/10 text-purple-400' : 'border-white/10 bg-[#09090b] text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>
+                        <CheckCircle2 className={`h-4 w-4 shrink-0 ${isActive ? 'text-purple-400' : 'text-slate-600'}`} />
+                        {phase}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className={LabelStyle}>Instrumente (Tools)</label>
+                <div ref={toolRef} className="relative">
+                  <div className={`flex items-center bg-[#09090b] border ${showToolDrop ? 'border-purple-500/50' : 'border-white/10'} rounded-xl px-4 py-2.5 gap-2 transition-all`}>
+                    <Search className="w-4 h-4 text-slate-500 shrink-0" />
+                    <input className="flex-1 bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-600"
+                      placeholder="Caută sau adaugă instrument..."
+                      value={toolSearch}
+                      onChange={e => { setToolSearch(e.target.value); setShowToolDrop(true); }}
+                      onFocus={() => setShowToolDrop(true)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const t = toolSearch.trim();
+                          if (t) { toggleTool(t); setToolSearch(''); setShowToolDrop(false); }
+                        }
+                      }}
+                    />
+                    <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform cursor-pointer ${showToolDrop ? 'rotate-180' : ''}`} onClick={() => setShowToolDrop(!showToolDrop)} />
+                  </div>
+                  {showToolDrop && (
+                    <div className="absolute top-full left-0 mt-2 w-full bg-[#111111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+                      <div className="max-h-44 overflow-y-auto custom-scrollbar py-1.5">
+                        {filteredTools.map(t => (
+                          <div key={t} onMouseDown={e => { e.preventDefault(); toggleTool(t); setToolSearch(''); setShowToolDrop(false); }}
+                            className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-colors ${form.tools.includes(t) ? 'bg-purple-500/10 text-purple-400' : 'text-slate-300 hover:bg-white/5'}`}>
+                            {t} {form.tools.includes(t) && <Check className="w-4 h-4" />}
+                          </div>
+                        ))}
+                        {toolSearch.trim() && !availableTools.some(t => t.toLowerCase() === toolSearch.toLowerCase()) && (
+                          <div onMouseDown={e => { e.preventDefault(); toggleTool(toolSearch.trim()); setToolSearch(''); setShowToolDrop(false); }}
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm cursor-pointer text-purple-400 hover:bg-white/5 transition-colors font-medium">
+                            <Plus className="w-4 h-4" /> Adaugă "{toolSearch.trim()}"
+                          </div>
+                        )}
+                      </div>
+                      <div className="border-t border-white/5">
+                        <div onMouseDown={e => { e.preventDefault(); setShowToolDrop(false); onManageTools(); }}
+                          className="flex items-center gap-2 px-4 py-2.5 text-sm cursor-pointer text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
+                          <Settings className="w-4 h-4 shrink-0" /> Gestionează instrumente
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {form.tools.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {form.tools.map((t, i) => (
+                      <span key={t} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium bg-white/[0.03] border ${TOOL_TAG_COLORS[i % TOOL_TAG_COLORS.length]}`}>
+                        {t}
+                        <button type="button" onClick={() => toggleTool(t)} className="hover:text-red-400 transition-colors"><X className="w-3 h-3" /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className={LabelStyle}>Problema / Provocarea</label>
+                <textarea className={`${InputStyle} resize-none`} value={form.problem} onChange={e => setForm(f => ({ ...f, problem: e.target.value }))} rows={3} placeholder="Ce problemă rezolvă acest design?" />
+              </div>
+              <div>
+                <label className={LabelStyle}>Soluția Propusă</label>
+                <textarea className={`${InputStyle} resize-none`} value={form.solution} onChange={e => setForm(f => ({ ...f, solution: e.target.value }))} rows={3} placeholder="Cum ai abordat problema?" />
+              </div>
+              <div>
+                <label className={LabelStyle}>Impact & Rezultate</label>
+                <textarea className={`${InputStyle} resize-none`} value={form.outcomes} onChange={e => setForm(f => ({ ...f, outcomes: e.target.value }))} rows={2} placeholder="Metrici, feedback, impact..." />
+              </div>
+            </>
+          )}
+
+          {/* TAB 3: Media & Linkuri */}
+          {activeTab === 'media' && (
+            <>
+              <div>
+                <label className={LabelStyle}>Link Prototip (Figma / Live)</label>
+                <input type="text" className={InputStyle} value={form.prototypeUrl} onChange={e => setForm(f => ({ ...f, prototypeUrl: e.target.value }))} placeholder="https://figma.com/proto/..." />
+              </div>
+              <div>
+                <label className={LabelStyle}>Imagini proiect <span className="normal-case tracking-normal text-slate-600">— selectare multiplă</span></label>
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-xl p-6 text-center hover:border-purple-500/30 transition-colors cursor-pointer">
+                  <UploadCloud className="w-8 h-8 text-slate-600 mb-2" />
+                  <p className="text-sm text-slate-500">Click pentru a adăuga imagini (cover + ecrane)</p>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} />
+                </label>
+              </div>
+              {imagePreviews.length > 0 && (
+                <div>
+                  <label className={LabelStyle}>Previzualizare ({imagePreviews.length} imagini)</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {imagePreviews.map((src, i) => (
+                      <div key={i} className="relative aspect-[4/3] rounded-xl overflow-hidden border border-white/5 bg-[#09090b] group">
+                        <img src={src} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute top-1.5 left-1.5 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">{i === 0 ? 'Cover' : i + 1}</div>
+                        <button type="button" onClick={() => { setImagePreviews(prev => prev.filter((_, j) => j !== i)); setImageFiles(prev => prev.length > i ? prev.filter((_, j) => j !== i) : prev); }}
+                          className="absolute top-1.5 right-1.5 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-white/5 bg-[#09090b] flex gap-3 justify-end shrink-0 rounded-b-3xl">
+          <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors">Anulează</button>
+          <button type="submit" form="uiux-form" className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all">
+            {isEdit ? 'Salvează Modificările' : 'Adaugă Design'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Manage Tools Modal ────────────────────────────────────────────────────
+function ManageToolsModal({ tools, onClose, onSave }: { tools: string[]; onClose: () => void; onSave: (tools: string[]) => void }) {
+  useModalEffects(true);
+  const [local, setLocal] = useState<string[]>([...tools]);
+  const [newTool, setNewTool] = useState('');
+  return (
+    <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-white/5 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white">Gestionează Instrumente</h3>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar">
+          {local.map(t => (
+            <div key={t} className="flex items-center gap-3 bg-[#09090b] border border-white/5 rounded-xl px-3 py-2">
+              <span className="flex-1 text-sm text-slate-200">{t}</span>
+              <button type="button" onClick={() => setLocal(local.filter(x => x !== t))} className="text-slate-600 hover:text-red-400 transition-colors"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ))}
+          <div className="flex gap-2 mt-2">
+            <input type="text" value={newTool} onChange={e => setNewTool(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const t = newTool.trim(); if (t && !local.includes(t)) { setLocal([...local, t]); setNewTool(''); } } }} placeholder="Adaugă instrument nou..." className={InputStyle} />
+            <button type="button" onClick={() => { const t = newTool.trim(); if (t && !local.includes(t)) { setLocal([...local, t]); setNewTool(''); } }} className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-xl text-sm font-bold hover:bg-purple-600/30 transition-colors"><Plus className="w-4 h-4" /></button>
+          </div>
+        </div>
+        <div className="p-5 border-t border-white/5 bg-[#09090b] flex gap-3 justify-end rounded-b-3xl">
+          <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/5 transition-colors">Anulează</button>
+          <button type="button" onClick={() => onSave(local)} className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all">Salvează</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────
+export default function UiUxDesign() {
+  const { isAdmin } = useAdmin();
+  const { toast } = useToast();
+
+  const [projects, setProjects] = useState<UiUxProject[]>([]);
+  const [trashed, setTrashed] = useState<UiUxProject[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters & sort
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterPlatform, setFilterPlatform] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [showTrashView, setShowTrashView] = useState(false);
+  const [page, setPage] = useState(1);
+
+  // Modals
+  const [selected, setSelected] = useState<UiUxProject | null>(null);
+  const [editProject, setEditProject] = useState<UiUxProject | undefined>(undefined);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showManageTools, setShowManageTools] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<UiUxProject | null>(null);
+  const [pendingHardDelete, setPendingHardDelete] = useState<UiUxProject | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Tools
+  const [availableTools, setAvailableTools] = useState<string[]>(INITIAL_TOOLS);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('ui_ux_tools');
+    if (saved) try { setAvailableTools(JSON.parse(saved)); } catch { }
+  }, []);
+
+  const saveTools = (t: string[]) => { setAvailableTools(t); localStorage.setItem('ui_ux_tools', JSON.stringify(t)); };
+
+  // Data loading
+  const reload = useCallback(async () => {
+    try {
+      setLoading(true);
+      const items = await getGalleryItemsByCategory('ui-ux');
+      setProjects(isAdmin ? items : items.filter(p => !p.isPrivate));
+    } catch {
+      toast({ title: 'Eroare', description: 'Nu s-au putut încărca proiectele.', variant: 'destructive' });
+    } finally { setLoading(false); }
+  }, [isAdmin, toast]);
+
+  const reloadTrash = useCallback(async () => {
+    if (!isAdmin) return;
+    try { setTrashed((await getTrashedGalleryItemsByCategory('ui-ux')) as UiUxProject[]); } catch { }
+  }, [isAdmin]);
+
+  useEffect(() => { reload(); reloadTrash(); }, [reload, reloadTrash]);
+
+  // Filtered & sorted
+  const visible = useMemo(() => {
+    let list = showTrashView ? trashed : projects;
+    if (!showTrashView) {
+      if (search) list = list.filter(p => p.title.toLowerCase().includes(search.toLowerCase()) || (p.description || '').toLowerCase().includes(search.toLowerCase()));
+      if (filterType !== 'all') list = list.filter(p => p.subcategory === filterType);
+      if (filterStatus !== 'all') list = list.filter(p => (p as any).medium === filterStatus);
+      if (filterPlatform !== 'all') list = list.filter(p => (p as any).device === filterPlatform);
+    }
+    list = [...list].sort((a, b) => {
+      if (sortBy === 'newest') return (b.id || 0) - (a.id || 0);
+      if (sortBy === 'oldest') return (a.id || 0) - (b.id || 0);
+      if (sortBy === 'az') return a.title.localeCompare(b.title);
+      if (sortBy === 'za') return b.title.localeCompare(a.title);
+      return 0;
     });
-  };
+    return list;
+  }, [projects, trashed, search, filterType, filterStatus, filterPlatform, sortBy, showTrashView]);
 
-  const handleSingleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setSingleFile(f);
-    const r = new FileReader();
-    r.onloadend = () => setImagePreviews([r.result as string]);
-    r.readAsDataURL(f);
-  };
+  const totalPages = Math.ceil(visible.length / PROJECTS_PER_PAGE);
+  const paginated = visible.slice((page - 1) * PROJECTS_PER_PAGE, page * PROJECTS_PER_PAGE);
 
-  const togglePhase = (phase: string) => {
-    setForm((f) => ({
-      ...f,
-      process: f.process.includes(phase)
-        ? f.process.filter((p) => p !== phase)
-        : [...f.process, phase],
-    }));
-  };
+  useEffect(() => { setPage(1); }, [search, filterType, filterStatus, filterPlatform, sortBy, showTrashView]);
 
-  const toggleToolForm = (tool: string) => {
-    setForm((f) => ({
-      ...f,
-      tools: f.tools.includes(tool)
-        ? f.tools.filter((t) => t !== tool)
-        : [...f.tools, tool],
-    }));
-  };
+  // Stats
 
-  // ── CRUD operations ───────────────────────────────────────────────────────
-
-  const buildPayload = (imageUrl: string, allImages: string) => ({
-    category: "ui-ux" as const,
+  // CRUD
+  const buildPayload = (form: FormState, imageUrl: string, allImages: string) => ({
+    category: 'ui-ux' as const,
     subcategory: form.type,
     title: form.title,
     image: imageUrl,
-    description: encodeMeta({
-      brief: form.brief,
-      problem: form.problem,
-      solution: form.solution,
-      users: form.users,
-      role: form.role,
-      process: form.process,
-      outcomes: form.outcomes,
-    }),
+    description: encodeMeta({ brief: form.brief, problem: form.problem, solution: form.solution, users: form.users, role: form.role, process: form.process, outcomes: form.outcomes }),
     device: form.platform,
     materials: form.tools,
     dimensions: form.screens,
@@ -1090,1045 +961,247 @@ export default function UiUxDesign() {
     date: allImages,
   });
 
-  const handleAdd = async () => {
-    if (!form.title || imageFiles.length === 0) {
-      toast({
-        title: "Eroare",
-        description: "Titlul și cel puțin o imagine sunt obligatorii.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleSave = async (form: FormState, imageFiles: File[], imagePreviews: string[]) => {
     try {
       setUploading(true);
-      const urls: string[] = [];
-      for (const file of imageFiles) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("folder", "ui-ux");
-        const res = await fetch("/api/upload/image", {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) throw new Error("Upload failed");
-        const { url } = await res.json();
-        urls.push(url);
-      }
-      await createGalleryItem(buildPayload(urls[0], urls.join("|")) as any);
-      toast({ title: "Succes", description: "Proiectul a fost publicat." });
-      setShowAdd(false);
-      resetForm();
-      await reload();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut salva proiectul.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleEdit = async () => {
-    if (!selected || !form.title) return;
-    try {
-      setUploading(true);
-      let imageUrl = selected.image;
-
-      // Construim setul complet de imagini.
-      // În cazul editării, luăm imaginile din previews care încă mai sunt valide (cele url de server).
-      const existingUrls = imagePreviews.filter((p) => p.startsWith("http"));
+      const existingUrls = imagePreviews.filter(p => p.startsWith('http'));
       let allUrls = [...existingUrls];
-
-      if (singleFile) {
-        // Suprascriere single Cover image logic (opțional)
-        const fd = new FormData();
-        fd.append("file", singleFile);
-        fd.append("folder", "ui-ux");
-        const res = await fetch("/api/upload/image", {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) throw new Error("Upload failed");
-        const { url } = await res.json();
-        imageUrl = url;
-        allUrls = [url];
-      } else if (imageFiles.length > 0) {
-        // Upload la cele noi și lipire de cele vechi
-        for (const file of imageFiles) {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("folder", "ui-ux");
-          const res = await fetch("/api/upload/image", {
-            method: "POST",
-            body: fd,
-          });
-          if (!res.ok) throw new Error("Upload failed");
-          const { url } = await res.json();
-          allUrls.push(url);
-        }
+      for (const file of imageFiles) {
+        const fd = new FormData(); fd.append('file', file); fd.append('folder', 'ui-ux');
+        const res = await fetch('/api/upload/image', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Upload failed');
+        allUrls.push((await res.json()).url);
       }
-
-      if (allUrls.length > 0 && !singleFile) imageUrl = allUrls[0];
-
-      await updateGalleryItem(
-        selected.id!,
-        buildPayload(imageUrl, allUrls.join("|")) as any,
-      );
-      toast({ title: "Succes", description: "Proiectul a fost actualizat." });
-      setShowEdit(false);
-      setSelected(null);
-      resetForm();
+      const imageUrl = allUrls[0] || '';
+      if (editProject) {
+        await updateGalleryItem(editProject.id!, buildPayload(form, imageUrl, allUrls.join('|')) as any);
+        toast({ title: 'Actualizat', description: 'Proiectul a fost salvat.' });
+        setShowEditModal(false);
+        setSelected(null);
+      } else {
+        if (!imageUrl) { toast({ title: 'Eroare', description: 'Adaugă cel puțin o imagine.', variant: 'destructive' }); return; }
+        await createGalleryItem(buildPayload(form, imageUrl, allUrls.join('|')) as any);
+        toast({ title: 'Publicat!', description: 'Design-ul a fost adăugat.' });
+        setShowAddModal(false);
+      }
       await reload();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut actualiza proiectul.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-    }
+    } catch { toast({ title: 'Eroare', description: 'Nu s-a putut salva proiectul.', variant: 'destructive' }); }
+    finally { setUploading(false); setEditProject(undefined); }
   };
 
-  const handleDelete = async () => {
-    if (!toDelete) return;
-    try {
-      await softDeleteGalleryItem(toDelete.id!);
-      toast({ title: "Succes", description: "Mutat în coș." });
-      setShowDeleteConfirm(false);
-      setToDelete(null);
-      setSelected(null);
-      await reload();
-      await reloadTrash();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Ștergere eșuată.",
-        variant: "destructive",
-      });
-    }
+  const handleSoftDelete = async () => {
+    if (!pendingDelete) return;
+    try { await softDeleteGalleryItem(pendingDelete.id!); toast({ title: 'Mutat în coș', description: pendingDelete.title }); setPendingDelete(null); setSelected(null); await reload(); await reloadTrash(); }
+    catch { toast({ title: 'Eroare', description: 'Ștergere eșuată.', variant: 'destructive' }); }
   };
 
   const handleRestore = async (p: UiUxProject) => {
-    try {
-      await restoreGalleryItem(p.id!);
-      toast({ title: "Restaurat", description: p.title });
-      await reload();
-      await reloadTrash();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Restaurare eșuată.",
-        variant: "destructive",
-      });
-    }
+    try { await restoreGalleryItem(p.id!); toast({ title: 'Restaurat', description: p.title }); await reload(); await reloadTrash(); }
+    catch { toast({ title: 'Eroare', variant: 'destructive' }); }
   };
 
-  const handlePermDelete = async (p: UiUxProject) => {
-    try {
-      await deleteGalleryItem(p.id!);
-      toast({ title: "Șters definitiv", description: p.title });
-      await reloadTrash();
-    } catch {
-      toast({
-        title: "Eroare",
-        description: "Ștergere permanentă eșuată.",
-        variant: "destructive",
-      });
-    }
+  const handleHardDelete = async () => {
+    if (!pendingHardDelete) return;
+    try { await deleteGalleryItem(pendingHardDelete.id!); toast({ title: 'Șters definitiv', description: pendingHardDelete.title }); setPendingHardDelete(null); await reloadTrash(); }
+    catch { toast({ title: 'Eroare', variant: 'destructive' }); }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  const typeCount = Object.fromEntries(
-    Object.keys(PROJECT_TYPES).map((k) => [
-      k,
-      projects.filter((p) => p.subcategory === k).length,
-    ]),
-  );
+  const typeOptions = [{ value: 'all', label: 'Toate tipurile' }, ...Object.entries(PROJECT_TYPES).map(([k, v]) => ({ value: k, label: v.label }))];
+  const statusOptions = [{ value: 'all', label: 'Toate statusurile' }, ...Object.entries(STATUSES).map(([k, v]) => ({ value: k, label: v.label }))];
+  const platformOptions = [{ value: 'all', label: 'Toate platformele' }, ...Object.entries(PLATFORMS).map(([k, v]) => ({ value: k, label: v.label }))];
 
   return (
     <PageLayout>
-      {/* Hero */}
-      <section className="page-hero-section">
-        <div className="page-container">
-          <div className="text-center mb-6 animate-fade-in">
-            <div className="flex items-center justify-center gap-3 mb-3">
-              <Figma className="h-8 w-8 text-art-accent" />
-              <h1 className="text-2xl sm:text-3xl font-bold gradient-text">
-                Design UI/UX
+      <style>{`.custom-scrollbar::-webkit-scrollbar{width:6px;height:6px}.custom-scrollbar::-webkit-scrollbar-track{background:rgba(255,255,255,0.02);border-radius:8px}.custom-scrollbar::-webkit-scrollbar-thumb{background:rgba(139,92,246,0.3);border-radius:8px}`}</style>
+
+      <div className="min-h-screen bg-[#080810]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-32 pb-10 space-y-10">
+
+          {/* ── HEADER & STATS — identic Database ─── */}
+          <div className="flex flex-col xl:flex-row gap-10 mb-2">
+            {/* Left: title + subtitle */}
+            <div className="xl:w-1/3 flex flex-col justify-center">
+              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-3 text-white">
+                Design{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500">
+                  UI/UX
+                </span>
               </h1>
+              <p className="text-slate-400 leading-relaxed text-sm md:text-base max-w-md">
+                Interfețe, wireframes și concepte de experiență a utilizatorului —{' '}
+                {projects.length} proiecte,{' '}
+                {projects.filter(p => (p as any).medium === 'implemented').length} lansate.
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground max-w-xl mx-auto">
-              Portofoliu digital de interfețe, wireframes și concepte de
-              experiență a utilizatorului.
-            </p>
+
+            {/* Right: 4 stat cards */}
+            <div className="xl:w-2/3 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Proiecte', value: projects.length, color: 'text-white' },
+                { label: 'Mobile App', value: projects.filter(p => p.subcategory === 'mobile-app').length, color: 'text-amber-400' },
+                { label: 'Web App', value: projects.filter(p => p.subcategory === 'web-app').length, color: 'text-blue-400' },
+                { label: 'Lansate Live', value: projects.filter(p => (p as any).medium === 'implemented').length, color: 'text-emerald-400' },
+              ].map(m => (
+                <div key={m.label}
+                  className="group relative bg-[#12121a] border border-white/5 rounded-[1.25rem] p-5 flex flex-col justify-between transition-all duration-500 hover:border-purple-500/30 hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.15)] hover:-translate-y-1 overflow-hidden">
+                  <div className="absolute -inset-4 bg-gradient-to-br from-purple-500/0 via-indigo-500/0 to-purple-500/0 group-hover:from-purple-500/5 group-hover:to-indigo-500/5 transition-all duration-500 rounded-[1.25rem] pointer-events-none" />
+                  <Figma className="w-5 h-5 text-slate-500 mb-3 group-hover:text-purple-400 transition-colors duration-300" />
+                  <div className="relative z-10 mt-1">
+                    <div className={`text-3xl font-black font-mono tracking-tighter mb-1 transition-colors group-hover:text-purple-50 ${m.color}`}>
+                      {m.value}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-purple-200/70 transition-colors">
+                      {m.label}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Stats mini-row */}
-          {!loading && projects.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-3 mt-6">
-              {Object.entries(typeCount)
-                .filter(([, c]) => c > 0)
-                .map(([k, c]) => {
-                  const info = PROJECT_TYPES[k];
-                  return (
-                    <div
-                      key={k}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${info.bg} shadow-sm`}
-                    >
-                      <span className={`font-bold ${info.color}`}>{c}</span>
-                      <span className="text-foreground/80">{info.label}</span>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      </section>
 
-      <section className="page-content-section flex-1 mt-4">
-        <div className="page-container">
-          {/* Toolbar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+          {/* ── Toolbar ──────────────────────────── */}
+          <div className="bg-[#111111] border border-white/10 rounded-2xl p-2 md:p-3">
+            <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
               {/* Search */}
-              <div className="relative w-full sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  type="search"
-                  placeholder="Caută designuri..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-card border-border"
-                />
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                <input type="search" placeholder="Caută designuri..." value={search} onChange={e => setSearch(e.target.value)}
+                  className="w-full bg-[#09090b] border border-white/5 hover:border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all placeholder:text-slate-600" />
               </div>
 
               {/* Filters */}
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-full sm:w-[150px] bg-card border-border">
-                  <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Tip" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toate tipurile</SelectItem>
-                  {Object.entries(PROJECT_TYPES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-[150px] bg-card border-border">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toate statusurile</SelectItem>
-                  {Object.entries(STATUSES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Actions & View Toggle */}
-            <div className="flex items-center justify-between md:justify-end gap-3">
-              <div className="flex items-center border border-border bg-card rounded-md p-1 gap-0.5">
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  className="h-7 w-7 p-0 rounded-sm"
-                >
-                  <Grid3x3 className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                  className="h-7 w-7 p-0 rounded-sm"
-                >
-                  <List className="h-3.5 w-3.5" />
-                </Button>
+              <div className="flex flex-wrap gap-2">
+                <CustomSelect value={filterType} onChange={setFilterType} options={typeOptions} icon={Filter} />
+                <CustomSelect value={filterStatus} onChange={setFilterStatus} options={statusOptions} />
+                <CustomSelect value={filterPlatform} onChange={setFilterPlatform} options={platformOptions} icon={Smartphone} />
+                <CustomSelect value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} icon={ArrowUpDown} />
               </div>
 
-              <div className="flex items-center gap-2">
-                {isAdmin && !isMobile && trashed.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowTrash(true)}
-                    className="relative gap-2 bg-card"
-                  >
-                    <Trash className="h-4 w-4" />
-                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center font-bold">
-                      {trashed.length}
-                    </span>
-                  </Button>
-                )}
-                {isAdmin && !isMobile && (
-                  <Button
-                    onClick={() => {
-                      resetForm();
-                      setShowAdd(true);
-                    }}
-                    className="gap-2"
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4" /> Adaugă Design
-                  </Button>
-                )}
-              </div>
+              {/* Actions */}
+              {isAdmin && (
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => setShowTrashView(v => !v)}
+                    className={`relative px-4 py-2.5 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 ${showTrashView ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-[#09090b] text-slate-400 border-white/10 hover:bg-white/5'}`}>
+                    <Trash2 className="w-4 h-4" />
+                    {showTrashView ? 'Ieși din coș' : 'Coș'}
+                    {!showTrashView && trashed.length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center font-bold">{trashed.length}</span>
+                    )}
+                  </button>
+                  {!showTrashView && (
+                    <button onClick={() => { setEditProject(undefined); setShowAddModal(true); }}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all">
+                      <Plus className="w-4 h-4" /> Adaugă Design
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Content Grid */}
+          {/* ── Grid ─────────────────────────────── */}
           {loading ? (
-            <div className="text-center py-20 text-muted-foreground animate-pulse">
-              Se încarcă portofoliul...
+            <div className="text-center py-20 flex flex-col items-center gap-4">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <p className="text-slate-400 text-sm">Se încarcă portofoliul...</p>
             </div>
           ) : visible.length === 0 ? (
-            <div className="text-center py-24 bg-card/50 rounded-2xl border border-border/50">
-              <Figma className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground">
-                {search || filterType !== "all" || filterStatus !== "all"
-                  ? "Niciun proiect nu corespunde filtrelor tale."
-                  : "Nu există proiecte UI/UX încă."}
+            <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-[#0b0b10]">
+              <Figma className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-400 text-base font-medium">
+                {showTrashView ? 'Coșul de gunoi este gol.' : (search || filterType !== 'all' || filterStatus !== 'all' || filterPlatform !== 'all') ? 'Niciun proiect nu corespunde filtrelor.' : 'Nu există proiecte UI/UX încă.'}
               </p>
-              {isAdmin && !search && filterType === "all" && (
-                <Button
-                  className="mt-6 gap-2"
-                  onClick={() => {
-                    resetForm();
-                    setShowAdd(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4" /> Adaugă primul design
-                </Button>
+              {isAdmin && !showTrashView && !search && filterType === 'all' && (
+                <button onClick={() => { setEditProject(undefined); setShowAddModal(true); }}
+                  className="mt-6 flex items-center gap-2 mx-auto px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all">
+                  <Plus className="w-4 h-4" /> Adaugă primul design
+                </button>
               )}
             </div>
-          ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {visible.map((p, i) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  index={i}
-                  isAdmin={isAdmin}
-                  viewMode="grid"
-                  onClick={() => setSelected(p)}
-                  onEdit={(e) => {
-                    e.stopPropagation();
-                    populateForm(p);
-                    setSelected(p);
-                    setShowEdit(true);
-                  }}
-                  onDelete={(e) => {
-                    e.stopPropagation();
-                    setToDelete(p);
-                    setShowDeleteConfirm(true);
-                  }}
-                />
-              ))}
-            </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {visible.map((p, i) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  index={i}
-                  isAdmin={isAdmin}
-                  viewMode="list"
-                  onClick={() => setSelected(p)}
-                  onEdit={(e) => {
-                    e.stopPropagation();
-                    populateForm(p);
-                    setSelected(p);
-                    setShowEdit(true);
-                  }}
-                  onDelete={(e) => {
-                    e.stopPropagation();
-                    setToDelete(p);
-                    setShowDeleteConfirm(true);
-                  }}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginated.map(p => (
+                  <UiCard key={p.id} p={p} admin={isAdmin} isTrashView={showTrashView}
+                    onClick={() => !showTrashView && setSelected(p)}
+                    onEdit={() => { setEditProject(p); setShowEditModal(true); }}
+                    onDel={() => showTrashView ? setPendingHardDelete(p) : setPendingDelete(p)}
+                    onRestore={() => handleRestore(p)}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-4">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    className="w-10 h-10 rounded-xl bg-[#12121a] border border-white/5 text-slate-400 hover:text-white hover:border-purple-500/30 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                    <button key={n} onClick={() => setPage(n)}
+                      className={`w-10 h-10 rounded-xl text-sm font-bold transition-all border ${n === page ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-transparent shadow-[0_0_15px_rgba(147,51,234,0.3)]' : 'bg-[#12121a] border-white/5 text-slate-400 hover:text-white hover:border-purple-500/30'}`}>
+                      {n}
+                    </button>
+                  ))}
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="w-10 h-10 rounded-xl bg-[#12121a] border border-white/5 text-slate-400 hover:text-white hover:border-purple-500/30 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
-      </section>
+      </div>
 
-      {/* FAB (mobile admin) */}
-      {isAdmin && isMobile && (
-        <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
-          {trashed.length > 0 && (
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-12 w-12 rounded-full shadow-lg bg-background relative border-border"
-              onClick={() => setShowTrash(true)}
-            >
-              <Trash className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] h-5 min-w-[20px] px-1 rounded-full flex items-center justify-center font-bold">
-                {trashed.length}
-              </span>
-            </Button>
-          )}
-          <Button
-            size="icon"
-            className="h-14 w-14 rounded-full shadow-xl bg-primary text-primary-foreground"
-            onClick={() => {
-              resetForm();
-              setShowAdd(true);
-            }}
-          >
-            <Plus className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
+      {/* ── Modals ─────────────────────────────── */}
 
-      {/* Project Modal View */}
-      {selected && !showEdit && !showDeleteConfirm && (
-        <ProjectModal
-          project={selected}
-          projects={visible}
-          onClose={() => setSelected(null)}
-          isAdmin={isAdmin}
-          onEdit={
-            isAdmin
-              ? () => {
-                  populateForm(selected);
-                  setShowEdit(true);
-                }
-              : undefined
-          }
-          onDelete={
-            isAdmin
-              ? () => {
-                  setToDelete(selected);
-                  setSelected(null);
-                  setShowDeleteConfirm(true);
-                }
-              : undefined
-          }
+      {/* Detail view */}
+      {selected && !showEditModal && !pendingDelete && (
+        <ProjectModal project={selected} projects={visible} onClose={() => setSelected(null)} isAdmin={isAdmin}
+          onEdit={isAdmin ? () => { setEditProject(selected); setSelected(null); setShowEditModal(true); } : undefined}
+          onDelete={isAdmin ? () => { setPendingDelete(selected); setSelected(null); } : undefined}
         />
       )}
 
-      {/* =========================================================================
-          INLINED FORM DIALOG (Add/Edit)
-          ========================================================================= */}
-      {isAdmin && (
-        <Dialog
-          open={showAdd || showEdit}
-          onOpenChange={(v) => {
-            if (!v) {
-              setShowAdd(false);
-              setShowEdit(false);
-              resetForm();
-            }
-          }}
-        >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-border">
-            <DialogHeader className="px-6 py-5 bg-card/50">
-              <DialogTitle>
-                {showEdit ? "Editează Proiect" : "Adaugă Proiect UI/UX"}
-              </DialogTitle>
-            </DialogHeader>
-
-            <Tabs
-              defaultValue="basics"
-              className="flex-1 flex flex-col min-h-0"
-            >
-              <TabsList className="grid w-full grid-cols-4 text-xs mx-6 mt-2 max-w-[calc(100%-3rem)] bg-muted/50">
-                <TabsTrigger value="basics">Esențial</TabsTrigger>
-                <TabsTrigger value="content">Conținut</TabsTrigger>
-                <TabsTrigger value="process">Proces & Tools</TabsTrigger>
-                <TabsTrigger value="media">Media & Link</TabsTrigger>
-              </TabsList>
-
-              {/* TAB 1: Basics */}
-              <TabsContent
-                value="basics"
-                className="flex-1 px-6 pt-5 space-y-4 m-0"
-              >
-                <div className="space-y-2">
-                  <Label>Titlu proiect *</Label>
-                  <Input
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, title: e.target.value }))
-                    }
-                    placeholder="ex: EcoTrack App"
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Scurtă descriere (pentru card)</Label>
-                  <Input
-                    value={form.brief}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, brief: e.target.value }))
-                    }
-                    placeholder="O frază care rezumă proiectul..."
-                    className="h-9"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tip proiect</Label>
-                    <Select
-                      value={form.type}
-                      onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(PROJECT_TYPES).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Platformă</Label>
-                    <Select
-                      value={form.platform}
-                      onValueChange={(v) =>
-                        setForm((f) => ({ ...f, platform: v }))
-                      }
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(PLATFORMS).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select
-                      value={form.status}
-                      onValueChange={(v) =>
-                        setForm((f) => ({ ...f, status: v }))
-                      }
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUSES).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Număr ecrane</Label>
-                    <Input
-                      value={form.screens}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, screens: e.target.value }))
-                      }
-                      placeholder="ex: 24+"
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* TAB 2: Content (Fără Scroll necesar) */}
-              <TabsContent
-                value="content"
-                className="flex-1 px-6 pt-5 space-y-4 m-0"
-              >
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-red-400 uppercase tracking-widest">
-                    <Target className="h-3 w-3" /> Problema / Provocarea
-                  </Label>
-                  <Textarea
-                    value={form.problem}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, problem: e.target.value }))
-                    }
-                    className="resize-none h-[72px] text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 uppercase tracking-widest">
-                    <Lightbulb className="h-3 w-3" /> Soluția Propusă
-                  </Label>
-                  <Textarea
-                    value={form.solution}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, solution: e.target.value }))
-                    }
-                    className="resize-none h-[72px] text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 uppercase tracking-widest">
-                      <Users className="h-3 w-3" /> Utilizatori țintă
-                    </Label>
-                    <Input
-                      value={form.users}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, users: e.target.value }))
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 uppercase tracking-widest">
-                      <Star className="h-3 w-3" /> Rolul tău
-                    </Label>
-                    <Input
-                      value={form.role}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, role: e.target.value }))
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-purple-400 uppercase tracking-widest">
-                    <BarChart3 className="h-3 w-3" /> Impact & Rezultate
-                  </Label>
-                  <Textarea
-                    value={form.outcomes}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, outcomes: e.target.value }))
-                    }
-                    className="resize-none h-[72px] text-sm"
-                  />
-                </div>
-              </TabsContent>
-
-              {/* TAB 3: Process & Tools */}
-              <TabsContent
-                value="process"
-                className="flex-1 px-6 pt-5 space-y-6 m-0"
-              >
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">
-                    Etape parcurse în proiect
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PROCESS_PHASES.map((phase) => {
-                      const isActive = form.process.includes(phase);
-                      return (
-                        <button
-                          key={phase}
-                          type="button"
-                          onClick={() => togglePhase(phase)}
-                          className={`flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm transition-all text-left font-medium ${
-                            isActive
-                              ? "border-purple-500/40 bg-purple-500/10 text-purple-400"
-                              : "border-border bg-background text-muted-foreground hover:border-border/80 hover:bg-muted/30"
-                          }`}
-                        >
-                          <CheckCircle2
-                            className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-purple-400" : "text-muted-foreground/30"}`}
-                          />
-                          {phase}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">
-                    Instrumente (Tools)
-                  </Label>
-
-                  {/* Căutare / Adăugare Tool cu Popover (Portal) */}
-                  <Popover
-                    open={showToolDropdown}
-                    onOpenChange={setShowToolDropdown}
-                  >
-                    <PopoverTrigger asChild>
-                      <div
-                        className={`flex items-center border rounded-md transition-all px-3 py-1 ${showToolDropdown ? "border-purple-500/50 ring-1 ring-purple-500/20 bg-background" : "border-border bg-muted/20"}`}
-                      >
-                        <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
-                        <Input
-                          className="border-0 focus-visible:ring-0 shadow-none bg-transparent h-8 px-0 text-sm"
-                          placeholder="Caută sau adaugă instrument..."
-                          value={toolSearch}
-                          onChange={(e) => {
-                            setToolSearch(e.target.value);
-                            setShowToolDropdown(true);
-                          }}
-                          onFocus={() => setShowToolDropdown(true)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              if (toolSearch.trim()) {
-                                if (
-                                  !availableTools.includes(toolSearch.trim())
-                                ) {
-                                  saveTools([
-                                    ...availableTools,
-                                    toolSearch.trim(),
-                                  ]);
-                                }
-                                toggleToolForm(toolSearch.trim());
-                                setToolSearch("");
-                              }
-                            }
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 ml-1 text-muted-foreground shrink-0"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowToolDropdown(!showToolDropdown);
-                          }}
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[var(--radix-popover-trigger-width)] p-0 border-border shadow-xl rounded-lg overflow-hidden"
-                      align="start"
-                      onOpenAutoFocus={(e) => e.preventDefault()}
-                    >
-                      <div className="max-h-48 overflow-y-auto p-1 custom-scrollbar bg-card">
-                        {availableTools
-                          .filter((t) =>
-                            t.toLowerCase().includes(toolSearch.toLowerCase()),
-                          )
-                          .map((t) => (
-                            <button
-                              key={t}
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded flex items-center justify-between"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                toggleToolForm(t);
-                                setToolSearch("");
-                                setShowToolDropdown(false);
-                              }}
-                            >
-                              {t}{" "}
-                              {form.tools.includes(t) && (
-                                <Check className="h-3.5 w-3.5 text-purple-400" />
-                              )}
-                            </button>
-                          ))}
-                        {toolSearch.trim() &&
-                          !availableTools.some(
-                            (t) => t.toLowerCase() === toolSearch.toLowerCase(),
-                          ) && (
-                            <button
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded text-purple-400 font-medium"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                saveTools([
-                                  ...availableTools,
-                                  toolSearch.trim(),
-                                ]);
-                                toggleToolForm(toolSearch.trim());
-                                setToolSearch("");
-                                setShowToolDropdown(false);
-                              }}
-                            >
-                              <Plus className="inline w-3.5 h-3.5 mr-1" />{" "}
-                              Adaugă noul instrument "{toolSearch.trim()}"
-                            </button>
-                          )}
-                      </div>
-                      <div className="border-t border-border p-1 bg-muted/30">
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted rounded flex items-center gap-1.5 text-muted-foreground font-bold uppercase tracking-wider"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setShowToolDropdown(false);
-                            setShowToolManager(true);
-                          }}
-                        >
-                          <Settings2 className="h-3.5 w-3.5" /> Gestionează
-                          Instrumente
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-
-                  {/* Chips pt Tool-uri selectate */}
-                  {form.tools.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {form.tools.map((t) => (
-                        <span
-                          key={t}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-card border border-border font-medium shadow-sm"
-                        >
-                          {t}
-                          <button
-                            onClick={() => toggleToolForm(t)}
-                            className="hover:text-red-400 ml-1"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-
-              {/* TAB 4: Media & Links */}
-              <TabsContent
-                value="media"
-                className="flex-1 px-6 pt-5 space-y-6 m-0"
-              >
-                <div className="flex gap-4 items-end">
-                  <div className="flex-1 space-y-2">
-                    <Label>Link prototip (Figma / Live)</Label>
-                    <Input
-                      value={form.prototypeUrl}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, prototypeUrl: e.target.value }))
-                      }
-                      placeholder="https://..."
-                      className="h-10"
-                    />
-                  </div>
-                  <div className="flex flex-col items-center justify-center space-y-1.5 pb-0.5">
-                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                      {form.isPrivate ? "Privat" : "Public"}
-                    </Label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setForm((f) => ({ ...f, isPrivate: !f.isPrivate }))
-                      }
-                      className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-500 border ${
-                        form.isPrivate
-                          ? "bg-purple-500/10 border-purple-500/30 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-                          : "bg-muted border-transparent text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {form.isPrivate ? (
-                        <Lock className="w-4 h-4 scale-110 transition-transform duration-300" />
-                      ) : (
-                        <Unlock className="w-4 h-4 scale-100 transition-transform duration-300" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Imagini proiect (Selectare multiplă)</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleMultipleImages}
-                    className="cursor-pointer"
-                  />
-
-                  {imagePreviews.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3 mt-2">
-                      {imagePreviews.map((src, i) => (
-                        <div
-                          key={i}
-                          className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted group"
-                        >
-                          <img
-                            src={src}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute top-1.5 left-1.5 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                            {i === 0 ? "Cover" : i + 1}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePreviewImage(i)}
-                            className="absolute top-1.5 right-1.5 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            <div className="px-6 py-4 flex justify-end gap-3 bg-card/50">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  showEdit ? setShowEdit(false) : setShowAdd(false);
-                  resetForm();
-                }}
-                disabled={uploading}
-              >
-                Anulează
-              </Button>
-              <Button
-                onClick={showEdit ? handleEdit : handleAdd}
-                disabled={uploading}
-                className="gap-2 min-w-[120px]"
-              >
-                {uploading
-                  ? "Se procesează..."
-                  : showEdit
-                    ? "Salvează"
-                    : "Publică"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+      {/* Add modal */}
+      {isAdmin && showAddModal && (
+        <EditModal onClose={() => setShowAddModal(false)} onSave={handleSave} availableTools={availableTools} onManageTools={() => { setShowAddModal(false); setShowManageTools(true); }} />
       )}
 
-      {/* Delete confirm */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent className="border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Șterge proiect</AlertDialogTitle>
-            <AlertDialogDescription>
-              "{toDelete?.title}" va fi mutat în coșul de gunoi. Poți să îl
-              restaurezi oricând de acolo.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Anulează</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90 text-white"
-            >
-              Mută în coș
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Edit modal */}
+      {isAdmin && showEditModal && editProject && (
+        <EditModal project={editProject} onClose={() => { setShowEditModal(false); setEditProject(undefined); }} onSave={handleSave} availableTools={availableTools} onManageTools={() => { setShowEditModal(false); setShowManageTools(true); }} />
+      )}
 
-      {/* Trash dialog */}
-      <Dialog open={showTrash} onOpenChange={setShowTrash}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5" /> Coș de gunoi
-            </DialogTitle>
-            <DialogDescription>
-              Designurile șterse pot fi restaurate sau eliminate definitiv.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-4">
-            {trashed.length === 0 && (
-              <p className="text-center text-muted-foreground py-10 bg-muted/30 rounded-lg">
-                Coșul e gol.
-              </p>
-            )}
-            {trashed.map((p) => (
-              <div
-                key={p.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 border border-border rounded-xl bg-card hover:bg-accent/30 transition-colors"
-              >
-                <div className="w-full sm:w-24 h-24 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-muted">
-                  <img
-                    src={p.image}
-                    alt={p.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{p.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {PROJECT_TYPES[p.subcategory || ""]?.label || p.subcategory}
-                  </p>
-                </div>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRestore(p)}
-                    className="flex-1 sm:flex-none gap-1.5 h-8 text-xs"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> Restaurează
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handlePermDelete(p)}
-                    className="flex-1 sm:flex-none gap-1.5 h-8 text-xs"
-                  >
-                    <Trash className="h-3.5 w-3.5" /> Șterge definitiv
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Manage tools */}
+      {showManageTools && (
+        <ManageToolsModal tools={availableTools} onClose={() => setShowManageTools(false)} onSave={t => { saveTools(t); setShowManageTools(false); }} />
+      )}
 
-      {/* Gestionează Tools Dialog */}
-      <Dialog open={showToolManager} onOpenChange={setShowToolManager}>
-        <DialogContent className="max-w-sm border-border">
-          <DialogHeader>
-            <DialogTitle>Gestionează Instrumente</DialogTitle>
-            <DialogDescription>
-              Aceste instrumente vor apărea în opțiunile proiectelor.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2 mt-2">
-            <Input
-              value={newToolInput}
-              onChange={(e) => setNewToolInput(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && (e.preventDefault(), handleAddGlobalTool())
-              }
-              placeholder="Adaugă tool nou..."
-            />
-            <Button onClick={handleAddGlobalTool}>Adaugă</Button>
+      {/* Soft delete confirm */}
+      {pendingDelete && (
+        <ConfirmModal title="Mută în coș" desc={`Ești sigur că vrei să muți „${pendingDelete.title}" în coșul de gunoi?`}
+          onClose={() => setPendingDelete(null)} onConfirm={handleSoftDelete} confirmLabel="Mută în coș" danger />
+      )}
+
+      {/* Hard delete confirm */}
+      {pendingHardDelete && (
+        <ConfirmModal title="Ștergere permanentă" desc={`Ești sigur că vrei să ștergi definitiv „${pendingHardDelete.title}"? Acțiunea nu poate fi anulată.`}
+          onClose={() => setPendingHardDelete(null)} onConfirm={handleHardDelete} confirmLabel="Șterge definitiv" danger />
+      )}
+
+      {/* Uploading overlay */}
+      {uploading && (
+        <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-[#111111] border border-white/10 rounded-2xl p-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            <p className="text-slate-300 text-sm font-medium">Se procesează...</p>
           </div>
-          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-            {availableTools.map((t) => (
-              <div
-                key={t}
-                className="flex items-center justify-between p-2 border border-border rounded-lg bg-card"
-              >
-                <span className="text-sm font-medium">{t}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-red-500"
-                  onClick={() => handleRemoveGlobalTool(t)}
-                >
-                  <Trash className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </PageLayout>
   );
 }
