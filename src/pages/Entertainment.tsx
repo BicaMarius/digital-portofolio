@@ -164,22 +164,25 @@ export default function Entertainment() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [f, b, g, gf] = await Promise.all([
+      const [fRes, bRes, gRes, gfRes] = await Promise.allSettled([
         getFilms(), getBooks(), getGames(), getFilmGenres()
       ]);
-      setFilms(f);
-      setBooks(b);
-      setGames(g);
-      setGenres(gf);
+
+      if (fRes.status === 'fulfilled') setFilms(fRes.value || []);
+      if (bRes.status === 'fulfilled') setBooks(bRes.value || []);
+      if (gRes.status === 'fulfilled') setGames(gRes.value || []);
+      if (gfRes.status === 'fulfilled') setGenres(gfRes.value || []);
 
       if (isAdmin) {
-        setTrashedFilms(await getTrashedFilms());
-        setTrashedBooks(await getTrashedBooks());
-        setTrashedGames(await getTrashedGames());
+        const [tfRes, tbRes, tgRes] = await Promise.allSettled([
+          getTrashedFilms(), getTrashedBooks(), getTrashedGames()
+        ]);
+        if (tfRes.status === 'fulfilled') setTrashedFilms(tfRes.value || []);
+        if (tbRes.status === 'fulfilled') setTrashedBooks(tbRes.value || []);
+        if (tgRes.status === 'fulfilled') setTrashedGames(tgRes.value || []);
       }
     } catch (err) {
       console.error(err);
-      toast({ title: 'Eroare', description: 'Nu am putut încărca datele.', variant: 'destructive' });
     } finally {
       setLoading(false);
     }

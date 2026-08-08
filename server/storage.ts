@@ -865,7 +865,7 @@ export class MemStorage implements IStorage {
 // Database Storage implementation using Drizzle ORM
 import { db } from "./db.js";
 import * as schema from "../shared/schema.js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, sql } from "drizzle-orm";
 
 const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, musicAlbums, spotifyFavorites, filmItems, noteItems, filmGenres, bookItems, gameItems, skillTreeNodes } = schema;
 
@@ -945,14 +945,14 @@ export class DbStorage implements IStorage {
     return await db
       .select()
       .from(galleryItems)
-      .where(sql`"deleted_at" IS NOT NULL`);
+      .where(isNotNull(galleryItems.deletedAt));
   }
 
   async getTrashedGalleryItemsByCategory(category: string): Promise<GalleryItem[]> {
     return await db
       .select()
       .from(galleryItems)
-      .where(and(eq(galleryItems.category, category), sql`"deleted_at" IS NOT NULL`));
+      .where(and(eq(galleryItems.category, category), isNotNull(galleryItems.deletedAt)));
   }
 
   async createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem> {
@@ -1170,7 +1170,7 @@ export class DbStorage implements IStorage {
   }
 
   async getTrashedMusicTracks(): Promise<MusicTrack[]> {
-    return await db.select().from(musicTracks).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(musicTracks).where(isNotNull(musicTracks.deletedAt));
   }
 
   async createMusicTrack(track: InsertMusicTrack): Promise<MusicTrack> {
@@ -1207,7 +1207,7 @@ export class DbStorage implements IStorage {
   }
 
   async getTrashedMusicAlbums(): Promise<MusicAlbum[]> {
-    return await db.select().from(musicAlbums).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(musicAlbums).where(isNotNull(musicAlbums.deletedAt));
   }
 
   async createMusicAlbum(album: InsertMusicAlbum): Promise<MusicAlbum> {
@@ -1251,7 +1251,7 @@ export class DbStorage implements IStorage {
   }
 
   async getTrashedSpotifyFavorites(): Promise<SpotifyFavorite[]> {
-    return await db.select().from(spotifyFavorites).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(spotifyFavorites).where(isNotNull(spotifyFavorites.deletedAt));
   }
 
   async createSpotifyFavorite(favorite: InsertSpotifyFavorite): Promise<SpotifyFavorite> {
@@ -1294,7 +1294,7 @@ export class DbStorage implements IStorage {
   }
 
   async getTrashedFilmItems(): Promise<FilmItem[]> {
-    return await db.select().from(filmItems).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(filmItems).where(isNotNull(filmItems.deletedAt));
   }
 
   async createFilmItem(film: InsertFilmItem): Promise<FilmItem> {
@@ -1340,7 +1340,7 @@ export class DbStorage implements IStorage {
   }
 
   async getTrashedNoteItems(): Promise<NoteItem[]> {
-    return await db.select().from(noteItems).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(noteItems).where(isNotNull(noteItems.deletedAt));
   }
 
   async createNoteItem(note: InsertNoteItem): Promise<NoteItem> {
@@ -1408,7 +1408,7 @@ export class DbStorage implements IStorage {
     return await db.select().from(bookItems).where(and(eq(bookItems.status, status), isNull(bookItems.deletedAt)));
   }
   async getTrashedBookItems(): Promise<BookItem[]> {
-    return await db.select().from(bookItems).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(bookItems).where(isNotNull(bookItems.deletedAt));
   }
   async createBookItem(book: InsertBookItem): Promise<BookItem> {
     const result = await db.insert(bookItems).values({ ...book, isPrivate: book.isPrivate ?? false, deletedAt: null }).returning();
@@ -1435,7 +1435,7 @@ export class DbStorage implements IStorage {
     return await db.select().from(gameItems).where(and(eq(gameItems.status, status), isNull(gameItems.deletedAt)));
   }
   async getTrashedGameItems(): Promise<GameItem[]> {
-    return await db.select().from(gameItems).where(sql`"deleted_at" IS NOT NULL`);
+    return await db.select().from(gameItems).where(isNotNull(gameItems.deletedAt));
   }
   async createGameItem(game: InsertGameItem): Promise<GameItem> {
     try {
