@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { 
   User, 
-  Trophy, 
   Heart, 
-  Award, 
   FileText, 
   BarChart3,
   Download,
@@ -25,11 +23,11 @@ import { Badge } from '@/components/ui/badge';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useData } from '@/contexts/DataContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ACHIEVEMENTS, SKILLS, CONTACT_INFO } from '@/constants';
+import { SKILLS, CONTACT_INFO } from '@/constants';
 import { toast } from '@/hooks/use-toast';
+import { SkillTree } from '@/components/SkillTree';
 
 const Profile: React.FC = () => {
-  const [showPrivateAchievements, setShowPrivateAchievements] = useState(false);
   const { isAdmin } = useAdmin();
   const isMobile = useIsMobile();
   const { cvData, uploadNewCV, deleteExistingCV, getProjectCountByCategory, getTotalProjectCountByCategory } = useData();
@@ -91,19 +89,6 @@ const Profile: React.FC = () => {
     }
   }, [cvData, deleteExistingCV, clearPendingCv]);
 
-  const unlockedAchievements = ACHIEVEMENTS.filter(a => a.unlocked);
-  const lockedAchievements = ACHIEVEMENTS.filter(a => !a.unlocked);
-
-  const getAchievementColor = (category: string) => {
-    switch (category) {
-      case 'tech': return 'bg-tech-primary/20 text-tech-primary border-tech-primary/30';
-      case 'art': return 'bg-art-primary/20 text-art-primary border-art-primary/30';
-      case 'creative': return 'bg-secondary/20 text-secondary border-secondary/30';
-      case 'master': return 'bg-achievement-gold/20 text-achievement-gold border-achievement-gold/30';
-      default: return 'bg-primary/20 text-primary border-primary/30';
-    }
-  };
-
   return (
     <PageLayout>
       <section className="page-hero-section">
@@ -111,7 +96,7 @@ const Profile: React.FC = () => {
           {/* Profile Header */}
           <div className="text-center animate-fade-in">
             <h1 className="font-bold gradient-text" style={{ fontSize: 'clamp(1.25rem, 3vw + 0.4rem, 2.5rem)', lineHeight: '1.2', marginBottom: 'clamp(0.5rem, 1vh, 1rem)' }}>
-              Creative Developer & Artist
+              Bica Marius
             </h1>
           </div>
         </div>
@@ -123,7 +108,7 @@ const Profile: React.FC = () => {
           <Tabs defaultValue="cv" className="w-full">
             <TabsList className={`${isMobile ? 'flex flex-wrap gap-1 h-auto p-1 bg-muted/50' : 'responsive-tabs'} w-full mb-8`}>
               <TabsTrigger value="cv" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>CV</TabsTrigger>
-              {isAdmin && <TabsTrigger value="achievements" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Achievements</TabsTrigger>}
+              {isAdmin && <TabsTrigger value="skill-tree" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Skill Tree</TabsTrigger>}
               <TabsTrigger value="about" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Despre</TabsTrigger>
               <TabsTrigger value="skills" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Skills</TabsTrigger>
               <TabsTrigger value="contact" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Contact</TabsTrigger>
@@ -300,64 +285,6 @@ const Profile: React.FC = () => {
               </Card>
             </TabsContent>
 
-            {/* Achievements Tab */}
-            {isAdmin && (
-              <TabsContent value="achievements" className="space-y-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <Trophy className="h-6 w-6 text-achievement-gold" />
-                    <h2 className="text-2xl font-semibold">Personal Achievements</h2>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowPrivateAchievements(!showPrivateAchievements)}
-                    className="hover:bg-primary/10"
-                    size={isMobile ? 'icon' : 'default'}
-                  >
-                    {showPrivateAchievements ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                    {!isMobile && (
-                      <span className="ml-2">
-                        {showPrivateAchievements ? 'Ascunde Private' : 'Arată Private'}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-
-                <div className="responsive-card-grid">
-                  {ACHIEVEMENTS.map((achievement, index) => (
-                    <Card
-                      key={achievement.id}
-                      className={`
-                        p-6 transition-all duration-300 hover-lift
-                        ${achievement.unlocked 
-                          ? 'achievement-unlocked' 
-                          : 'achievement-locked'
-                        }
-                        ${!achievement.unlocked && !showPrivateAchievements ? 'hidden' : ''}
-                      `}
-                      style={{ animationDelay: `${index * 100}ms` }}
-                    >
-                      <div className="text-center">
-                        <div className="text-4xl mb-4">{achievement.icon}</div>
-                        <h3 className="font-semibold mb-2">{achievement.title}</h3>
-                        <p className="text-sm opacity-80 mb-4">{achievement.description}</p>
-                        <Badge className={getAchievementColor(achievement.category)}>
-                          {achievement.category}
-                        </Badge>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-
-                <div className="text-center text-muted-foreground">
-                  <Trophy className="h-8 w-8 mx-auto mb-2 text-achievement-gold" />
-                  <p>
-                    {unlockedAchievements.length} din {ACHIEVEMENTS.length} achievements deblocate
-                  </p>
-                </div>
-              </TabsContent>
-            )}
-
             {/* About Tab */}
             <TabsContent value="about" className="space-y-6">
               <Card className={`${isMobile ? 'p-4' : 'p-8'} hover-lift`}>
@@ -453,15 +380,6 @@ const Profile: React.FC = () => {
                     <CardContent className="p-0">
                       <div className="text-3xl font-bold text-gaming-accent mb-2">2.5k</div>
                       <div className="text-sm text-muted-foreground">Vizualizări</div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="p-6 text-center hover-lift bg-gradient-to-br from-achievement-gold/10 to-achievement-gold/5 border-achievement-gold/20">
-                    <CardContent className="p-0">
-                      <div className="text-3xl font-bold text-achievement-gold mb-2">
-                        {isAdmin ? ACHIEVEMENTS.length : unlockedAchievements.length}
-                      </div>
-                      <div className="text-sm text-muted-foreground">Achievements</div>
                     </CardContent>
                   </Card>
                   
@@ -589,6 +507,14 @@ const Profile: React.FC = () => {
             </TabsContent>
 
             {/* Stats Tab - Removed as it's now integrated into Skills */}
+
+            {/* Skill Tree Tab - Admin only */}
+            {isAdmin && (
+              <TabsContent value="skill-tree">
+                <SkillTree isAdmin={isAdmin} />
+              </TabsContent>
+            )}
+
           </Tabs>
         </div>
       </section>

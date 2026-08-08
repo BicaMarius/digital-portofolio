@@ -40,6 +40,15 @@ import type {
   FilmGenre,
   InsertFilmGenre,
   UpdateFilmGenre,
+  BookItem,
+  InsertBookItem,
+  UpdateBookItem,
+  GameItem,
+  InsertGameItem,
+  UpdateGameItem,
+  SkillTreeNode,
+  InsertSkillTreeNode,
+  UpdateSkillTreeNode,
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -150,6 +159,31 @@ export interface IStorage {
   createFilmGenre(genre: InsertFilmGenre): Promise<FilmGenre>;
   updateFilmGenre(id: number, updates: UpdateFilmGenre): Promise<FilmGenre | null>;
   deleteFilmGenre(id: number): Promise<boolean>;
+
+  // Book Items
+  getBookItems(): Promise<BookItem[]>;
+  getBookItemById(id: number): Promise<BookItem | null>;
+  getBookItemsByStatus(status: string): Promise<BookItem[]>;
+  getTrashedBookItems(): Promise<BookItem[]>;
+  createBookItem(book: InsertBookItem): Promise<BookItem>;
+  updateBookItem(id: number, updates: UpdateBookItem): Promise<BookItem | null>;
+  deleteBookItem(id: number): Promise<boolean>;
+
+  // Game Items
+  getGameItems(): Promise<GameItem[]>;
+  getGameItemById(id: number): Promise<GameItem | null>;
+  getGameItemsByStatus(status: string): Promise<GameItem[]>;
+  getTrashedGameItems(): Promise<GameItem[]>;
+  createGameItem(game: InsertGameItem): Promise<GameItem>;
+  updateGameItem(id: number, updates: UpdateGameItem): Promise<GameItem | null>;
+  deleteGameItem(id: number): Promise<boolean>;
+
+  // Skill Tree Nodes
+  getSkillTreeNodes(): Promise<SkillTreeNode[]>;
+  getSkillTreeNodeById(id: number): Promise<SkillTreeNode | null>;
+  createSkillTreeNode(node: InsertSkillTreeNode): Promise<SkillTreeNode>;
+  updateSkillTreeNode(id: number, updates: UpdateSkillTreeNode): Promise<SkillTreeNode | null>;
+  deleteSkillTreeNode(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -779,14 +813,61 @@ export class MemStorage implements IStorage {
   async deleteFilmGenre(id: number): Promise<boolean> {
     return this.filmGenres.delete(id);
   }
+
+  // ======== BOOK ITEMS (MemStorage stubs) ========
+  private bookItemsMap: Map<number, BookItem> = new Map();
+  private bookIdCounter = 1;
+  async getBookItems(): Promise<BookItem[]> { return Array.from(this.bookItemsMap.values()).filter(b => !b.deletedAt); }
+  async getBookItemById(id: number): Promise<BookItem | null> { return this.bookItemsMap.get(id) || null; }
+  async getBookItemsByStatus(status: string): Promise<BookItem[]> { return Array.from(this.bookItemsMap.values()).filter(b => b.status === status && !b.deletedAt); }
+  async getTrashedBookItems(): Promise<BookItem[]> { return Array.from(this.bookItemsMap.values()).filter(b => !!b.deletedAt); }
+  async createBookItem(book: InsertBookItem): Promise<BookItem> {
+    const nb = { ...book, id: this.bookIdCounter++, genre: book.genre ?? [], isPrivate: book.isPrivate ?? false, deletedAt: null, createdAt: new Date(), updatedAt: new Date() } as BookItem;
+    this.bookItemsMap.set(nb.id, nb); return nb;
+  }
+  async updateBookItem(id: number, updates: UpdateBookItem): Promise<BookItem | null> {
+    const b = this.bookItemsMap.get(id); if (!b) return null; const u = { ...b, ...updates, updatedAt: new Date() }; this.bookItemsMap.set(id, u); return u;
+  }
+  async deleteBookItem(id: number): Promise<boolean> { return this.bookItemsMap.delete(id); }
+
+  // ======== GAME ITEMS (MemStorage stubs) ========
+  private gameItemsMap: Map<number, GameItem> = new Map();
+  private gameIdCounter = 1;
+  async getGameItems(): Promise<GameItem[]> { return Array.from(this.gameItemsMap.values()).filter(g => !g.deletedAt); }
+  async getGameItemById(id: number): Promise<GameItem | null> { return this.gameItemsMap.get(id) || null; }
+  async getGameItemsByStatus(status: string): Promise<GameItem[]> { return Array.from(this.gameItemsMap.values()).filter(g => g.status === status && !g.deletedAt); }
+  async getTrashedGameItems(): Promise<GameItem[]> { return Array.from(this.gameItemsMap.values()).filter(g => !!g.deletedAt); }
+  async createGameItem(game: InsertGameItem): Promise<GameItem> {
+    const ng = { ...game, id: this.gameIdCounter++, genre: game.genre ?? [], isPrivate: game.isPrivate ?? false, deletedAt: null, createdAt: new Date(), updatedAt: new Date() } as GameItem;
+    this.gameItemsMap.set(ng.id, ng); return ng;
+  }
+  async updateGameItem(id: number, updates: UpdateGameItem): Promise<GameItem | null> {
+    const g = this.gameItemsMap.get(id); if (!g) return null; const u = { ...g, ...updates, updatedAt: new Date() }; this.gameItemsMap.set(id, u); return u;
+  }
+  async deleteGameItem(id: number): Promise<boolean> { return this.gameItemsMap.delete(id); }
+
+  // ======== SKILL TREE (MemStorage stubs) ========
+  private skillNodesMap: Map<number, SkillTreeNode> = new Map();
+  private skillNodeIdCounter = 1;
+  async getSkillTreeNodes(): Promise<SkillTreeNode[]> { return Array.from(this.skillNodesMap.values()).sort((a, b) => a.nodeOrder - b.nodeOrder); }
+  async getSkillTreeNodeById(id: number): Promise<SkillTreeNode | null> { return this.skillNodesMap.get(id) || null; }
+  async createSkillTreeNode(node: InsertSkillTreeNode): Promise<SkillTreeNode> {
+    const nn = { ...node, id: this.skillNodeIdCounter++, createdAt: new Date(), updatedAt: new Date() } as SkillTreeNode;
+    this.skillNodesMap.set(nn.id, nn); return nn;
+  }
+  async updateSkillTreeNode(id: number, updates: UpdateSkillTreeNode): Promise<SkillTreeNode | null> {
+    const n = this.skillNodesMap.get(id); if (!n) return null; const u = { ...n, ...updates, updatedAt: new Date() }; this.skillNodesMap.set(id, u); return u;
+  }
+  async deleteSkillTreeNode(id: number): Promise<boolean> { return this.skillNodesMap.delete(id); }
 }
+
 
 // Database Storage implementation using Drizzle ORM
 import { db } from "./db.js";
 import * as schema from "../shared/schema.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, musicAlbums, spotifyFavorites, filmItems, noteItems, filmGenres } = schema;
+const { projects, galleryItems, cvData, writings, albums, tags, photoLocations, photoDevices, musicTracks, musicAlbums, spotifyFavorites, filmItems, noteItems, filmGenres, bookItems, gameItems, skillTreeNodes } = schema;
 
 export class DbStorage implements IStorage {
   // Projects
@@ -1312,6 +1393,122 @@ export class DbStorage implements IStorage {
 
   async deleteFilmGenre(id: number): Promise<boolean> {
     const result = await db.delete(filmGenres).where(eq(filmGenres.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============ BOOK ITEMS ============
+  async getBookItems(): Promise<BookItem[]> {
+    return await db.select().from(bookItems).where(isNull(bookItems.deletedAt)).orderBy(bookItems.createdAt);
+  }
+  async getBookItemById(id: number): Promise<BookItem | null> {
+    const result = await db.select().from(bookItems).where(eq(bookItems.id, id));
+    return result[0] || null;
+  }
+  async getBookItemsByStatus(status: string): Promise<BookItem[]> {
+    return await db.select().from(bookItems).where(and(eq(bookItems.status, status), isNull(bookItems.deletedAt)));
+  }
+  async getTrashedBookItems(): Promise<BookItem[]> {
+    return await db.select().from(bookItems).where(sql`"deleted_at" IS NOT NULL`);
+  }
+  async createBookItem(book: InsertBookItem): Promise<BookItem> {
+    const result = await db.insert(bookItems).values({ ...book, isPrivate: book.isPrivate ?? false, deletedAt: null }).returning();
+    return result[0];
+  }
+  async updateBookItem(id: number, updates: UpdateBookItem): Promise<BookItem | null> {
+    const result = await db.update(bookItems).set({ ...updates, updatedAt: new Date() }).where(eq(bookItems.id, id)).returning();
+    return result[0] || null;
+  }
+  async deleteBookItem(id: number): Promise<boolean> {
+    const result = await db.delete(bookItems).where(eq(bookItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============ GAME ITEMS ============
+  async getGameItems(): Promise<GameItem[]> {
+    return await db.select().from(gameItems).where(isNull(gameItems.deletedAt)).orderBy(gameItems.createdAt);
+  }
+  async getGameItemById(id: number): Promise<GameItem | null> {
+    const result = await db.select().from(gameItems).where(eq(gameItems.id, id));
+    return result[0] || null;
+  }
+  async getGameItemsByStatus(status: string): Promise<GameItem[]> {
+    return await db.select().from(gameItems).where(and(eq(gameItems.status, status), isNull(gameItems.deletedAt)));
+  }
+  async getTrashedGameItems(): Promise<GameItem[]> {
+    return await db.select().from(gameItems).where(sql`"deleted_at" IS NOT NULL`);
+  }
+  async createGameItem(game: InsertGameItem): Promise<GameItem> {
+    try {
+      const result = await db.insert(gameItems).values({ ...game, isPrivate: game.isPrivate ?? false, deletedAt: null }).returning();
+      return result[0];
+    } catch (err: any) {
+      if (err?.message?.includes('column') || err?.message?.includes('does not exist')) {
+        const { fullAchievement, daysSpent, visitedZones, mediaUrls, ...baseGame } = game as any;
+        const extraNotesParts = [
+          baseGame.notes,
+          visitedZones ? `Zone: ${visitedZones}` : null,
+          daysSpent ? `Zile: ${daysSpent}` : null,
+          mediaUrls ? `MEDIA:::${mediaUrls}` : null
+        ].filter(Boolean);
+
+        const result = await db.insert(gameItems).values({
+          ...baseGame,
+          notes: extraNotesParts.join('\n'),
+          isPrivate: baseGame.isPrivate ?? false,
+          deletedAt: null
+        }).returning();
+        return result[0];
+      }
+      throw err;
+    }
+  }
+  async updateGameItem(id: number, updates: UpdateGameItem): Promise<GameItem | null> {
+    try {
+      const result = await db.update(gameItems).set({ ...updates, updatedAt: new Date() }).where(eq(gameItems.id, id)).returning();
+      return result[0] || null;
+    } catch (err: any) {
+      if (err?.message?.includes('column') || err?.message?.includes('does not exist')) {
+        const { fullAchievement, daysSpent, visitedZones, mediaUrls, ...baseUpdates } = updates as any;
+        const extraNotesParts = [
+          baseUpdates.notes,
+          visitedZones ? `Zone: ${visitedZones}` : null,
+          daysSpent ? `Zile: ${daysSpent}` : null,
+          mediaUrls ? `MEDIA:::${mediaUrls}` : null
+        ].filter(Boolean);
+
+        const result = await db.update(gameItems).set({
+          ...baseUpdates,
+          notes: extraNotesParts.join('\n'),
+          updatedAt: new Date()
+        }).where(eq(gameItems.id, id)).returning();
+        return result[0] || null;
+      }
+      throw err;
+    }
+  }
+  async deleteGameItem(id: number): Promise<boolean> {
+    const result = await db.delete(gameItems).where(eq(gameItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============ SKILL TREE NODES ============
+  async getSkillTreeNodes(): Promise<SkillTreeNode[]> {
+    return await db.select().from(skillTreeNodes).orderBy(skillTreeNodes.nodeOrder);
+  }
+  async getSkillTreeNodeById(id: number): Promise<SkillTreeNode | null> {
+    const result = await db.select().from(skillTreeNodes).where(eq(skillTreeNodes.id, id));
+    return result[0] || null;
+  }
+  async createSkillTreeNode(node: InsertSkillTreeNode): Promise<SkillTreeNode> {
+    const result = await db.insert(skillTreeNodes).values(node).returning();
+    return result[0];
+  }
+  async updateSkillTreeNode(id: number, updates: UpdateSkillTreeNode): Promise<SkillTreeNode | null> {
+    const result = await db.update(skillTreeNodes).set({ ...updates, updatedAt: new Date() }).where(eq(skillTreeNodes.id, id)).returning();
+    return result[0] || null;
+  }
+  async deleteSkillTreeNode(id: number): Promise<boolean> {
+    const result = await db.delete(skillTreeNodes).where(eq(skillTreeNodes.id, id)).returning();
     return result.length > 0;
   }
 }

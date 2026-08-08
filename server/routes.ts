@@ -40,6 +40,8 @@ type UploadedFile = {
 };
 
 export function registerRoutes(app: Express, storage: IStorage) {
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
   const MAX_UPLOAD_MB = 100;
   const ALLOWED_UPLOAD_FOLDERS = new Set(["photography", "portfolio-art-items", "portfolio-art-covers"]);
   const upload = multer({
@@ -1590,6 +1592,137 @@ export function registerRoutes(app: Express, storage: IStorage) {
     } catch (error) {
       res.status(500).json({ error: "Failed to delete genre" });
     }
+  });
+
+  // ============ BOOKS ============
+
+  app.get("/api/books", async (_req, res) => {
+    try { res.json(await storage.getBookItems()); } catch { res.status(500).json({ error: "Failed to fetch books" }); }
+  });
+  app.get("/api/books/trash", async (_req, res) => {
+    try { res.json(await storage.getTrashedBookItems()); } catch { res.status(500).json({ error: "Failed to fetch trashed books" }); }
+  });
+  app.get("/api/books/:id", async (req, res) => {
+    try {
+      const book = await storage.getBookItemById(parseInt(req.params.id));
+      if (!book) return res.status(404).json({ error: "Book not found" });
+      res.json(book);
+    } catch { res.status(500).json({ error: "Failed to fetch book" }); }
+  });
+  app.post("/api/books", async (req, res) => {
+    try {
+      const { insertBookItemSchema } = await import("../shared/schema.js");
+      const data = insertBookItemSchema.parse(req.body);
+      res.status(201).json(await storage.createBookItem(data));
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Failed to create book" });
+    }
+  });
+  app.patch("/api/books/:id", async (req, res) => {
+    try {
+      const { updateBookItemSchema } = await import("../shared/schema.js");
+      const updated = await storage.updateBookItem(parseInt(req.params.id), updateBookItemSchema.parse(req.body));
+      if (!updated) return res.status(404).json({ error: "Book not found" });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Failed to update book" });
+    }
+  });
+  app.delete("/api/books/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteBookItem(parseInt(req.params.id));
+      if (!deleted) return res.status(404).json({ error: "Book not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete book" }); }
+  });
+
+  // ============ GAMES ============
+
+  app.get("/api/games", async (_req, res) => {
+    try { res.json(await storage.getGameItems()); } catch { res.status(500).json({ error: "Failed to fetch games" }); }
+  });
+  app.get("/api/games/trash", async (_req, res) => {
+    try { res.json(await storage.getTrashedGameItems()); } catch { res.status(500).json({ error: "Failed to fetch trashed games" }); }
+  });
+  app.get("/api/games/:id", async (req, res) => {
+    try {
+      const game = await storage.getGameItemById(parseInt(req.params.id));
+      if (!game) return res.status(404).json({ error: "Game not found" });
+      res.json(game);
+    } catch { res.status(500).json({ error: "Failed to fetch game" }); }
+  });
+  app.post("/api/games", async (req, res) => {
+    try {
+      const { insertGameItemSchema } = await import("../shared/schema.js");
+      const data = insertGameItemSchema.parse(req.body);
+      res.status(201).json(await storage.createGameItem(data));
+    } catch (error: any) {
+      console.error("Error creating game:", error);
+      if (error?.errors) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: error?.message || "Failed to create game" });
+    }
+  });
+  app.patch("/api/games/:id", async (req, res) => {
+    try {
+      const { updateGameItemSchema } = await import("../shared/schema.js");
+      const updated = await storage.updateGameItem(parseInt(req.params.id), updateGameItemSchema.parse(req.body));
+      if (!updated) return res.status(404).json({ error: "Game not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating game:", error);
+      if (error?.errors) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: error?.message || "Failed to update game" });
+    }
+  });
+  app.delete("/api/games/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteGameItem(parseInt(req.params.id));
+      if (!deleted) return res.status(404).json({ error: "Game not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete game" }); }
+  });
+
+  // ============ SKILL TREE NODES ============
+
+  app.get("/api/skill-tree", async (_req, res) => {
+    try { res.json(await storage.getSkillTreeNodes()); } catch { res.status(500).json({ error: "Failed to fetch skill tree" }); }
+  });
+  app.get("/api/skill-tree/:id", async (req, res) => {
+    try {
+      const node = await storage.getSkillTreeNodeById(parseInt(req.params.id));
+      if (!node) return res.status(404).json({ error: "Node not found" });
+      res.json(node);
+    } catch { res.status(500).json({ error: "Failed to fetch node" }); }
+  });
+  app.post("/api/skill-tree", async (req, res) => {
+    try {
+      const { insertSkillTreeNodeSchema } = await import("../shared/schema.js");
+      const data = insertSkillTreeNodeSchema.parse(req.body);
+      res.status(201).json(await storage.createSkillTreeNode(data));
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Failed to create node" });
+    }
+  });
+  app.patch("/api/skill-tree/:id", async (req, res) => {
+    try {
+      const { updateSkillTreeNodeSchema } = await import("../shared/schema.js");
+      const updated = await storage.updateSkillTreeNode(parseInt(req.params.id), updateSkillTreeNodeSchema.parse(req.body));
+      if (!updated) return res.status(404).json({ error: "Node not found" });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Failed to update node" });
+    }
+  });
+  app.delete("/api/skill-tree/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteSkillTreeNode(parseInt(req.params.id));
+      if (!deleted) return res.status(404).json({ error: "Node not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete node" }); }
   });
 
   app.use((err: any, req: Request, res: any, next: any) => {

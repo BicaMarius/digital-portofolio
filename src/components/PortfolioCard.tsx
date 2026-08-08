@@ -50,11 +50,12 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
   return (
     <Card 
       className={`
-        portfolio-card group cursor-pointer p-6 h-48 flex flex-col justify-between
+        portfolio-card group cursor-pointer flex flex-col justify-between
         hover-lift hover:shadow-2xl transition-all duration-500
         ${getCategoryStyle()}
         ${isPrivate ? 'opacity-70 border-dashed' : ''}
       `}
+      style={{ padding: 'clamp(0.9rem, 1.5vh + 0.4vw, 1.5rem)', minHeight: 'clamp(8rem, calc(100vh * 0.18), 12rem)' }}
       onClick={onClick}
     >
       {/* Header with Icon and Count */}
@@ -64,7 +65,7 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
           bg-gradient-to-br from-background/50 to-card
           ${getIconColor()}
         `}>
-          <Icon className="h-8 w-8" />
+        <Icon className="h-6 w-6" />
         </div>
         
         {!isPrivate && (
@@ -76,10 +77,10 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
 
       {/* Content */}
       <div className="space-y-2">
-        <h3 className="text-xl font-semibold text-foreground group-hover:gradient-text transition-all duration-300">
+        <h3 className="text-base font-semibold text-foreground group-hover:gradient-text transition-all duration-300">
           {title}
         </h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
           {description}
         </p>
       </div>

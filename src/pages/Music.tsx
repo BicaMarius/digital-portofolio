@@ -19,7 +19,7 @@ import {
   Headphones, Library, ListMusic, Trash2, RotateCcw, X, 
   SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, 
   ChevronUp, ChevronDown, ExternalLink, Loader2, FileText, User, Music as MusicIcon,
-  MoreVertical, Pencil, ChevronLeft, ChevronRight, GripVertical
+  MoreVertical, Pencil, ChevronLeft, ChevronRight, GripVertical, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import * as api from '@/lib/api';
@@ -30,7 +30,33 @@ import type { SpotifySearchResult } from '@/lib/api';
 const FALLBACK_IMAGE =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none" stroke="%2394a3b8"><rect x="4" y="4" width="72" height="72" rx="10" fill="%23f8fafc"/><path d="M26 54c3.5-4.5 7-7 11.5-7 4.5 0 8 2.5 11.5 7" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="32" r="4" fill="%2394a3b8"/><circle cx="48" cy="32" r="4" fill="%2394a3b8"/></svg>';
 
+// Genre color mapping for music track tags
+const MUSIC_GENRE_COLORS: Record<string, string> = {
+  'Pop': 'bg-pink-500/20 text-pink-300',
+  'Rock': 'bg-red-500/20 text-red-300',
+  'Electronic': 'bg-cyan-500/20 text-cyan-300',
+  'Hip-Hop': 'bg-amber-500/20 text-amber-300',
+  'R&B': 'bg-purple-500/20 text-purple-300',
+  'Jazz': 'bg-yellow-500/20 text-yellow-300',
+  'Classical': 'bg-blue-400/20 text-blue-300',
+  'Metal': 'bg-slate-500/20 text-slate-300',
+  'Folk': 'bg-green-600/20 text-green-300',
+  'Blues': 'bg-indigo-500/20 text-indigo-300',
+  'Country': 'bg-orange-500/20 text-orange-300',
+  'Reggae': 'bg-lime-500/20 text-lime-300',
+  'Soul': 'bg-rose-500/20 text-rose-300',
+  'Indie': 'bg-violet-500/20 text-violet-300',
+  'Alternative': 'bg-teal-500/20 text-teal-300',
+  'Dance': 'bg-fuchsia-500/20 text-fuchsia-300',
+  'Ambient': 'bg-sky-500/20 text-sky-300',
+  'Lo-fi': 'bg-emerald-500/20 text-emerald-300',
+  'Trap': 'bg-yellow-700/20 text-yellow-400',
+  'Manele': 'bg-orange-700/20 text-orange-400',
+  'Latino': 'bg-red-600/20 text-red-300',
+};
+
 type SpotifyType = 'artist' | 'album' | 'track';
+
 
 export default function Music() {
   const { isAdmin } = useAdmin();
@@ -103,6 +129,12 @@ export default function Music() {
   // Long press state for mobile track menu
   const [longPressTrack, setLongPressTrack] = useState<MusicTrack | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track detail dialog
+  const [detailTrack, setDetailTrack] = useState<MusicTrack | null>(null);
+  const [detailTab, setDetailTab] = useState<'info'|'credits'|'lyrics'>('info');
+  const [detailLyrics, setDetailLyrics] = useState<string>('');
+  const [loadingLyrics, setLoadingLyrics] = useState(false);
 
   // Album dialog state
   const [showAlbumDialog, setShowAlbumDialog] = useState(false);
@@ -1962,8 +1994,16 @@ export default function Music() {
                               >
                                 <Plus className="h-4 w-4 text-muted-foreground" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm truncate">{track.title}</p>
+                                  <p className="text-sm font-medium truncate">{track.title}</p>
                                   <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                                  {(track as any).genre && (
+                                    <span className={cn(
+                                      "inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ml-2",
+                                      MUSIC_GENRE_COLORS[(track as any).genre] ?? 'bg-purple-500/20 text-purple-300'
+                                    )}>
+                                      {(track as any).genre}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -2098,6 +2138,14 @@ export default function Music() {
                               {track.title}
                             </p>
                             <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                            {track.genre && (
+                              <span className={cn(
+                                "inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1",
+                                MUSIC_GENRE_COLORS[track.genre] ?? 'bg-purple-500/20 text-purple-300'
+                              )}>
+                                {track.genre}
+                              </span>
+                            )}
                           </div>
 
                           {/* Duration - always visible */}
@@ -2123,6 +2171,10 @@ export default function Music() {
                                   Editează
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setDetailTab('info'); setDetailTrack(track); if (track.lyricsUrl) { setLoadingLyrics(true); fetch(track.lyricsUrl).then(r => r.text()).then(t => { setDetailLyrics(t); setLoadingLyrics(false); }).catch(() => { setDetailLyrics(''); setLoadingLyrics(false); }); } else { setDetailLyrics(''); } }}>
+                                <Info className="h-4 w-4 mr-2" />
+                                Detalii
+                              </DropdownMenuItem>
                               <DropdownMenuItem asChild>
                                 <a 
                                   href={track.audioUrl} 
@@ -2164,7 +2216,151 @@ export default function Music() {
       {/* Fullscreen Player */}
       <FullscreenPlayer />
 
+      {/* Track Detail Dialog */}
+      {detailTrack && (
+        <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[5vh] overflow-y-auto px-4"
+          onClick={() => setDetailTrack(null)}>
+          <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="p-5 border-b border-white/5 flex items-center gap-4 shrink-0">
+              <div className="h-16 w-16 rounded-xl overflow-hidden bg-[#09090b] border border-white/10 flex-shrink-0">
+                {detailTrack.coverUrl ? (
+                  <img src={detailTrack.coverUrl} alt={detailTrack.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <Music2 className="h-6 w-6 text-slate-400" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-white truncate">{detailTrack.title}</h3>
+                <p className="text-slate-400 text-sm truncate">{detailTrack.artist}</p>
+                {(detailTrack as any).genre && (
+                  <span className={cn(
+                    "inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-medium",
+                    MUSIC_GENRE_COLORS[(detailTrack as any).genre] ?? 'bg-purple-500/20 text-purple-300'
+                  )}>
+                    {(detailTrack as any).genre}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setDetailTrack(null)}
+                className="p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex-shrink-0">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 p-3 border-b border-white/5 shrink-0 bg-[#0d0d15]">
+              {(['info', 'credits', 'lyrics'] as const).map(tab => (
+                <button key={tab}
+                  onClick={() => setDetailTab(tab)}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                    detailTab === tab
+                      ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.3)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}>
+                  {tab === 'info' ? '🎵 Detalii' : tab === 'credits' ? '🎤 Credite' : '📝 Versuri'}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {detailTab === 'info' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {(detailTrack as any).year && (
+                      <div className="bg-white/5 rounded-xl p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">An</p>
+                        <p className="text-white font-semibold">{(detailTrack as any).year}</p>
+                      </div>
+                    )}
+                    {detailTrack.duration && (
+                      <div className="bg-white/5 rounded-xl p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Durată</p>
+                        <p className="text-white font-semibold">{formatTime(detailTrack.duration)}</p>
+                      </div>
+                    )}
+                    {detailTrack.description && (
+                      <div className="col-span-2 bg-white/5 rounded-xl p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Album / Descriere</p>
+                        <p className="text-slate-300 text-sm">{detailTrack.description}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => { playTrack(detailTrack); setDetailTrack(null); }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold transition-all">
+                      <Play className="h-4 w-4 fill-white" /> Redă
+                    </button>
+                    {detailTrack.audioUrl && (
+                      <a href={detailTrack.audioUrl} download={`${detailTrack.title}.mp3`}
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-sm font-semibold transition-colors">
+                        <Download className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {detailTab === 'credits' && (
+                <div className="space-y-3">
+                  {(() => {
+                    const credits = (detailTrack as any).credits;
+                    const creditEntries = credits
+                      ? Object.entries(credits as Record<string, string>).filter(([, v]) => v && v.trim())
+                      : [];
+                    if (creditEntries.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-slate-500">
+                          <Music2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">Nicio informație de credit disponibilă</p>
+                        </div>
+                      );
+                    }
+                    return creditEntries.map(([role, name]) => (
+                      <div key={role} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{role}</span>
+                        <span className="text-white text-sm font-semibold">{name}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {detailTab === 'lyrics' && (
+                <div>
+                  {loadingLyrics ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+                    </div>
+                  ) : detailLyrics ? (
+                    <pre className="text-slate-300 text-sm whitespace-pre-wrap font-sans leading-relaxed">{detailLyrics}</pre>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">
+                      <Music2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">Nicio versuri disponibile</p>
+                      {isAdmin && (
+                        <button onClick={() => { setDetailTrack(null); openEditTrackDialog(detailTrack); }}
+                          className="mt-3 text-xs text-purple-400 hover:text-purple-300 underline">
+                          Adaugă versuri →
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Long Press Menu */}
+
       <Dialog open={!!longPressTrack} onOpenChange={(open) => !open && setLongPressTrack(null)}>
         <DialogContent className="max-w-xs mx-auto rounded-2xl">
           <DialogHeader className="pb-2">
@@ -2288,7 +2484,7 @@ export default function Music() {
 
       {/* Track Upload/Edit Dialog */}
       <Dialog open={showTrackDialog} onOpenChange={(open) => { if (!open) resetTrackForm(); setShowTrackDialog(open); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTrack ? 'Editează piesa' : 'Adaugă piesă proprie'}</DialogTitle>
             <DialogDescription>
@@ -2320,63 +2516,130 @@ export default function Music() {
           )}
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Titlu *</Label>
-                <Input
-                  value={trackForm.title}
-                  onChange={(e) => setTrackForm({ ...trackForm, title: e.target.value })}
-                  placeholder="Titlu piesă"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Artist *</Label>
-                <Input
-                  value={trackForm.author}
-                  onChange={(e) => setTrackForm({ ...trackForm, author: e.target.value })}
-                  placeholder="Nume artist"
-                />
-              </div>
-            </div>
+            <Tabs defaultValue="info" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="info">Informații</TabsTrigger>
+                <TabsTrigger value="files">Fișiere</TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-2">
-              <Label>Fișier audio {editingTrack ? '(înlocuiește)' : '*'} (MP3, WAV, etc.)</Label>
-              <Input
-                type="file"
-                accept="audio/*"
-                onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-              />
-              {audioFile && <p className="text-xs text-muted-foreground">{audioFile.name}</p>}
-              {editingTrack && !audioFile && (
-                <p className="text-xs text-muted-foreground">Păstrează fișierul audio existent</p>
-              )}
-            </div>
+              <TabsContent value="info" className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Titlu *</Label>
+                    <Input
+                      value={trackForm.title}
+                      onChange={(e) => setTrackForm({ ...trackForm, title: e.target.value })}
+                      placeholder="Titlu piesă"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Artist *</Label>
+                    <Input
+                      value={trackForm.author}
+                      onChange={(e) => setTrackForm({ ...trackForm, author: e.target.value })}
+                      placeholder="Nume artist"
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Artwork {editingTrack ? '(înlocuiește)' : ''} (imagine, GIF sau video)</Label>
-              <Input
-                type="file"
-                accept="image/*,video/*"
-                onChange={(e) => setArtworkFile(e.target.files?.[0] || null)}
-              />
-              {artworkFile && <p className="text-xs text-muted-foreground">{artworkFile.name}</p>}
-              {editingTrack && !artworkFile && editingTrack.coverUrl && (
-                <p className="text-xs text-muted-foreground">Păstrează artwork-ul existent</p>
-              )}
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Gen muzical</Label>
+                    <select
+                      value={(trackForm as any).genre ?? ''}
+                      onChange={(e) => setTrackForm({ ...trackForm, genre: e.target.value } as any)}
+                      className="w-full bg-[#09090b] border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 outline-none focus:border-purple-500/50"
+                    >
+                      <option value="">Fără gen</option>
+                      {['Pop','Rock','Electronic','Hip-Hop','R&B','Jazz','Classical','Metal','Folk','Blues','Country','Reggae','Soul','Indie','Alternative','Dance','Ambient','Lo-fi','Trap','Manele','Latino'].map(g => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>An</Label>
+                    <Input
+                      type="number"
+                      min="1900" max="2100"
+                      value={(trackForm as any).year ?? ''}
+                      onChange={(e) => setTrackForm({ ...trackForm, year: e.target.value } as any)}
+                      placeholder="2024"
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Versuri {editingTrack ? '(înlocuiește)' : ''} (fișier text)</Label>
-              <Input
-                type="file"
-                accept=".txt,.lrc"
-                onChange={(e) => setLyricsFile(e.target.files?.[0] || null)}
-              />
-              {lyricsFile && <p className="text-xs text-muted-foreground">{lyricsFile.name}</p>}
-              {editingTrack && !lyricsFile && editingTrack.lyricsUrl && (
-                <p className="text-xs text-muted-foreground">Păstrează versurile existente</p>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label>Album / Descriere</Label>
+                  <Input
+                    value={trackForm.description}
+                    onChange={(e) => setTrackForm({ ...trackForm, description: e.target.value })}
+                    placeholder="Album sau scurtă descriere"
+                  />
+                </div>
+
+                {/* Credits section */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Credite (opțional)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Voce', 'Mix/Master', 'Instrumental', 'Artwork'] as const).map(credit => (
+                      <div key={credit} className="space-y-1">
+                        <Label className="text-xs text-slate-400">{credit}</Label>
+                        <Input
+                          placeholder={credit}
+                          value={((trackForm as any).credits?.[credit]) ?? ''}
+                          onChange={(e) => setTrackForm({
+                            ...trackForm,
+                            credits: { ...((trackForm as any).credits ?? {}), [credit]: e.target.value }
+                          } as any)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="files" className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <div className="space-y-2">
+                  <Label>Fișier audio {editingTrack ? '(înlocuiește)' : '*'} (MP3, WAV, etc.)</Label>
+                  <Input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  />
+                  {audioFile && <p className="text-xs text-muted-foreground">{audioFile.name}</p>}
+                  {editingTrack && !audioFile && (
+                    <p className="text-xs text-muted-foreground">Păstrează fișierul audio existent</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Artwork {editingTrack ? '(înlocuiește)' : ''} (imagine, GIF sau video)</Label>
+                  <Input
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={(e) => setArtworkFile(e.target.files?.[0] || null)}
+                  />
+                  {artworkFile && <p className="text-xs text-muted-foreground">{artworkFile.name}</p>}
+                  {editingTrack && !artworkFile && editingTrack.coverUrl && (
+                    <p className="text-xs text-muted-foreground">Păstrează artwork-ul existent</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Versuri {editingTrack ? '(înlocuiește)' : ''} (fișier text)</Label>
+                  <Input
+                    type="file"
+                    accept=".txt,.lrc"
+                    onChange={(e) => setLyricsFile(e.target.files?.[0] || null)}
+                  />
+                  {lyricsFile && <p className="text-xs text-muted-foreground">{lyricsFile.name}</p>}
+                  {editingTrack && !lyricsFile && editingTrack.lyricsUrl && (
+                    <p className="text-xs text-muted-foreground">Păstrează versurile existente</p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <DialogFooter>

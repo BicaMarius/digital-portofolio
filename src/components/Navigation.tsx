@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Home, Clapperboard, Music, StickyNote } from 'lucide-react';
+import { User, Home, Tv2, Music, StickyNote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAdmin } from '@/contexts/AdminContext';
@@ -29,13 +29,13 @@ export const Navigation: React.FC = () => {
           {isAdmin && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 shadow-sm">
               <Button
-                variant={location.pathname === '/films' ? 'default' : 'ghost'}
+                variant={location.pathname === '/entertainment' || location.pathname === '/films' ? 'default' : 'ghost'}
                 size="sm"
                 className="gap-2"
-                onClick={() => navigate('/films')}
+                onClick={() => navigate('/entertainment')}
               >
-                <Clapperboard className="h-4 w-4" />
-                <span className="hidden md:inline">Filme</span>
+                <Tv2 className="h-4 w-4" />
+                <span className="hidden md:inline">Media</span>
               </Button>
               <Button
                 variant={location.pathname === '/music' ? 'default' : 'ghost'}
@@ -100,12 +100,12 @@ export const Navigation: React.FC = () => {
           {isAdmin && (
             <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 border border-border/50">
               <Button
-                variant={location.pathname === '/films' ? 'default' : 'ghost'}
+                variant={location.pathname === '/entertainment' || location.pathname === '/films' ? 'default' : 'ghost'}
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => navigate('/films')}
+                onClick={() => navigate('/entertainment')}
               >
-                <Clapperboard className="h-4 w-4" />
+                <Tv2 className="h-4 w-4" />
               </Button>
               <Button
                 variant={location.pathname === '/music' ? 'default' : 'ghost'}

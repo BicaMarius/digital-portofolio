@@ -357,3 +357,96 @@ export const updateSpotifyUserTokenSchema = insertSpotifyUserTokenSchema.partial
 export type SpotifyUserToken = typeof spotifyUserTokens.$inferSelect;
 export type InsertSpotifyUserToken = typeof spotifyUserTokens.$inferInsert;
 export type UpdateSpotifyUserToken = Partial<InsertSpotifyUserToken>;
+
+// ============ BOOK ITEMS TABLE ============
+
+export const bookItems = pgTable("book_items", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  author: text("author"),
+  genre: text("genre").array().default([]),
+  year: text("year"),
+  status: text("status").notNull().default("to-read"), // 'to-read', 'reading', 'read'
+  rating: integer("rating"), // 1-10
+  notes: text("notes"),
+  format: text("format"), // 'fizic', 'digital', 'audio'
+  pages: integer("pages"),
+  isPrivate: boolean("is_private").notNull().default(false),
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertBookItemSchema = createInsertSchema(bookItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateBookItemSchema = insertBookItemSchema.partial();
+export type BookItem = typeof bookItems.$inferSelect;
+export type InsertBookItem = typeof bookItems.$inferInsert;
+export type UpdateBookItem = Partial<InsertBookItem>;
+
+// ============ GAME ITEMS TABLE ============
+
+export const gameItems = pgTable("game_items", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  genre: text("genre").array().default([]),
+  year: text("year"),
+  status: text("status").notNull().default("to-play"), // 'to-play', 'playing', 'played'
+  rating: integer("rating"), // 1-10
+  notes: text("notes"),
+  mode: text("mode"), // 'single', 'multiplayer', 'co-op', 'mixed'
+  maxPlayers: integer("max_players"),
+  platform: text("platform"), // 'PC', 'PlayStation', 'Xbox', 'Nintendo', 'Mobile', 'other'
+  developer: text("developer"),
+  fullAchievement: boolean("full_achievement").default(false),
+  daysSpent: integer("days_spent"),
+  visitedZones: text("visited_zones"),
+  mediaUrls: text("media_urls"),
+  isPrivate: boolean("is_private").notNull().default(false),
+  deletedAt: text("deleted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertGameItemSchema = createInsertSchema(gameItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateGameItemSchema = insertGameItemSchema.partial();
+export type GameItem = typeof gameItems.$inferSelect;
+export type InsertGameItem = typeof gameItems.$inferInsert;
+export type UpdateGameItem = Partial<InsertGameItem>;
+
+// ============ SKILL TREE NODES TABLE ============
+
+export const skillTreeNodes = pgTable("skill_tree_nodes", {
+  id: serial("id").primaryKey(),
+  parentId: integer("parent_id"), // null = root node
+  label: text("label").notNull(),
+  icon: text("icon"), // emoji or icon name
+  description: text("description"),
+  level: integer("level").notNull().default(0), // 0-5 (0=category, 1-5=skill level)
+  category: text("category").notNull(), // 'it', 'arta', 'cariera', 'sport', 'muzica', 'limbi', 'invatare'
+  acquiredDate: text("acquired_date"),
+  linkUrl: text("link_url"), // optional link (certificate, project, etc)
+  nodeOrder: integer("node_order").notNull().default(0),
+  posX: integer("pos_x").default(0), // canvas X position
+  posY: integer("pos_y").default(0), // canvas Y position
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSkillTreeNodeSchema = createInsertSchema(skillTreeNodes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateSkillTreeNodeSchema = insertSkillTreeNodeSchema.partial();
+export type SkillTreeNode = typeof skillTreeNodes.$inferSelect;
+export type InsertSkillTreeNode = typeof skillTreeNodes.$inferInsert;
+export type UpdateSkillTreeNode = Partial<InsertSkillTreeNode>;
+

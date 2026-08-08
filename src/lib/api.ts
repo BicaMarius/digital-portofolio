@@ -639,3 +639,68 @@ export async function updateFilmGenre(id: number, name: string): Promise<FilmGen
 export async function deleteFilmGenre(id: number): Promise<void> {
   return apiCall<void>(`/film-genres/${id}`, { method: 'DELETE' });
 }
+
+// ============ BOOK ITEMS API ============
+
+import type { BookItem, GameItem, SkillTreeNode } from '@shared/schema';
+
+export async function getBooks(): Promise<BookItem[]> {
+  return apiCall<BookItem[]>('/books');
+}
+export async function getTrashedBooks(): Promise<BookItem[]> {
+  return apiCall<BookItem[]>('/books/trash');
+}
+export async function createBook(book: Omit<BookItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<BookItem> {
+  return apiCall<BookItem>('/books', { method: 'POST', body: JSON.stringify(book) });
+}
+export async function updateBook(id: number, updates: Partial<BookItem>): Promise<BookItem> {
+  return apiCall<BookItem>(`/books/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+}
+export async function softDeleteBook(id: number): Promise<BookItem> {
+  return apiCall<BookItem>(`/books/${id}`, { method: 'PATCH', body: JSON.stringify({ deletedAt: new Date().toISOString() }) });
+}
+export async function restoreBook(id: number): Promise<BookItem> {
+  return apiCall<BookItem>(`/books/${id}`, { method: 'PATCH', body: JSON.stringify({ deletedAt: null }) });
+}
+export async function deleteBook(id: number): Promise<void> {
+  return apiCall<void>(`/books/${id}`, { method: 'DELETE' });
+}
+
+// ============ GAME ITEMS API ============
+
+export async function getGames(): Promise<GameItem[]> {
+  return apiCall<GameItem[]>('/games');
+}
+export async function getTrashedGames(): Promise<GameItem[]> {
+  return apiCall<GameItem[]>('/games/trash');
+}
+export async function createGame(game: Omit<GameItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<GameItem> {
+  return apiCall<GameItem>('/games', { method: 'POST', body: JSON.stringify(game) });
+}
+export async function updateGame(id: number, updates: Partial<GameItem>): Promise<GameItem> {
+  return apiCall<GameItem>(`/games/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+}
+export async function softDeleteGame(id: number): Promise<GameItem> {
+  return apiCall<GameItem>(`/games/${id}`, { method: 'PATCH', body: JSON.stringify({ deletedAt: new Date().toISOString() }) });
+}
+export async function restoreGame(id: number): Promise<GameItem> {
+  return apiCall<GameItem>(`/games/${id}`, { method: 'PATCH', body: JSON.stringify({ deletedAt: null }) });
+}
+export async function deleteGame(id: number): Promise<void> {
+  return apiCall<void>(`/games/${id}`, { method: 'DELETE' });
+}
+
+// ============ SKILL TREE API ============
+
+export async function getSkillTree(): Promise<SkillTreeNode[]> {
+  return apiCall<SkillTreeNode[]>('/skill-tree');
+}
+export async function createSkillNode(node: Omit<SkillTreeNode, 'id' | 'createdAt' | 'updatedAt'>): Promise<SkillTreeNode> {
+  return apiCall<SkillTreeNode>('/skill-tree', { method: 'POST', body: JSON.stringify(node) });
+}
+export async function updateSkillNode(id: number, updates: Partial<SkillTreeNode>): Promise<SkillTreeNode> {
+  return apiCall<SkillTreeNode>(`/skill-tree/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+}
+export async function deleteSkillNode(id: number): Promise<void> {
+  return apiCall<void>(`/skill-tree/${id}`, { method: 'DELETE' });
+}

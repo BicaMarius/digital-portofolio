@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AdminProvider } from "@/contexts/AdminContext";
 import { DataProvider } from "@/contexts/DataContext";
 import Index from "./pages/Index";
@@ -17,6 +17,7 @@ import UiUxDesign from "./pages/UiUxDesign";
 import TraditionalArt from "./pages/TraditionalArt";
 import CreativeWriting from "./pages/CreativeWriting";
 import Films from "./pages/Films";
+import Entertainment from "./pages/Entertainment";
 import Music from "./pages/Music";
 import Notes from "./pages/Notes";
 import { useEffect } from "react";
@@ -97,7 +98,9 @@ const App = () => (
               <Route path="/ui-ux" element={<UiUxDesign />} />
               <Route path="/traditional-art" element={<TraditionalArt />} />
               <Route path="/writing" element={<CreativeWriting />} />
-              <Route path="/films" element={<Films />} />
+              <Route path="/films" element={<Entertainment />} />
+              <Route path="/entertainment" element={<Entertainment />} />
+              <Route path="/cooking" element={<Navigate to="/notes" replace />} />
               <Route path="/music" element={<Music />} />
               <Route path="/notes" element={<Notes />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
