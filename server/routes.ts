@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import express, { type Express, Request } from "express";
 import { z } from "zod";
 import type { IStorage } from "./storage.js";
 import {

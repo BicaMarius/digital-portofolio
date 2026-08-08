@@ -14,6 +14,7 @@ import {
 } from '../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
+const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
