@@ -206,6 +206,18 @@ export default function Entertainment() {
     setIsModalOpen(true);
   };
 
+  // Derive default status from current sub-tab
+  const getDefaultStatus = () => {
+    if (activeSubTab === 'done') {
+      if (activeTab === 'films') return 'watched';
+      if (activeTab === 'books') return 'read';
+      return 'played';
+    }
+    if (activeTab === 'films') return 'to-watch';
+    if (activeTab === 'books') return 'to-read';
+    return 'to-play';
+  };
+
   const openEditModal = (e: React.MouseEvent, item: any) => {
     e.stopPropagation();
     setEditingItem(item);
@@ -461,6 +473,7 @@ export default function Entertainment() {
                 <SelectItem value="category">Tip</SelectItem>
                 <SelectItem value="year">An</SelectItem>
                 <SelectItem value="rating">Rating (văzute)</SelectItem>
+                {activeTab === 'books' && <SelectItem value="author">Autor</SelectItem>}
               </SelectContent>
             </Select>
             
@@ -514,6 +527,7 @@ export default function Entertainment() {
           onSave={loadData}
           genres={genres}
           setGenres={setGenres}
+          defaultStatus={editingItem ? undefined : getDefaultStatus()}
         />
       )}
 
@@ -684,6 +698,8 @@ function applyFiltersAndSort(items: any[], search: string, sortBy: string, filte
     copy.sort((a, b) => getPrimaryGenre(a).localeCompare(getPrimaryGenre(b)));
   } else if (sortBy === 'category') {
     copy.sort((a, b) => getItemCategory(a).localeCompare(getItemCategory(b)));
+  } else if (sortBy === 'author') {
+    copy.sort((a, b) => (a.author || '').localeCompare(b.author || ''));
   } else {
     // sortBy === 'none': Newly added items at top
     copy.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
@@ -703,6 +719,7 @@ function GroupedContainer({ items, sortBy, renderRow, titleLabel, collapsedGroup
       else if (sortBy === 'genre') key = getPrimaryGenre(item);
       else if (sortBy === 'category') key = getItemCategory(item);
       else if (sortBy === 'rating') key = item.rating ? `Rating ${item.rating}` : 'Fără rating';
+      else if (sortBy === 'author') key = item.author ? item.author : 'Autor necunoscut';
 
       const bucket = map.get(key) || [];
       bucket.push(item);
@@ -1142,39 +1159,92 @@ function ViewModal({ item, type, onClose, onEdit, isAdmin }: any) {
             </div>
           ) : (
             <>
-              {/* Metadata badges */}
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Metadata grid with labeled badges */}
+              <div className="grid grid-cols-2 gap-2">
                 {item.year && (
-                  <span className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-slate-300 flex items-center gap-1 font-medium">
-                    <Calendar className="w-3.5 h-3.5 text-purple-400" /> {item.year}
-                  </span>
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2">
+                    <Calendar className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-500 block leading-none mb-0.5">An</span>
+                      <span className="text-xs font-semibold text-slate-200">{item.year}</span>
+                    </div>
+                  </div>
                 )}
-
-                {genresList.map((g: string, idx: number) => (
-                  <span key={idx} className={cn("text-xs px-2.5 py-1 rounded-xl border font-medium", getGenreColor(g))}>
-                    {g}
-                  </span>
-                ))}
-
-                {item.director && <span className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-slate-300">{item.director}</span>}
-                {item.format && <span className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-slate-300">{item.format}</span>}
-                {item.platform && <span className="text-xs bg-purple-500/10 border border-purple-500/20 text-purple-300 px-2.5 py-1 rounded-xl font-medium">{item.platform}</span>}
-                {item.mode && <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-xl font-medium">{item.mode}</span>}
-                
-                {/* Glowing 100% Achievement Badge */}
-                {is100Achievement && (
-                  <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
-                    <Trophy className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> 100% Completed
-                  </span>
-                )}
-                
-                {/* Subtle rating badge only if specified */}
                 {item.rating && item.rating > 0 && (
-                  <span className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1">
-                    <StarIcon className="w-3.5 h-3.5 fill-amber-400" /> {item.rating} / 10
-                  </span>
+                  <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                    <StarIcon className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-amber-600 block leading-none mb-0.5">Rating</span>
+                      <span className="text-xs font-bold text-amber-300">{item.rating} / 10</span>
+                    </div>
+                  </div>
+                )}
+                {(item.director && type === 'films') && (
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2">
+                    <span className="text-sm shrink-0">{item.director === 'Serial' ? '📺' : item.director === 'Anime' ? '🌸' : '🎬'}</span>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-500 block leading-none mb-0.5">Tip</span>
+                      <span className="text-xs font-semibold text-slate-200">{item.director}</span>
+                    </div>
+                  </div>
+                )}
+                {(item.format && type === 'books') && (
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2">
+                    <span className="text-sm shrink-0">{item.format === 'Audio' ? '🎧' : item.format === 'Digital' ? '📱' : '📚'}</span>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-500 block leading-none mb-0.5">Format</span>
+                      <span className="text-xs font-semibold text-slate-200">{item.format}</span>
+                    </div>
+                  </div>
+                )}
+                {item.pages && (
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2">
+                    <span className="text-sm shrink-0">📄</span>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-500 block leading-none mb-0.5">Pagini</span>
+                      <span className="text-xs font-semibold text-slate-200">{item.pages}</span>
+                    </div>
+                  </div>
+                )}
+                {item.platform && (
+                  <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2">
+                    <span className="text-sm shrink-0">🖥️</span>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-purple-600 block leading-none mb-0.5">{type === 'travels' ? 'Oraș' : 'Platformă'}</span>
+                      <span className="text-xs font-semibold text-purple-300">{item.platform}</span>
+                    </div>
+                  </div>
+                )}
+                {item.mode && item.mode !== 'travel' && (
+                  <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2">
+                    <span className="text-sm shrink-0">🎮</span>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-blue-600 block leading-none mb-0.5">Mod</span>
+                      <span className="text-xs font-semibold text-blue-300">{item.mode}</span>
+                    </div>
+                  </div>
+                )}
+                {is100Achievement && (
+                  <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 rounded-xl px-3 py-2 col-span-2">
+                    <Trophy className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                    <span className="text-xs font-bold text-amber-300">100% Achievement Completed</span>
+                  </div>
                 )}
               </div>
+
+              {/* Colored genre tags with label */}
+              {genresList.length > 0 && (
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-slate-500 block mb-1.5">{type === 'films' ? 'Categorii' : type === 'books' ? 'Genuri' : type === 'games' ? 'Genuri' : 'Continent'}</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {genresList.map((g: string, idx: number) => (
+                      <span key={idx} className={cn("text-xs px-2.5 py-1 rounded-xl border font-medium", getGenreColor(g))}>
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Status */}
               <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
@@ -1269,7 +1339,70 @@ function ViewModal({ item, type, onClose, onEdit, isAdmin }: any) {
 // ==========================================
 // MODAL FORMS & CLEAN TABBED CONTROLS
 // ==========================================
-function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: any) {
+function AuthorCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const STORAGE_KEY = 'portfolio_book_authors';
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState(value || '');
+  const [authors, setAuthors] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  });
+
+  const saveAuthor = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setAuthors(prev => {
+      const updated = Array.from(new Set([trimmed, ...prev]));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    onChange(trimmed);
+    setInput(trimmed);
+    setOpen(false);
+  };
+
+  const filtered = authors.filter(a => a.toLowerCase().includes(input.toLowerCase()));
+
+  return (
+    <div className="relative">
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={input}
+          onChange={e => { setInput(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 200)}
+          className={inputCls}
+          placeholder="Introdu sau alege autor..."
+        />
+        {input.trim() && !authors.includes(input.trim()) && (
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); saveAuthor(input); }}
+            className="shrink-0 px-3 bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs rounded-xl hover:bg-purple-600/30 transition-colors font-medium whitespace-nowrap"
+          >
+            + Salvează
+          </button>
+        )}
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-[#161622] border border-white/10 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
+          {filtered.map(a => (
+            <button
+              key={a}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); saveAuthor(a); }}
+              className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-purple-500/10 hover:text-purple-300 transition-colors"
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres, defaultStatus }: any) {
   const { isAdmin } = useAdmin();
   const [modalTab, setModalTab] = useState<'info'|'media'>('info');
   const [formData, setFormData] = useState<any>({});
@@ -1277,14 +1410,15 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: a
   useEffect(() => {
     const defaultContinent = 'Europa';
     let init: any = {};
+    const effectiveStatus = defaultStatus || (type === 'films' ? 'to-watch' : type === 'books' ? 'to-read' : 'to-play');
     if (type === 'films') {
-      init = { title: '', director: 'Film', status: 'to-watch', rating: null, year: '', description: '', genre: [], isPrivate: false };
+      init = { title: '', director: 'Film', status: effectiveStatus, rating: null, year: '', description: '', genre: [], isPrivate: false };
     } else if (type === 'books') {
-      init = { title: '', author: '', status: 'to-read', rating: null, year: '', description: '', genre: [], format: 'Fizic', pages: '', isPrivate: false };
+      init = { title: '', author: '', status: effectiveStatus, rating: null, year: '', description: '', genre: [], format: 'Fizic', pages: '', isPrivate: false };
     } else if (type === 'games') {
-      init = { title: '', developer: '', status: 'to-play', rating: null, year: '', description: '', genre: [], platform: 'PC', mode: 'Single', maxPlayers: '', isPrivate: false, fullAchievement: false };
+      init = { title: '', developer: '', status: effectiveStatus, rating: null, year: '', description: '', genre: [], platform: 'PC', mode: 'Single', maxPlayers: '', isPrivate: false, fullAchievement: false };
     } else {
-      init = { title: '', developer: '', status: 'to-play', rating: null, year: '', notes: '', description: '', visitedZones: '', daysSpent: '', genre: [defaultContinent], mode: 'travel', platform: '', mediaUrls: '', isPrivate: false };
+      init = { title: '', developer: '', status: effectiveStatus, rating: null, year: '', notes: '', description: '', visitedZones: '', daysSpent: '', genre: [defaultContinent], mode: 'travel', platform: '', mediaUrls: '', isPrivate: false };
     }
 
     if (item) {
@@ -1304,7 +1438,7 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: a
       setFormData(init);
     }
     setModalTab('info');
-  }, [item, type, isOpen]);
+  }, [item, type, isOpen, defaultStatus]);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -1353,9 +1487,16 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: a
   };
 
   // Image Upload with Canvas compression and ||| separator
+  const MAX_PHOTOS = 5;
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    const currentCount = parseMediaUrls(formData.mediaUrls, formData.notes).length;
+    if (currentCount >= MAX_PHOTOS) {
+      toast({ title: `Maxim ${MAX_PHOTOS} poze permise`, description: 'Șterge o poză existentă pentru a adăuga alta.', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
 
     Array.from(files).forEach(file => {
       if (!file.type.startsWith('image/')) return;
@@ -1368,7 +1509,8 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: a
         img.onload = () => {
           try {
             const canvas = document.createElement('canvas');
-            const MAX_DIM = 400;
+            // Keep images small to avoid DB payload limits (max ~50KB per photo)
+            const MAX_DIM = 280;
             let w = img.width || 400;
             let h = img.height || 300;
 
@@ -1387,7 +1529,8 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: a
               ctx.fillStyle = '#000000';
               ctx.fillRect(0, 0, w, h);
               ctx.drawImage(img, 0, 0, w, h);
-              const compressed = canvas.toDataURL('image/jpeg', 0.5);
+              // Use lower quality (0.35) to keep payload small
+              const compressed = canvas.toDataURL('image/jpeg', 0.35);
               if (compressed && compressed.length > 50) {
                 addPhotoToState(compressed);
                 return;
@@ -1565,9 +1708,12 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres }: a
                     </div>
                   )}
                   {type === 'books' && (
-                    <div>
+                    <div className="col-span-2">
                       <Label className={labelCls}>Autor</Label>
-                      <input type="text" value={formData.author || ''} onChange={e => setFormData({...formData, author: e.target.value})} className={inputCls} />
+                      <AuthorCombobox
+                        value={formData.author || ''}
+                        onChange={v => setFormData({...formData, author: v})}
+                      />
                     </div>
                   )}
                   {type === 'games' && (
