@@ -19,47 +19,51 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const SEED_DATA: Omit<SkillTreeNode, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>[] = [
-  { parentId: null, label: 'Marius Bică', icon: '🌟', description: 'Root node', level: 0, category: 'root', acquiredDate: null, linkUrl: null, nodeOrder: 0, posX: 600, posY: 50 },
+  { parentId: null, label: 'Bica Marius', icon: '🌟', description: 'Root node', level: 0, category: 'root', acquiredDate: null, linkUrl: null, nodeOrder: 0, posX: 800, posY: 60 },
   
   // Branches
-  { parentId: 1, label: 'IT & Dev', icon: '🖥️', description: 'Tech skills', level: 0, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 200, posY: 200 },
-  { parentId: 1, label: 'Artă & Design', icon: '🎨', description: 'Creative skills', level: 0, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 400, posY: 200 },
-  { parentId: 1, label: 'Carieră', icon: '💼', description: 'Career achievements', level: 0, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 600, posY: 200 },
-  { parentId: 1, label: 'Sport & Fitness', icon: '🏋️', description: 'Physical activities', level: 0, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 800, posY: 200 },
-  { parentId: 1, label: 'Muzică', icon: '🎸', description: 'Musical instruments and theory', level: 0, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 1000, posY: 200 },
+  { parentId: 1, label: 'IT & Dev', icon: '🖥️', description: 'Tech skills', level: 0, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 250, posY: 220 },
+  { parentId: 1, label: 'Artă & Design', icon: '🎨', description: 'Creative skills', level: 0, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 600, posY: 220 },
+  { parentId: 1, label: 'Carieră', icon: '💼', description: 'Career achievements', level: 0, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 900, posY: 220 },
+  { parentId: 1, label: 'Sport & Fitness', icon: '🏋️', description: 'Physical activities', level: 0, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 1150, posY: 220 },
+  { parentId: 1, label: 'Muzică', icon: '🎸', description: 'Musical instruments and theory', level: 0, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 1400, posY: 220 },
 
   // IT
-  { parentId: 2, label: 'React', icon: '⚛️', description: 'Frontend library', level: 5, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 100, posY: 380 },
-  { parentId: 2, label: 'TypeScript', icon: '📘', description: 'Typed JavaScript', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 200, posY: 380 },
-  { parentId: 2, label: 'PostgreSQL', icon: '🐘', description: 'Relational Database', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 300, posY: 380 },
-  { parentId: 2, label: 'Python', icon: '🐍', description: 'Scripting and Data', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 100, posY: 520 },
-  { parentId: 2, label: 'Node.js', icon: '🟩', description: 'Backend runtime', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 200, posY: 520 },
-  { parentId: 2, label: 'Docker', icon: '🐳', description: 'Containerization', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 6, posX: 300, posY: 520 },
+  { parentId: 2, label: 'React', icon: '⚛️', description: 'Frontend library', level: 5, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 80, posY: 380 },
+  { parentId: 2, label: 'TypeScript', icon: '📘', description: 'Typed JavaScript', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 240, posY: 380 },
+  { parentId: 2, label: 'PostgreSQL', icon: '🐘', description: 'Relational Database', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 400, posY: 380 },
+  { parentId: 2, label: 'Python', icon: '🐍', description: 'Scripting and Data', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 80, posY: 540 },
+  { parentId: 2, label: 'Node.js', icon: '🟩', description: 'Backend runtime', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 240, posY: 540 },
+  { parentId: 2, label: 'Docker', icon: '🐳', description: 'Containerization', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 6, posX: 400, posY: 540 },
 
   // Arta
-  { parentId: 3, label: 'Fotografie', icon: '📷', description: 'DSLR and Editing', level: 5, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 350, posY: 380 },
-  { parentId: 3, label: 'Digital Art', icon: '🖌️', description: 'Procreate, Photoshop', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 450, posY: 380 },
-  { parentId: 3, label: 'UI/UX Design', icon: '🎯', description: 'Figma, User Research', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 550, posY: 380 },
+  { parentId: 3, label: 'Fotografie', icon: '📷', description: 'DSLR and Editing', level: 5, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 540, posY: 380 },
+  { parentId: 3, label: 'Digital Art', icon: '🖌️', description: 'Procreate, Photoshop', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 680, posY: 380 },
+  { parentId: 3, label: 'UI/UX Design', icon: '🎯', description: 'Figma, User Research', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 820, posY: 380 },
 
   // Cariera
-  { parentId: 4, label: 'Certificare AWS', icon: '☁️', description: 'Solutions Architect Associate', level: 3, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 550, posY: 380 },
-  { parentId: 4, label: 'Proiecte Live', icon: '🚀', description: 'Multiple apps in production', level: 4, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 650, posY: 380 },
+  { parentId: 4, label: 'Certificare AWS', icon: '☁️', description: 'Solutions Architect Associate', level: 3, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 900, posY: 380 },
+  { parentId: 4, label: 'Proiecte Live', icon: '🚀', description: 'Multiple apps in production', level: 4, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1060, posY: 380 },
 
   // Sport
-  { parentId: 5, label: 'Fitness', icon: '💪', description: 'Weight lifting', level: 3, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 750, posY: 380 },
-  { parentId: 5, label: 'Ciclism', icon: '🚴', description: 'Road cycling', level: 4, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 850, posY: 380 },
+  { parentId: 5, label: 'Fitness', icon: '💪', description: 'Weight lifting', level: 3, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 1150, posY: 380 },
+  { parentId: 5, label: 'Ciclism', icon: '🚴', description: 'Road cycling', level: 4, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1300, posY: 380 },
 
   // Muzica
-  { parentId: 6, label: 'Chitară', icon: '🎸', description: 'Acoustic and Electric', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 950, posY: 380 },
-  { parentId: 6, label: 'Compoziție', icon: '🎵', description: 'Music theory and writing', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1050, posY: 380 },
+  { parentId: 6, label: 'Chitară', icon: '🎸', description: 'Acoustic and Electric', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 1400, posY: 380 },
+  { parentId: 6, label: 'Compoziție', icon: '🎵', description: 'Music theory and writing', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1560, posY: 380 },
 ];
 
-const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, editMode }: any) => {
+const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, editMode, isActionActive, onClick, onDragStart }: any) => {
   const [hovered, setHovered] = useState(false);
   return (
-    <div className="relative" style={{ width: 56, height: 56 }}
+    <div 
+      className="relative node-element" 
+      style={{ width: 56, height: 56 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onMouseDown={(e) => onDragStart(node.id, e)}
+      onClick={(e) => onClick(node, e)}
     >
       {/* Hover tooltip */}
       {hovered && !editMode && (
@@ -80,31 +84,46 @@ const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, e
 
       {/* Circle node */}
       <div
-        className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all duration-200 hover:scale-110 active:scale-95 border-2 ${editMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+        className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all duration-200 hover:scale-110 active:scale-95 border-2 ${editMode ? (isActionActive ? 'border-purple-400 scale-110 shadow-[0_0_20px_rgba(168,85,247,0.6)]' : 'cursor-grab active:cursor-grabbing') : 'cursor-pointer'}`}
         style={{
           background: `${color}20`,
-          borderColor: hovered ? color : `${color}40`,
-          boxShadow: hovered ? `0 0 20px ${color}50, 0 0 8px ${color}30` : `0 0 8px ${color}20`,
+          borderColor: (hovered || isActionActive) ? color : `${color}40`,
+          boxShadow: (hovered || isActionActive) ? `0 0 20px ${color}50, 0 0 8px ${color}30` : `0 0 8px ${color}20`,
         }}
       >
         {node.icon || '⚡'}
       </div>
 
-      {/* Edit mode mini toolbar — appears on hover in edit mode */}
-      {editMode && hovered && isAdmin && (
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex gap-1 z-50 pointer-events-auto"
-             onMouseDown={(e) => e.stopPropagation()}>
-          <button onClick={onEdit} className="w-6 h-6 rounded-full bg-indigo-500/80 hover:bg-indigo-400 flex items-center justify-center"
-            title="Editează">
-            <span className="text-white text-[10px]">✏️</span>
+      {/* Edit mode mini toolbar — stays visible when clicked (isActionActive) or hovered */}
+      {editMode && isAdmin && (isActionActive || hovered) && (
+        <div 
+          className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1 bg-[#161626] border border-purple-500/60 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.6)] z-50 pointer-events-auto animate-in zoom-in-95 duration-150"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(node, e); }} 
+            className="w-7 h-7 rounded-lg bg-indigo-500/30 hover:bg-indigo-500 text-white flex items-center justify-center transition-all hover:scale-105"
+            title="Editează"
+          >
+            ✏️
           </button>
-          <button onClick={onDelete} className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-400 flex items-center justify-center"
-            title="Șterge">
-            <span className="text-white text-[10px]">🗑️</span>
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(node.id, e); }} 
+            className="w-7 h-7 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-white flex items-center justify-center transition-all hover:scale-105"
+            title="Șterge"
+          >
+            🗑️
           </button>
-          <button onClick={onAddChild} className="w-6 h-6 rounded-full bg-emerald-500/80 hover:bg-emerald-400 flex items-center justify-center"
-            title="Adaugă sub-abilitate">
-            <span className="text-white text-[10px]">➕</span>
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAddChild(node.id, e); }} 
+            className="w-7 h-7 rounded-lg bg-emerald-500/30 hover:bg-emerald-500 text-white flex items-center justify-center transition-all hover:scale-105"
+            title="Adaugă sub-abilitate"
+          >
+            ➕
           </button>
         </div>
       )}
@@ -118,6 +137,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [activeEditNodeId, setActiveEditNodeId] = useState<number | null>(null);
   
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -139,7 +159,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     loadNodes();
   }, []);
 
-  // 1. Scroll Isolation with native event listener
+  // 1. Scroll Isolation with native centered zoom event listener
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -147,23 +167,100 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const delta = -e.deltaY * 0.001;
-      setZoom(prev => Math.min(Math.max(0.3, prev + delta * prev), 2.5));
+      const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+      
+      setZoom(prevZoom => {
+        const newZoom = Math.min(Math.max(0.3, prevZoom * zoomFactor), 2.5);
+        if (container && newZoom !== prevZoom) {
+          const rect = container.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          const ratio = newZoom / prevZoom;
+          setPan(prevPan => ({
+            x: mouseX - (mouseX - prevPan.x) * ratio,
+            y: mouseY - (mouseY - prevPan.y) * ratio
+          }));
+        }
+        return newZoom;
+      });
     };
     
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
+  const handleZoomChange = (delta: number) => {
+    setZoom(prevZoom => {
+      const newZoom = Math.min(Math.max(0.3, prevZoom + delta), 2.5);
+      if (containerRef.current && newZoom !== prevZoom) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const ratio = newZoom / prevZoom;
+        setPan(prevPan => ({
+          x: cx - (cx - prevPan.x) * ratio,
+          y: cy - (cy - prevPan.y) * ratio
+        }));
+      }
+      return newZoom;
+    });
+  };
+
   const loadNodes = async () => {
     setLoading(true);
     try {
       const data = await getSkillTree();
-      setNodes(data);
+      // Ensure root node label is "Bica Marius"
+      const updated = data.map(n => {
+        if ((n.parentId === null || n.category === 'root') && n.label === 'Marius Bică') {
+          updateSkillNode(n.id, { label: 'Bica Marius' }).catch(() => {});
+          return { ...n, label: 'Bica Marius' };
+        }
+        return n;
+      });
+      setNodes(updated);
     } catch (error) {
       console.error('Failed to load skill tree:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAutoArrange = async () => {
+    if (!isAdmin || nodes.length === 0) return;
+    try {
+      const root = nodes.find(n => n.parentId === null || n.category === 'root');
+      const updatedNodes = [...nodes];
+      
+      if (root) {
+        root.posX = 800;
+        root.posY = 60;
+        
+        const branches = updatedNodes.filter(n => n.parentId === root.id);
+        const branchSpacing = 280;
+        const startX = 800 - Math.max(0, ((branches.length - 1) * branchSpacing) / 2);
+
+        branches.forEach((b, bIdx) => {
+          b.posX = startX + bIdx * branchSpacing;
+          b.posY = 220;
+
+          const children = updatedNodes.filter(n => n.parentId === b.id);
+          children.forEach((c, cIdx) => {
+            const row = Math.floor(cIdx / 3);
+            const col = cIdx % 3;
+            c.posX = b.posX - 80 + col * 120;
+            c.posY = 380 + row * 140;
+          });
+        });
+      }
+
+      setNodes(updatedNodes);
+
+      for (const n of updatedNodes) {
+        await updateSkillNode(n.id, { posX: Math.round(n.posX), posY: Math.round(n.posY), label: n.label }).catch(() => {});
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -194,6 +291,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.node-element')) return; 
     
+    setActiveEditNodeId(null);
     setIsPanning(true);
     setLastMousePos({ x: e.clientX, y: e.clientY });
   };
@@ -237,7 +335,10 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     e.stopPropagation();
     if (draggedNodeId !== null) return; 
 
-    if (isEditMode) return; 
+    if (isEditMode) {
+      setActiveEditNodeId(prev => prev === node.id ? null : node.id);
+      return; 
+    }
 
     if (node.level === 0 && node.parentId !== null) {
       setSelectedBranch(prev => prev === node.id ? null : node.id);
@@ -262,6 +363,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     try {
       await deleteSkillNode(id);
       setSelectedNode(null);
+      setActiveEditNodeId(null);
       setNodes(prev => prev.filter(n => n.id !== id));
     } catch (err) {
       console.error(err);
@@ -310,6 +412,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
       }
       setShowAddForm(false);
       setEditNodeData(null);
+      setActiveEditNodeId(null);
     } catch (err) {
       console.error(err);
     }
@@ -439,13 +542,13 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
 
         <div className="flex items-center gap-2">
           <div className="flex bg-[#09090b] border border-white/10 rounded-lg overflow-hidden">
-            <button onClick={() => setZoom(z => Math.max(0.3, z - 0.2))} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Zoom Out">
+            <button onClick={() => handleZoomChange(-0.2)} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Zoom Out">
               <ZoomOut className="w-4 h-4" />
             </button>
             <button onClick={() => { setZoom(1); setPan({x:0, y:0}); }} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Reset View">
               <Maximize className="w-4 h-4" />
             </button>
-            <button onClick={() => setZoom(z => Math.min(2.5, z + 0.2))} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Zoom In">
+            <button onClick={() => handleZoomChange(0.2)} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Zoom In">
               <ZoomIn className="w-4 h-4" />
             </button>
           </div>
@@ -463,7 +566,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                 </button>
               )}
               <button 
-                onClick={() => setIsEditMode(!isEditMode)}
+                onClick={() => { setIsEditMode(!isEditMode); setActiveEditNodeId(null); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   isEditMode ? 'bg-purple-600 text-white' : 'bg-white/5 text-slate-300 hover:bg-white/10'
                 }`}
@@ -471,12 +574,21 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                 <Edit2 className="w-4 h-4" /> {isEditMode ? 'Ieși din Mod Editare' : 'Editează'}
               </button>
               {isEditMode && (
-                <button 
-                  onClick={openAddNewNode}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-lg text-sm transition-colors"
-                >
-                  <Plus className="w-4 h-4" /> Adaugă Nod
-                </button>
+                <>
+                  <button 
+                    onClick={openAddNewNode}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-lg text-sm transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Adaugă Nod
+                  </button>
+                  <button 
+                    onClick={handleAutoArrange}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-sm transition-colors"
+                    title="Rearanjează automat nodurile pentru a preveni suprapunerea"
+                  >
+                    <Maximize className="w-4 h-4" /> Auto-Aranjează
+                  </button>
+                </>
               )}
             </>
           )}
@@ -537,6 +649,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
             const isBranch = node.level === 0 && node.parentId;
             const color = CATEGORY_COLORS[node.category] || '#ffffff';
             const isFiltered = (selectedBranch === node.id || filterCategory === node.category);
+            const isActionActive = activeEditNodeId === node.id;
 
             return (
               <div
@@ -546,27 +659,29 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                   left: node.posX,
                   top: node.posY,
                   animationDelay: `${i * 30}ms`,
-                  zIndex: draggedNodeId === node.id ? 50 : 10,
+                  zIndex: draggedNodeId === node.id ? 50 : (isActionActive ? 40 : 10),
                 }}
               >
                 {isRoot ? (
-                  <div className={`w-20 h-20 rounded-full border-2 bg-purple-500/10 flex flex-col items-center justify-center relative group ${isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                  <div className={`w-20 h-20 rounded-full border-2 bg-purple-500/10 flex flex-col items-center justify-center relative group ${isEditMode ? (isActionActive ? 'border-purple-400 scale-105 shadow-[0_0_25px_rgba(168,85,247,0.6)]' : 'cursor-grab active:cursor-grabbing') : 'cursor-pointer'}`}
                        style={{ borderColor: color, boxShadow: `0 0 30px rgba(147,51,234,0.4)` }}
                        onMouseDown={(e) => handleNodeDragStart(node.id, e)}
                        onClick={(e) => handleNodeClick(node, e)}>
                     <span className="text-2xl drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">{node.icon}</span>
                     <span className="text-[10px] font-bold text-white mt-0.5 text-center px-1 leading-tight drop-shadow-md">{node.label}</span>
                     
-                    {isEditMode && isAdmin && (
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex gap-1 z-50 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity" onMouseDown={e => e.stopPropagation()}>
-                        <button onClick={(e) => handleEditNode(node, e)} className="w-6 h-6 rounded-full bg-indigo-500/80 hover:bg-indigo-400 flex items-center justify-center" title="Editează"><span className="text-white text-[10px]">✏️</span></button>
-                        <button onClick={(e) => openAddChildForm(node.id, e)} className="w-6 h-6 rounded-full bg-emerald-500/80 hover:bg-emerald-400 flex items-center justify-center" title="Adaugă sub-abilitate"><span className="text-white text-[10px]">➕</span></button>
+                    {isEditMode && isAdmin && isActionActive && (
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1 bg-[#161626] border border-purple-500/60 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.6)] z-50 pointer-events-auto animate-in zoom-in-95 duration-150"
+                           onMouseDown={e => e.stopPropagation()}
+                           onClick={e => e.stopPropagation()}>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleEditNode(node, e); }} className="w-7 h-7 rounded-lg bg-indigo-500/30 hover:bg-indigo-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Editează"><span className="text-sm">✏️</span></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); openAddChildForm(node.id, e); }} className="w-7 h-7 rounded-lg bg-emerald-500/30 hover:bg-emerald-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Adaugă sub-abilitate"><span className="text-sm">➕</span></button>
                       </div>
                     )}
                   </div>
                 ) : isBranch ? (
                   <div className="relative group">
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border font-semibold text-xs transition-all hover:scale-105 ${isFiltered ? 'scale-110 shadow-lg' : ''} ${isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border font-semibold text-xs transition-all hover:scale-105 ${isFiltered ? 'scale-110 shadow-lg' : ''} ${isEditMode ? (isActionActive ? 'border-purple-400 scale-105' : 'cursor-grab active:cursor-grabbing') : 'cursor-pointer'}`}
                          style={{ 
                            borderColor: color, 
                            boxShadow: isFiltered ? `0 0 25px ${color}60` : `0 0 12px ${color}30`, 
@@ -579,11 +694,13 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                       <span>{node.label}</span>
                     </div>
 
-                    {isEditMode && isAdmin && (
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex gap-1 z-50 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity" onMouseDown={e => e.stopPropagation()}>
-                        <button onClick={(e) => handleEditNode(node, e)} className="w-6 h-6 rounded-full bg-indigo-500/80 hover:bg-indigo-400 flex items-center justify-center" title="Editează"><span className="text-white text-[10px]">✏️</span></button>
-                        <button onClick={(e) => handleDeleteNode(node.id, e)} className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-400 flex items-center justify-center" title="Șterge"><span className="text-white text-[10px]">🗑️</span></button>
-                        <button onClick={(e) => openAddChildForm(node.id, e)} className="w-6 h-6 rounded-full bg-emerald-500/80 hover:bg-emerald-400 flex items-center justify-center" title="Adaugă sub-abilitate"><span className="text-white text-[10px]">➕</span></button>
+                    {isEditMode && isAdmin && isActionActive && (
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1 bg-[#161626] border border-purple-500/60 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.6)] z-50 pointer-events-auto animate-in zoom-in-95 duration-150"
+                           onMouseDown={e => e.stopPropagation()}
+                           onClick={e => e.stopPropagation()}>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleEditNode(node, e); }} className="w-7 h-7 rounded-lg bg-indigo-500/30 hover:bg-indigo-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Editează"><span className="text-sm">✏️</span></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id, e); }} className="w-7 h-7 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Șterge"><span className="text-sm">🗑️</span></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); openAddChildForm(node.id, e); }} className="w-7 h-7 rounded-lg bg-emerald-500/30 hover:bg-emerald-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Adaugă sub-abilitate"><span className="text-sm">➕</span></button>
                       </div>
                     )}
                   </div>
@@ -593,9 +710,10 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                     color={color} 
                     isAdmin={isAdmin}
                     editMode={isEditMode}
-                    onEdit={(e: React.MouseEvent) => handleEditNode(node, e)}
-                    onDelete={(e: React.MouseEvent) => handleDeleteNode(node.id, e)}
-                    onAddChild={(e: React.MouseEvent) => openAddChildForm(node.id, e)}
+                    isActionActive={isActionActive}
+                    onEdit={(node: SkillTreeNode, e: React.MouseEvent) => handleEditNode(node, e)}
+                    onDelete={(id: number, e: React.MouseEvent) => handleDeleteNode(id, e)}
+                    onAddChild={(id: number, e: React.MouseEvent) => openAddChildForm(id, e)}
                     onClick={handleNodeClick}
                     onDragStart={handleNodeDragStart}
                   />

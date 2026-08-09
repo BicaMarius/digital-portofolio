@@ -19,7 +19,7 @@ import {
 import {
   Tv2, Plus, BookOpen, Gamepad2, Search, Star, ArrowUpDown, Trash2, 
   RotateCcw, Pencil, Loader2, Filter, CheckCircle2, Eye, Map as MapIcon, Lock, Star as StarIcon,
-  ChevronDown, ChevronRight, ChevronsUpDown, Check, X, Image as ImageIcon, Upload, Calendar, User, Compass, ExternalLink, Trophy
+  ChevronDown, ChevronRight, ChevronsUpDown, Check, X, Image as ImageIcon, Upload, Calendar, User, Compass, ExternalLink, Trophy, SlidersHorizontal
 } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { cn } from '@/lib/utils';
@@ -1279,38 +1279,6 @@ function ViewModal({ item, type, onClose, onEdit, isAdmin }: any) {
                   </p>
                 </div>
               )}
-
-              {/* Photo Gallery preview inside Info tab */}
-              {mediaList.length > 0 && (
-                <div className="space-y-2 bg-white/5 p-3 rounded-2xl border border-white/5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      🖼️ Galerie Foto ({mediaList.length})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setViewTab('photos')}
-                      className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold"
-                    >
-                      Vezi toate ➔
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {mediaList.slice(0, 3).map((img, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => setActivePhoto(img)}
-                        className="h-24 rounded-xl overflow-hidden border border-white/10 bg-black/40 cursor-pointer hover:opacity-90 transition-all relative group"
-                      >
-                        <img src={img} alt={`foto-${idx}`} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px]">
-                          Mărește
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -1448,23 +1416,30 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres, def
         ? `${rawNotes}\n[100% Achievement]`.trim() 
         : rawNotes;
 
+      const parseNum = (v: any) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
+        return isNaN(n) ? null : n;
+      };
+      const parseStr = (v: any) => (typeof v === 'string' && v.trim() ? v.trim() : (v ? String(v) : null));
+
       const data: any = {
-        title: formData.title?.trim() || 'Fără titlu',
-        developer: formData.developer?.trim() || null,
-        author: formData.author?.trim() || null,
-        director: formData.director || null,
-        format: formData.format || null,
-        platform: formData.platform?.trim() || null,
-        mode: formData.mode || (type === 'travels' ? 'travel' : 'Single'),
+        title: parseStr(formData.title) || 'Fără titlu',
+        developer: parseStr(formData.developer),
+        author: parseStr(formData.author),
+        director: parseStr(formData.director),
+        format: parseStr(formData.format),
+        platform: parseStr(formData.platform),
+        mode: parseStr(formData.mode) || (type === 'travels' ? 'travel' : 'Single'),
         genre: Array.isArray(formData.genre) ? formData.genre : (formData.genre ? [formData.genre] : []),
-        year: formData.year ? String(formData.year).trim() : null,
-        status: formData.status || 'to-play',
-        rating: formData.rating && !isNaN(Number(formData.rating)) && Number(formData.rating) > 0 ? Number(formData.rating) : null,
-        pages: formData.pages && !isNaN(Number(formData.pages)) ? Number(formData.pages) : null,
-        maxPlayers: formData.maxPlayers && !isNaN(Number(formData.maxPlayers)) ? Number(formData.maxPlayers) : null,
-        daysSpent: formData.daysSpent && !isNaN(Number(formData.daysSpent)) ? Number(formData.daysSpent) : null,
-        visitedZones: formData.visitedZones?.trim() || null,
-        mediaUrls: formData.mediaUrls?.trim() || null,
+        year: parseStr(formData.year),
+        status: parseStr(formData.status) || 'to-play',
+        rating: parseNum(formData.rating),
+        pages: parseNum(formData.pages),
+        maxPlayers: parseNum(formData.maxPlayers),
+        daysSpent: parseNum(formData.daysSpent),
+        visitedZones: parseStr(formData.visitedZones),
+        mediaUrls: parseStr(formData.mediaUrls),
         notes: notesWithAch || null,
         fullAchievement: !!formData.fullAchievement,
         isPrivate: !!formData.isPrivate,
@@ -1486,9 +1461,48 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres, def
     }
   };
 
-  // Image Upload with Canvas compression and ||| separator
+  // Image Upload via Cloudinary API endpoint with quality settings
   const MAX_PHOTOS = 5;
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [imageQuality, setImageQuality] = useState<'original' | 'medium' | 'low'>('original');
+
+  const compressFileToBlob = (file: File, maxDim: number, quality: number): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else if (h > maxDim) {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', quality);
+            return;
+          }
+          resolve(file);
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const currentCount = parseMediaUrls(formData.mediaUrls, formData.notes).length;
@@ -1498,56 +1512,83 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres, def
       return;
     }
 
-    Array.from(files).forEach(file => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const rawDataUrl = event.target?.result as string;
-        if (!rawDataUrl) return;
+    setIsUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
 
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            // Keep images small to avoid DB payload limits (max ~50KB per photo)
-            const MAX_DIM = 280;
-            let w = img.width || 400;
-            let h = img.height || 300;
+        let fileToUpload: Blob = file;
+        if (imageQuality === 'medium') {
+          fileToUpload = await compressFileToBlob(file, 900, 0.75);
+        } else if (imageQuality === 'low') {
+          fileToUpload = await compressFileToBlob(file, 500, 0.5);
+        }
 
-            if (w > h && w > MAX_DIM) {
-              h = Math.round((h * MAX_DIM) / w);
-              w = MAX_DIM;
-            } else if (h > MAX_DIM) {
-              w = Math.round((w * MAX_DIM) / h);
-              h = MAX_DIM;
+        // Try Cloudinary upload via API endpoint first
+        try {
+          const fd = new FormData();
+          fd.append('file', fileToUpload, file.name);
+          fd.append('folder', 'portfolio-travels');
+          const res = await fetch('/api/upload/image', { method: 'POST', body: fd });
+          if (res.ok) {
+            const result = await res.json();
+            if (result?.url) {
+              addPhotoToState(result.url);
+              continue;
             }
-
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.fillStyle = '#000000';
-              ctx.fillRect(0, 0, w, h);
-              ctx.drawImage(img, 0, 0, w, h);
-              // Use lower quality (0.35) to keep payload small
-              const compressed = canvas.toDataURL('image/jpeg', 0.35);
-              if (compressed && compressed.length > 50) {
-                addPhotoToState(compressed);
-                return;
-              }
-            }
-          } catch (err) {
-            console.error('Canvas error:', err);
           }
-          addPhotoToState(rawDataUrl);
-        };
-        img.onerror = () => addPhotoToState(rawDataUrl);
-        img.src = rawDataUrl;
-      };
-      reader.readAsDataURL(file);
-    });
+        } catch (uploadErr) {
+          console.warn('Cloudinary upload API failed, trying compressed local data URL:', uploadErr);
+        }
 
-    e.target.value = '';
+        // Fallback: local compressed base64 if Cloudinary endpoint isn't available
+        const maxDim = imageQuality === 'original' ? 1200 : imageQuality === 'medium' ? 700 : 350;
+        const quality = imageQuality === 'original' ? 0.8 : imageQuality === 'medium' ? 0.6 : 0.4;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const rawDataUrl = event.target?.result as string;
+          if (!rawDataUrl) return;
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              let w = img.width || 300;
+              let h = img.height || 200;
+              if (w > h && w > maxDim) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else if (h > maxDim) {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                const compressed = canvas.toDataURL('image/jpeg', quality);
+                if (compressed && compressed.length > 50) {
+                  addPhotoToState(compressed);
+                  return;
+                }
+              }
+            } catch (err) {
+              console.error('Canvas error:', err);
+            }
+            addPhotoToState(rawDataUrl);
+          };
+          img.onerror = () => addPhotoToState(rawDataUrl);
+          img.src = rawDataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const addPhotoToState = (url: string) => {
@@ -1654,11 +1695,27 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres, def
                 
                 {/* Upload Imagini de pe disc */}
                 <div>
-                  <Label className={labelCls}>Încarcă Poze din dispozitiv</Label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label className={labelCls}>Încarcă Poze din dispozitiv</Label>
+                    <div className="flex items-center gap-1.5 bg-[#09090b] border border-white/10 px-2.5 py-1 rounded-xl text-xs">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">Calitate:</span>
+                      <select
+                        value={imageQuality}
+                        onChange={(e: any) => setImageQuality(e.target.value)}
+                        className="bg-transparent text-[11px] text-purple-300 outline-none cursor-pointer font-medium"
+                      >
+                        <option value="original" className="bg-[#111118] text-slate-200">Originală</option>
+                        <option value="medium" className="bg-[#111118] text-slate-200">Medie</option>
+                        <option value="low" className="bg-[#111118] text-slate-200">Redusă</option>
+                      </select>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
                     <label className="flex items-center gap-2 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-xs px-4 py-2.5 rounded-xl cursor-pointer transition-colors text-purple-200 font-medium">
-                      <Upload className="w-4 h-4 text-purple-400" /> Alege poze...
-                      <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
+                      {isUploading ? <Loader2 className="w-4 h-4 text-purple-400 animate-spin" /> : <Upload className="w-4 h-4 text-purple-400" />}
+                      {isUploading ? 'Se încarcă...' : 'Alege poze...'}
+                      <input type="file" accept="image/*" multiple onChange={handleFileUpload} disabled={isUploading} className="hidden" />
                     </label>
                   </div>
 

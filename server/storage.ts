@@ -863,7 +863,7 @@ export class MemStorage implements IStorage {
 
 
 // Database Storage implementation using Drizzle ORM
-import { db } from "./db.js";
+import { db, ensureDbColumnsExist } from "./db.js";
 import * as schema from "../shared/schema.js";
 import { and, eq, isNull, isNotNull, sql } from "drizzle-orm";
 
@@ -1438,6 +1438,7 @@ export class DbStorage implements IStorage {
     return await db.select().from(gameItems).where(isNotNull(gameItems.deletedAt));
   }
   async createGameItem(game: InsertGameItem): Promise<GameItem> {
+    await ensureDbColumnsExist();
     try {
       const result = await db.insert(gameItems).values({ ...game, isPrivate: game.isPrivate ?? false, deletedAt: null }).returning();
       return result[0];
@@ -1466,6 +1467,7 @@ export class DbStorage implements IStorage {
     }
   }
   async updateGameItem(id: number, updates: UpdateGameItem): Promise<GameItem | null> {
+    await ensureDbColumnsExist();
     try {
       const result = await db.update(gameItems).set({ ...updates, updatedAt: new Date() }).where(eq(gameItems.id, id)).returning();
       return result[0] || null;
