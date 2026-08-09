@@ -1442,7 +1442,8 @@ export class DbStorage implements IStorage {
       const result = await db.insert(gameItems).values({ ...game, isPrivate: game.isPrivate ?? false, deletedAt: null }).returning();
       return result[0];
     } catch (err: any) {
-      if (err?.message?.includes('column') || err?.message?.includes('does not exist')) {
+      console.warn('Initial insert into gameItems failed, trying fallback to notes:', err?.message);
+      try {
         const { fullAchievement, daysSpent, visitedZones, mediaUrls, ...baseGame } = game as any;
         const extraNotesParts = [
           baseGame.notes,
@@ -1458,8 +1459,10 @@ export class DbStorage implements IStorage {
           deletedAt: null
         }).returning();
         return result[0];
+      } catch (fallbackErr: any) {
+        console.error('Fallback insert into gameItems also failed:', fallbackErr?.message);
+        throw err;
       }
-      throw err;
     }
   }
   async updateGameItem(id: number, updates: UpdateGameItem): Promise<GameItem | null> {
@@ -1467,7 +1470,8 @@ export class DbStorage implements IStorage {
       const result = await db.update(gameItems).set({ ...updates, updatedAt: new Date() }).where(eq(gameItems.id, id)).returning();
       return result[0] || null;
     } catch (err: any) {
-      if (err?.message?.includes('column') || err?.message?.includes('does not exist')) {
+      console.warn('Initial update of gameItem failed, trying fallback to notes:', err?.message);
+      try {
         const { fullAchievement, daysSpent, visitedZones, mediaUrls, ...baseUpdates } = updates as any;
         const extraNotesParts = [
           baseUpdates.notes,
@@ -1482,8 +1486,10 @@ export class DbStorage implements IStorage {
           updatedAt: new Date()
         }).where(eq(gameItems.id, id)).returning();
         return result[0] || null;
+      } catch (fallbackErr: any) {
+        console.error('Fallback update of gameItem also failed:', fallbackErr?.message);
+        throw err;
       }
-      throw err;
     }
   }
   async deleteGameItem(id: number): Promise<boolean> {
