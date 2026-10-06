@@ -436,9 +436,19 @@ export async function getUserToken(userId: string): Promise<string> {
 
   // Refresh if expired or expiring soon
   if (Date.now() >= tokenData.expiresAt - 60000) {
-    const newToken = await refreshUserToken(tokenData.refreshToken);
-    await storeUserToken(userId, newToken);
-    return newToken.accessToken;
+    try {
+      const newToken = await refreshUserToken(tokenData.refreshToken);
+      await storeUserToken(userId, newToken);
+      return newToken.accessToken;
+    } catch (err: any) {
+      console.warn(`[Spotify] Token refresh failed for user ${userId}, clearing stored token:`, err?.message || err);
+      try {
+        await db.delete(spotifyUserTokens).where(eq(spotifyUserTokens.userId, userId));
+      } catch (delErr) {
+        // ignore
+      }
+      throw new Error('User not authenticated. Please login with Spotify.');
+    }
   }
 
   return tokenData.accessToken;
@@ -482,13 +492,16 @@ export async function getUserTopArtists(
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('User not authenticated. Please login with Spotify.');
+    }
     const error = await response.text();
     throw new Error(`Failed to get top artists: ${error}`);
   }
 
-  const data = await response.json() as { items: SpotifyArtist[] };
+  const data = await response.json() as { items?: SpotifyArtist[] };
 
-  return data.items.map((artist, idx): SpotifyTopItem => ({
+  return (data.items || []).map((artist): SpotifyTopItem => ({
     id: artist.id,
     name: artist.name,
     imageUrl: artist.images?.[0]?.url,
@@ -518,18 +531,21 @@ export async function getUserTopTracks(
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('User not authenticated. Please login with Spotify.');
+    }
     const error = await response.text();
     throw new Error(`Failed to get top tracks: ${error}`);
   }
 
-  const data = await response.json() as { items: SpotifyTrack[] };
+  const data = await response.json() as { items?: SpotifyTrack[] };
 
-  return data.items.map((track): SpotifyTopItem => ({
+  return (data.items || []).map((track): SpotifyTopItem => ({
     id: track.id,
     name: track.name,
-    artist: track.artists.map(a => a.name).join(', '),
-    imageUrl: track.album.images?.[0]?.url,
-    spotifyUrl: track.external_urls.spotify,
+    artist: (track.artists || []).map(a => a?.name).filter(Boolean).join(', '),
+    imageUrl: track.album?.images?.[0]?.url,
+    spotifyUrl: track.external_urls?.spotify || '',
     playCount: undefined,
     type: 'track',
   }));
@@ -551,11 +567,14 @@ export async function getRecentlyPlayed(
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('User not authenticated. Please login with Spotify.');
+    }
     const error = await response.text();
     throw new Error(`Failed to get recently played: ${error}`);
   }
 
-  const data = await response.json() as { items: any[] };
+  const data = await response.json() as { items?: any[] };
   return data.items || [];
 }
 
@@ -581,17 +600,21 @@ export async function getUserTopAlbums(
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('User not authenticated. Please login with Spotify.');
+    }
     const error = await response.text();
     throw new Error(`Failed to get top tracks for albums: ${error}`);
   }
 
-  const data = await response.json() as { items: SpotifyTrack[] };
+  const data = await response.json() as { items?: SpotifyTrack[] };
 
   // Count album occurrences and keep track of album info
   const albumMap = new Map<string, { count: number; album: SpotifyTrack['album']; artists: string }>();
   
-  for (const track of data.items) {
-    const albumId = track.album.id;
+  for (const track of data.items || []) {
+    const albumId = track?.album?.id;
+    if (!albumId) continue;
     const existing = albumMap.get(albumId);
     if (existing) {
       existing.count++;
@@ -599,7 +622,7 @@ export async function getUserTopAlbums(
       albumMap.set(albumId, {
         count: 1,
         album: track.album,
-        artists: track.artists.map(a => a.name).join(', '),
+        artists: (track.artists || []).map(a => a?.name).filter(Boolean).join(', '),
       });
     }
   }
@@ -611,10 +634,10 @@ export async function getUserTopAlbums(
 
   return sortedAlbums.map(([albumId, { album, artists }]): SpotifyTopItem => ({
     id: albumId,
-    name: album.name,
+    name: album?.name || 'Album',
     artist: artists,
-    imageUrl: album.images?.[0]?.url,
-    spotifyUrl: album.external_urls.spotify,
+    imageUrl: album?.images?.[0]?.url,
+    spotifyUrl: album?.external_urls?.spotify || '',
     playCount: undefined,
     type: 'album',
   }));
@@ -631,6 +654,9 @@ export async function getUserProfile(userId: string): Promise<any> {
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('User not authenticated. Please login with Spotify.');
+    }
     const error = await response.text();
     throw new Error(`Failed to get user profile: ${error}`);
   }

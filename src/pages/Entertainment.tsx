@@ -34,7 +34,7 @@ import type { FilmItem, BookItem, GameItem } from '@shared/schema';
 // --- STYLING CONSTANTS ---
 const inputCls = 'w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-purple-500/50 transition-all';
 const labelCls = 'block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5';
-const rowCls = 'flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group border border-transparent hover:border-white/5 cursor-pointer';
+const rowCls = 'flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl hover:bg-white/5 transition-colors group border border-transparent hover:border-white/5 cursor-pointer';
 const cardCls = 'bg-[#12121a] border border-white/5 rounded-[1.25rem] p-4 hover:border-purple-500/20 transition-all duration-300 group relative flex flex-col h-full cursor-pointer';
 
 const GENRE_COLORS: Record<string, string> = {
@@ -404,66 +404,71 @@ export default function Entertainment() {
         
         {/* HEADER AREA */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 animate-fade-in">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="inline-flex items-center gap-2 group cursor-pointer focus:outline-none w-fit">
-                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 uppercase transition-opacity hover:opacity-90">
-                  {getCategoryName()}
-                </h1>
-                <ChevronDown className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-[#111111] border-white/10 text-slate-300 rounded-xl min-w-[200px]">
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('films')}>🎬 Filme</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('books')}>📚 Cărți</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('games')}>🎮 Jocuri</DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('travels')}>🗺️ Călătorii</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center justify-between w-full sm:w-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex items-center gap-2 group cursor-pointer focus:outline-none w-fit">
+                  <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 uppercase transition-opacity hover:opacity-90">
+                    {getCategoryName()}
+                  </h1>
+                  <ChevronDown className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-[#111111] border-white/10 text-slate-300 rounded-xl min-w-[200px]">
+                <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('films')}>🎬 Filme</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('books')}>📚 Cărți</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('games')}>🎮 Jocuri</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer hover:bg-white/5 hover:text-white" onClick={() => setActiveTab('travels')}>🗺️ Călătorii</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-          {/* Stats on the right */}
-          <div className="flex items-center gap-2">
+          {/* Stats on the right (scrollable if screen is narrow) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 max-w-full">
             {renderStats()}
           </div>
         </div>
 
         {/* TOOLBAR */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111111]/80 backdrop-blur border border-white/10 rounded-2xl p-2.5 mb-6">
-          {/* Status Tabs */}
-          <div className="flex items-center bg-[#09090b] border border-white/10 rounded-xl p-1 shrink-0">
-            <button onClick={() => setActiveSubTab('todo')} className={cn("px-5 py-2 rounded-lg text-sm font-semibold transition-all", activeSubTab === 'todo' ? "bg-white/15 text-white shadow-sm" : "text-slate-400 hover:text-slate-200")}>
-              {getTodoLabel()}
-            </button>
-            <button onClick={() => setActiveSubTab('done')} className={cn("px-5 py-2 rounded-lg text-sm font-semibold transition-all", activeSubTab === 'done' ? "bg-white/15 text-white shadow-sm" : "text-slate-400 hover:text-slate-200")}>
-              {getDoneLabel()}
-            </button>
-          </div>
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111111]/80 backdrop-blur border border-white/10 rounded-2xl p-2.5 sm:p-3 mb-6">
+          {/* Status Tabs + Search */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 min-w-0">
+            {/* Status Tabs */}
+            <div className="flex items-center bg-[#09090b] border border-white/10 rounded-xl p-1 shrink-0">
+              <button onClick={() => setActiveSubTab('todo')} className={cn("flex-1 sm:flex-initial px-4 sm:px-5 py-2 text-center rounded-lg text-sm font-semibold transition-all", activeSubTab === 'todo' ? "bg-white/15 text-white shadow-sm" : "text-slate-400 hover:text-slate-200")}>
+                {getTodoLabel()}
+              </button>
+              <button onClick={() => setActiveSubTab('done')} className={cn("flex-1 sm:flex-initial px-4 sm:px-5 py-2 text-center rounded-lg text-sm font-semibold transition-all", activeSubTab === 'done' ? "bg-white/15 text-white shadow-sm" : "text-slate-400 hover:text-slate-200")}>
+                {getDoneLabel()}
+              </button>
+            </div>
 
-          {/* Search - compact center, expands on focus */}
-          <div className="relative w-44 sm:w-52 focus-within:w-72 sm:focus-within:w-80 transition-all duration-300">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Caută..." 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)} 
-              className="w-full bg-[#09090b] border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-200 outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300" 
-            />
+            {/* Search - flexible on mobile */}
+            <div className="relative flex-1 min-w-[140px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Caută..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+                className="w-full bg-[#09090b] border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-200 outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300" 
+              />
+            </div>
           </div>
           
           {/* Actions */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap justify-between md:justify-end">
             <Button 
               onClick={() => setShowFilterDialog(true)} 
               variant="outline" 
-              className={cn("bg-[#09090b] border-white/10 hover:bg-white/5 rounded-xl text-slate-300 gap-2 px-4 h-10 font-medium", hasActiveFilters && "border-purple-500/50 text-purple-300 bg-purple-500/10")}
+              className={cn("bg-[#09090b] border-white/10 hover:bg-white/5 rounded-xl text-slate-300 gap-1.5 px-3 sm:px-4 h-10 font-medium flex-1 sm:flex-initial", hasActiveFilters && "border-purple-500/50 text-purple-300 bg-purple-500/10")}
             >
-              <Filter className="w-4 h-4"/> Filtrare
+              <Filter className="w-4 h-4"/> <span className="text-xs sm:text-sm">Filtrare</span>
               {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>}
             </Button>
 
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[160px] bg-[#09090b] border-white/10 rounded-xl text-slate-300 h-10 font-medium">
+              <SelectTrigger className="w-[125px] sm:w-[150px] bg-[#09090b] border-white/10 rounded-xl text-slate-300 h-10 font-medium text-xs sm:text-sm">
                 <SelectValue placeholder="Fără sortare" />
               </SelectTrigger>
               <SelectContent className="bg-[#111111] border-white/10 text-slate-300">
@@ -478,17 +483,17 @@ export default function Entertainment() {
             </Select>
             
             {isAdmin && (
-              <>
+              <div className="flex items-center gap-2">
                 {getTrashCount() > 0 && (
                   <Button onClick={() => setIsTrashOpen(true)} variant="outline" size="icon" className="bg-[#09090b] border-white/10 hover:bg-white/5 shrink-0 rounded-xl relative h-10 w-10">
                     <Trash2 className="w-4 h-4 text-slate-400" />
                     <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full">{getTrashCount()}</span>
                   </Button>
                 )}
-                <Button onClick={openAddModal} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl shrink-0 gap-1.5 px-4 h-10 font-medium shadow-lg shadow-purple-600/20">
-                  <Plus className="w-4 h-4" /> Adaugă
+                <Button onClick={openAddModal} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl shrink-0 gap-1 px-3 sm:px-4 h-10 font-medium text-xs sm:text-sm shadow-lg shadow-purple-600/20">
+                  <Plus className="w-4 h-4" /> <span>Adaugă</span>
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -533,7 +538,7 @@ export default function Entertainment() {
 
       {/* Filter Dialog */}
       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
-        <DialogContent className="bg-[#111111] border-white/10 text-slate-200 max-w-sm rounded-3xl p-6">
+        <DialogContent className="bg-[#111111] border-white/10 text-slate-200 w-[92vw] max-w-sm rounded-2xl sm:rounded-3xl p-5 sm:p-6">
           <DialogHeader className="pb-2 flex flex-row items-center justify-between border-b border-white/5">
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Filter className="h-4 w-4 text-purple-400" />
@@ -825,16 +830,16 @@ function FilmList({ items, search, sortBy, activeSubTab, onEdit, onDelete, onTog
           <span className="text-[10px] text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">{f.director || 'Film'}</span>
         </div>
       </div>
-      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0" onClick={e => e.stopPropagation()}>
         {isAdmin && (
-          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-indigo-400" onClick={e => onEdit(e, f)}><Pencil className="w-4 h-4" /></Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-rose-400" onClick={e => onDelete(e, f)}><Trash2 className="w-4 h-4" /></Button>
+          <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center transition-opacity">
+            <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 hover:text-indigo-400" onClick={e => onEdit(e, f)}><Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 hover:text-rose-400" onClick={e => onDelete(e, f)}><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
           </div>
         )}
-        <Button onClick={e => onToggle(e, f, 'films')} size="sm" variant="outline" className="h-8 border-white/10 bg-white/5 hover:bg-white/10 text-xs">
-          {f.status === 'watched' ? <RotateCcw className="w-3 h-3 mr-1" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
-          {f.status === 'watched' ? 'Undo' : 'Văzut'}
+        <Button onClick={e => onToggle(e, f, 'films')} size="sm" variant="outline" className="h-7 sm:h-8 px-2 sm:px-3 border-white/10 bg-white/5 hover:bg-white/10 text-xs">
+          {f.status === 'watched' ? <RotateCcw className="w-3 h-3 sm:mr-1" /> : <CheckCircle2 className="w-3 h-3 sm:mr-1" />}
+          <span className="hidden xs:inline">{f.status === 'watched' ? 'Undo' : 'Văzut'}</span>
         </Button>
       </div>
     </div>
@@ -878,16 +883,16 @@ function BookList({ items, search, sortBy, activeSubTab, onEdit, onDelete, onTog
           {b.status === 'reading' && <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">În citire</span>}
         </div>
       </div>
-      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0" onClick={e => e.stopPropagation()}>
         {isAdmin && (
-          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-indigo-400" onClick={e => onEdit(e, b)}><Pencil className="w-4 h-4" /></Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-rose-400" onClick={e => onDelete(e, b)}><Trash2 className="w-4 h-4" /></Button>
+          <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center transition-opacity">
+            <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 hover:text-indigo-400" onClick={e => onEdit(e, b)}><Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 hover:text-rose-400" onClick={e => onDelete(e, b)}><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
           </div>
         )}
-        <Button onClick={e => onToggle(e, b, 'books')} size="sm" variant="outline" className="h-8 border-white/10 bg-white/5 hover:bg-white/10 text-xs">
-          {b.status === 'read' ? <RotateCcw className="w-3 h-3 mr-1" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
-          {b.status === 'read' ? 'Undo' : 'Citit'}
+        <Button onClick={e => onToggle(e, b, 'books')} size="sm" variant="outline" className="h-7 sm:h-8 px-2 sm:px-3 border-white/10 bg-white/5 hover:bg-white/10 text-xs">
+          {b.status === 'read' ? <RotateCcw className="w-3 h-3 sm:mr-1" /> : <CheckCircle2 className="w-3 h-3 sm:mr-1" />}
+          <span className="hidden xs:inline">{b.status === 'read' ? 'Undo' : 'Citit'}</span>
         </Button>
       </div>
     </div>
@@ -940,16 +945,16 @@ function GameList({ items, search, sortBy, activeSubTab, onEdit, onDelete, onTog
             {g.status === 'playing' && <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">În progres</span>}
           </div>
         </div>
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0" onClick={e => e.stopPropagation()}>
           {isAdmin && (
-            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-              <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-indigo-400" onClick={e => onEdit(e, g)}><Pencil className="w-4 h-4" /></Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-rose-400" onClick={e => onDelete(e, g)}><Trash2 className="w-4 h-4" /></Button>
+            <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center transition-opacity">
+              <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 hover:text-indigo-400" onClick={e => onEdit(e, g)}><Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-8 sm:w-8 hover:text-rose-400" onClick={e => onDelete(e, g)}><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
             </div>
           )}
-          <Button onClick={e => onToggle(e, g, 'games')} size="sm" variant="outline" className="h-8 border-white/10 bg-white/5 hover:bg-white/10 text-xs">
-            {g.status === 'played' ? <RotateCcw className="w-3 h-3 mr-1" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
-            {g.status === 'played' ? 'Undo' : 'Jucat'}
+          <Button onClick={e => onToggle(e, g, 'games')} size="sm" variant="outline" className="h-7 sm:h-8 px-2 sm:px-3 border-white/10 bg-white/5 hover:bg-white/10 text-xs">
+            {g.status === 'played' ? <RotateCcw className="w-3 h-3 sm:mr-1" /> : <CheckCircle2 className="w-3 h-3 sm:mr-1" />}
+            <span className="hidden xs:inline">{g.status === 'played' ? 'Undo' : 'Jucat'}</span>
           </Button>
         </div>
       </div>
@@ -980,12 +985,12 @@ function TravelList({ items, search, sortBy, activeSubTab, onEdit, onDelete, onT
     return (
       <div onClick={() => onView(t)} className={cardCls}>
         {isAdmin && (
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1 z-10" onClick={e => e.stopPropagation()}>
+          <div className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex space-x-1 z-10" onClick={e => e.stopPropagation()}>
             <button onClick={e => onEdit(e, t)} className="p-1.5 bg-indigo-500/20 text-indigo-300 rounded-lg hover:bg-indigo-500/40 transition-colors">
-              <Pencil className="w-3 h-3" />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
             <button onClick={e => onDelete(e, t)} className="p-1.5 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/40 transition-colors">
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -1086,7 +1091,7 @@ function ViewModal({ item, type, onClose, onEdit, isAdmin }: any) {
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111118] border-white/10 text-slate-200 sm:max-w-[640px] rounded-3xl p-6 overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent className="bg-[#111118] border-white/10 text-slate-200 w-[95vw] max-w-[640px] rounded-2xl sm:rounded-3xl p-4 sm:p-6 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
@@ -1648,7 +1653,7 @@ function ItemModal({ isOpen, onClose, item, type, onSave, genres, setGenres, def
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111111] border-white/10 text-slate-200 sm:max-w-[540px] rounded-3xl p-0 overflow-hidden">
+      <DialogContent className="bg-[#111111] border-white/10 text-slate-200 w-[95vw] max-w-[540px] rounded-2xl sm:rounded-3xl p-0 overflow-hidden">
         <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[85vh]">
           {/* Header */}
           <div className="px-6 py-4 border-b border-white/5">

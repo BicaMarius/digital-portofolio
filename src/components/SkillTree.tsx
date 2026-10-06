@@ -1,7 +1,29 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getSkillTree, createSkillNode, updateSkillNode, deleteSkillNode } from '@/lib/api';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+  getSkillTree, 
+  getTrashedSkillTree, 
+  createSkillNode, 
+  updateSkillNode, 
+  softDeleteSkillNode, 
+  restoreSkillNode, 
+  deleteSkillNode 
+} from '@/lib/api';
 import type { SkillTreeNode } from '@shared/schema';
-import { ZoomIn, ZoomOut, Maximize, Plus, Leaf, Download, Edit2, Trash2, X, ExternalLink } from 'lucide-react';
+import { 
+  ZoomIn, ZoomOut, Maximize, Minimize2, Plus, Leaf, Download, Edit2, 
+  Trash2, X, ExternalLink, ChevronLeft, ChevronRight, RotateCcw 
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 
 interface SkillTreeProps {
   isAdmin: boolean;
@@ -19,47 +41,47 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const SEED_DATA: Omit<SkillTreeNode, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>[] = [
-  { parentId: null, label: 'Bica Marius', icon: '🌟', description: 'Root node', level: 0, category: 'root', acquiredDate: null, linkUrl: null, nodeOrder: 0, posX: 800, posY: 60 },
+  { parentId: null, label: 'Bica Marius', icon: '🌟', description: 'Root node', level: 0, category: 'root', acquiredDate: null, linkUrl: null, nodeOrder: 0, posX: 1000, posY: 60 },
   
   // Branches
-  { parentId: 1, label: 'IT & Dev', icon: '🖥️', description: 'Tech skills', level: 0, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 250, posY: 220 },
-  { parentId: 1, label: 'Artă & Design', icon: '🎨', description: 'Creative skills', level: 0, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 600, posY: 220 },
-  { parentId: 1, label: 'Carieră', icon: '💼', description: 'Career achievements', level: 0, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 900, posY: 220 },
-  { parentId: 1, label: 'Sport & Fitness', icon: '🏋️', description: 'Physical activities', level: 0, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 1150, posY: 220 },
-  { parentId: 1, label: 'Muzică', icon: '🎸', description: 'Musical instruments and theory', level: 0, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 1400, posY: 220 },
+  { parentId: 1, label: 'IT & Dev', icon: '🖥️', description: 'Tech skills', level: 0, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 280, posY: 240 },
+  { parentId: 1, label: 'Artă & Design', icon: '🎨', description: 'Creative skills', level: 0, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 680, posY: 240 },
+  { parentId: 1, label: 'Carieră', icon: '💼', description: 'Career achievements', level: 0, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 1040, posY: 240 },
+  { parentId: 1, label: 'Sport & Fitness', icon: '🏋️', description: 'Physical activities', level: 0, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 1380, posY: 240 },
+  { parentId: 1, label: 'Muzică', icon: '🎸', description: 'Musical instruments and theory', level: 0, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 1720, posY: 240 },
 
   // IT
-  { parentId: 2, label: 'React', icon: '⚛️', description: 'Frontend library', level: 5, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 80, posY: 380 },
-  { parentId: 2, label: 'TypeScript', icon: '📘', description: 'Typed JavaScript', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 240, posY: 380 },
-  { parentId: 2, label: 'PostgreSQL', icon: '🐘', description: 'Relational Database', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 400, posY: 380 },
-  { parentId: 2, label: 'Python', icon: '🐍', description: 'Scripting and Data', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 80, posY: 540 },
-  { parentId: 2, label: 'Node.js', icon: '🟩', description: 'Backend runtime', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 240, posY: 540 },
-  { parentId: 2, label: 'Docker', icon: '🐳', description: 'Containerization', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 6, posX: 400, posY: 540 },
+  { parentId: 2, label: 'React', icon: '⚛️', description: 'Frontend library', level: 5, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 140, posY: 390 },
+  { parentId: 2, label: 'TypeScript', icon: '📘', description: 'Typed JavaScript', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 280, posY: 390 },
+  { parentId: 2, label: 'PostgreSQL', icon: '🐘', description: 'Relational Database', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 420, posY: 390 },
+  { parentId: 2, label: 'Python', icon: '🐍', description: 'Scripting and Data', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 4, posX: 140, posY: 530 },
+  { parentId: 2, label: 'Node.js', icon: '🟩', description: 'Backend runtime', level: 4, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 5, posX: 280, posY: 530 },
+  { parentId: 2, label: 'Docker', icon: '🐳', description: 'Containerization', level: 3, category: 'it', acquiredDate: null, linkUrl: null, nodeOrder: 6, posX: 420, posY: 530 },
 
   // Arta
-  { parentId: 3, label: 'Fotografie', icon: '📷', description: 'DSLR and Editing', level: 5, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 540, posY: 380 },
-  { parentId: 3, label: 'Digital Art', icon: '🖌️', description: 'Procreate, Photoshop', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 680, posY: 380 },
-  { parentId: 3, label: 'UI/UX Design', icon: '🎯', description: 'Figma, User Research', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 820, posY: 380 },
+  { parentId: 3, label: 'Fotografie', icon: '📷', description: 'DSLR and Editing', level: 5, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 610, posY: 390 },
+  { parentId: 3, label: 'Digital Art', icon: '🖌️', description: 'Procreate, Photoshop', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 750, posY: 390 },
+  { parentId: 3, label: 'UI/UX Design', icon: '🎯', description: 'Figma, User Research', level: 4, category: 'arta', acquiredDate: null, linkUrl: null, nodeOrder: 3, posX: 680, posY: 530 },
 
   // Cariera
-  { parentId: 4, label: 'Certificare AWS', icon: '☁️', description: 'Solutions Architect Associate', level: 3, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 900, posY: 380 },
-  { parentId: 4, label: 'Proiecte Live', icon: '🚀', description: 'Multiple apps in production', level: 4, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1060, posY: 380 },
+  { parentId: 4, label: 'Certificare AWS', icon: '☁️', description: 'Solutions Architect Associate', level: 3, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 970, posY: 390 },
+  { parentId: 4, label: 'Proiecte Live', icon: '🚀', description: 'Multiple apps in production', level: 4, category: 'cariera', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1110, posY: 390 },
 
   // Sport
-  { parentId: 5, label: 'Fitness', icon: '💪', description: 'Weight lifting', level: 3, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 1150, posY: 380 },
-  { parentId: 5, label: 'Ciclism', icon: '🚴', description: 'Road cycling', level: 4, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1300, posY: 380 },
+  { parentId: 5, label: 'Fitness', icon: '💪', description: 'Weight lifting', level: 3, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 1310, posY: 390 },
+  { parentId: 5, label: 'Ciclism', icon: '🚴', description: 'Road cycling', level: 4, category: 'sport', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1450, posY: 390 },
 
   // Muzica
-  { parentId: 6, label: 'Chitară', icon: '🎸', description: 'Acoustic and Electric', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 1400, posY: 380 },
-  { parentId: 6, label: 'Compoziție', icon: '🎵', description: 'Music theory and writing', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1560, posY: 380 },
+  { parentId: 6, label: 'Chitară', icon: '🎸', description: 'Acoustic and Electric', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 1, posX: 1650, posY: 390 },
+  { parentId: 6, label: 'Compoziție', icon: '🎵', description: 'Music theory and writing', level: 3, category: 'muzica', acquiredDate: null, linkUrl: null, nodeOrder: 2, posX: 1790, posY: 390 },
 ];
 
 const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, editMode, isActionActive, onClick, onDragStart }: any) => {
   const [hovered, setHovered] = useState(false);
   return (
     <div 
-      className="relative node-element" 
-      style={{ width: 56, height: 56 }}
+      className="relative node-element flex flex-col items-center" 
+      style={{ width: 80, height: 86 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={(e) => onDragStart(node.id, e)}
@@ -94,6 +116,11 @@ const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, e
         {node.icon || '⚡'}
       </div>
 
+      {/* Subtle label below circle */}
+      <span className="text-[11px] font-semibold text-slate-300 mt-1 text-center truncate max-w-[80px] leading-tight select-none pointer-events-none drop-shadow-sm">
+        {node.label}
+      </span>
+
       {/* Edit mode mini toolbar — stays visible when clicked (isActionActive) or hovered */}
       {editMode && isAdmin && (isActionActive || hovered) && (
         <div 
@@ -111,7 +138,7 @@ const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, e
           </button>
           <button 
             type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete(node.id, e); }} 
+            onClick={(e) => { e.stopPropagation(); onDelete(node, e); }} 
             className="w-7 h-7 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-white flex items-center justify-center transition-all hover:scale-105"
             title="Șterge"
           >
@@ -133,11 +160,13 @@ const SkillNodeCircle = ({ node, color, isAdmin, onEdit, onDelete, onAddChild, e
 
 export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
   const [nodes, setNodes] = useState<SkillTreeNode[]>([]);
+  const [trashedNodes, setTrashedNodes] = useState<SkillTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeEditNodeId, setActiveEditNodeId] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -147,16 +176,21 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Drag node state
+  // Drag node state & movement tracker
   const [draggedNodeId, setDraggedNodeId] = useState<number | null>(null);
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
+  const hasMovedRef = useRef(false);
 
   // Modal states
   const [selectedNode, setSelectedNode] = useState<SkillTreeNode | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editNodeData, setEditNodeData] = useState<Partial<SkillTreeNode> | null>(null);
+  const [nodeToDelete, setNodeToDelete] = useState<SkillTreeNode | null>(null);
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
 
   useEffect(() => {
     loadNodes();
+    loadTrashedNodes();
   }, []);
 
   // 1. Scroll Isolation with native centered zoom event listener
@@ -189,6 +223,113 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
+  // 2. Global mouse move & mouse up listeners for smooth, glitch-free dragging
+  useEffect(() => {
+    if (draggedNodeId === null && !isPanning) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      // Check if left mouse button is still held down; if released outside, cancel drag immediately!
+      if (e.buttons === 0) {
+        handleWindowMouseUp();
+        return;
+      }
+
+      if (isPanning) {
+        const dx = e.clientX - lastMousePos.x;
+        const dy = e.clientY - lastMousePos.y;
+        setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+        setLastMousePos({ x: e.clientX, y: e.clientY });
+      } else if (draggedNodeId !== null && isEditMode) {
+        const dist = Math.hypot(e.clientX - dragStartPosRef.current.x, e.clientY - dragStartPosRef.current.y);
+        if (dist > 4) {
+          hasMovedRef.current = true;
+        }
+        if (hasMovedRef.current) {
+          const dx = (e.clientX - lastMousePos.x) / zoom;
+          const dy = (e.clientY - lastMousePos.y) / zoom;
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === draggedNodeId
+                ? { ...n, posX: Math.round(n.posX + dx), posY: Math.round(n.posY + dy) }
+                : n
+            )
+          );
+          setLastMousePos({ x: e.clientX, y: e.clientY });
+        }
+      }
+    };
+
+    const handleWindowMouseUp = async () => {
+      setIsPanning(false);
+      if (draggedNodeId !== null) {
+        const currentId = draggedNodeId;
+        setDraggedNodeId(null);
+        if (hasMovedRef.current && isEditMode) {
+          setNodes((currentNodes) => {
+            const node = currentNodes.find((n) => n.id === currentId);
+            if (node) {
+              updateSkillNode(node.id, {
+                posX: Math.round(node.posX),
+                posY: Math.round(node.posY),
+              }).catch((err) => console.error('Failed to update node pos', err));
+            }
+            return currentNodes;
+          });
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [draggedNodeId, isPanning, isEditMode, lastMousePos, zoom]);
+
+  // 3. Sibling navigation & ESC key handler
+  const siblings = useMemo(() => {
+    if (!selectedNode) return [];
+    return nodes.filter(n => n.parentId === selectedNode.parentId);
+  }, [nodes, selectedNode]);
+
+  const currentSiblingIndex = useMemo(() => {
+    if (!selectedNode) return -1;
+    return siblings.findIndex(s => s.id === selectedNode.id);
+  }, [siblings, selectedNode]);
+
+  const handleNavigateSibling = (direction: number) => {
+    if (siblings.length <= 1 || currentSiblingIndex === -1) return;
+    const nextIndex = (currentSiblingIndex + direction + siblings.length) % siblings.length;
+    setSelectedNode(siblings[nextIndex]);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedNode) {
+          setSelectedNode(null);
+        } else if (nodeToDelete) {
+          setNodeToDelete(null);
+        } else if (isTrashOpen) {
+          setIsTrashOpen(false);
+        } else if (showAddForm) {
+          setShowAddForm(false);
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        }
+      } else if (selectedNode) {
+        if (e.key === 'ArrowLeft') {
+          handleNavigateSibling(-1);
+        } else if (e.key === 'ArrowRight') {
+          handleNavigateSibling(1);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNode, nodeToDelete, isTrashOpen, showAddForm, isFullscreen, siblings, currentSiblingIndex]);
+
   const handleZoomChange = (delta: number) => {
     setZoom(prevZoom => {
       const newZoom = Math.min(Math.max(0.3, prevZoom + delta), 2.5);
@@ -206,6 +347,16 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     });
   };
 
+  const handleResetOrFullscreen = () => {
+    const isAtDefault = zoom === 1 && pan.x === 0 && pan.y === 0;
+    if (!isAtDefault) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    } else {
+      setIsFullscreen(prev => !prev);
+    }
+  };
+
   const loadNodes = async () => {
     setLoading(true);
     try {
@@ -221,8 +372,18 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
       setNodes(updated);
     } catch (error) {
       console.error('Failed to load skill tree:', error);
+      toast({ title: 'Eroare', description: 'Nu am putut încărca arborele de abilități.', variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTrashedNodes = async () => {
+    try {
+      const trashed = await getTrashedSkillTree();
+      setTrashedNodes(trashed);
+    } catch (error) {
+      console.error('Failed to load trashed skill tree nodes:', error);
     }
   };
 
@@ -233,34 +394,50 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
       const updatedNodes = [...nodes];
       
       if (root) {
-        root.posX = 800;
-        root.posY = 60;
-        
         const branches = updatedNodes.filter(n => n.parentId === root.id);
-        const branchSpacing = 280;
-        const startX = 800 - Math.max(0, ((branches.length - 1) * branchSpacing) / 2);
+        let currentBranchX = 140; // initial margin
+        const branchPositions: { branchId: number; branchCenterX: number; colCount: number }[] = [];
 
-        branches.forEach((b, bIdx) => {
-          b.posX = startX + bIdx * branchSpacing;
-          b.posY = 220;
-
+        for (const b of branches) {
           const children = updatedNodes.filter(n => n.parentId === b.id);
-          children.forEach((c, cIdx) => {
-            const row = Math.floor(cIdx / 3);
-            const col = cIdx % 3;
-            c.posX = b.posX - 80 + col * 120;
-            c.posY = 380 + row * 140;
+          const colCount = children.length <= 4 ? 2 : 3;
+          const branchWidth = colCount === 2 ? 320 : 440;
+          const branchCenterX = currentBranchX + branchWidth / 2;
+          branchPositions.push({ branchId: b.id, branchCenterX, colCount });
+          currentBranchX += branchWidth + 80; // 80px gap between branches
+        }
+
+        const totalWidth = currentBranchX - 80 - 140;
+        const treeCenterX = 140 + totalWidth / 2;
+        root.posX = Math.round(treeCenterX - 40);
+        root.posY = 80;
+
+        branchPositions.forEach(({ branchId, branchCenterX, colCount }) => {
+          const b = updatedNodes.find(n => n.id === branchId);
+          if (!b) return;
+          b.posX = Math.round(branchCenterX - 50);
+          b.posY = 240;
+
+          const children = updatedNodes.filter(n => n.parentId === branchId);
+          const colSpacing = 140; // ample space between columns to prevent overlaps
+          const startColX = branchCenterX - ((colCount - 1) * colSpacing) / 2;
+
+          children.forEach((c, idx) => {
+            const row = Math.floor(idx / colCount);
+            const col = idx % colCount;
+            c.posX = Math.round(startColX + col * colSpacing - 40);
+            c.posY = 390 + row * 140;
           });
         });
       }
 
       setNodes(updatedNodes);
-
       for (const n of updatedNodes) {
         await updateSkillNode(n.id, { posX: Math.round(n.posX), posY: Math.round(n.posY), label: n.label }).catch(() => {});
       }
+      toast({ title: 'Rearanjare automată completată', description: 'Nodurile au fost aranjate proporțional fără suprapuneri.' });
     } catch (err) {
-      console.error(err);
+      toast({ title: 'Eroare la rearanjare', variant: 'destructive' });
     }
   };
 
@@ -280,8 +457,10 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
         createdNodes[i + 1] = created.id;
       }
       await loadNodes();
+      toast({ title: 'Skill Tree inițializat', description: 'Datele de bază au fost populate cu succes.' });
     } catch (err) {
       console.error('Seed failed', err);
+      toast({ title: 'Eroare la seed', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -296,44 +475,9 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     setLastMousePos({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      const dx = e.clientX - lastMousePos.x;
-      const dy = e.clientY - lastMousePos.y;
-      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-      setLastMousePos({ x: e.clientX, y: e.clientY });
-    } else if (draggedNodeId !== null && isEditMode) {
-      const dx = (e.clientX - lastMousePos.x) / zoom;
-      const dy = (e.clientY - lastMousePos.y) / zoom;
-      
-      setNodes(prev => prev.map(n => 
-        n.id === draggedNodeId 
-          ? { ...n, posX: n.posX + dx, posY: n.posY + dy }
-          : n
-      ));
-      setLastMousePos({ x: e.clientX, y: e.clientY });
-    }
-  };
-
-  const handleMouseUp = async () => {
-    setIsPanning(false);
-    
-    if (draggedNodeId !== null && isEditMode) {
-      const node = nodes.find(n => n.id === draggedNodeId);
-      if (node) {
-        try {
-          await updateSkillNode(node.id, { posX: Math.round(node.posX), posY: Math.round(node.posY) });
-        } catch (e) {
-          console.error('Failed to update node pos', e);
-        }
-      }
-      setDraggedNodeId(null);
-    }
-  };
-
   const handleNodeClick = (node: SkillTreeNode, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (draggedNodeId !== null) return; 
+    if (hasMovedRef.current) return; 
 
     if (isEditMode) {
       setActiveEditNodeId(prev => prev === node.id ? null : node.id);
@@ -353,20 +497,50 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
   const handleNodeDragStart = (id: number, e: React.MouseEvent) => {
     if (!isEditMode) return;
     e.stopPropagation();
+    dragStartPosRef.current = { x: e.clientX, y: e.clientY };
+    hasMovedRef.current = false;
     setDraggedNodeId(id);
     setLastMousePos({ x: e.clientX, y: e.clientY });
   };
 
-  const handleDeleteNode = async (id: number, e?: React.MouseEvent) => {
+  const handleRequestDelete = (node: SkillTreeNode, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!confirm('Ești sigur că vrei să ștergi acest nod?')) return;
+    setNodeToDelete(node);
+  };
+
+  const confirmSoftDelete = async () => {
+    if (!nodeToDelete) return;
     try {
-      await deleteSkillNode(id);
+      await softDeleteSkillNode(nodeToDelete.id);
+      toast({ title: 'Nod mutat în coșul de reciclare', description: `«${nodeToDelete.label}» a fost mutat în coș.` });
+      setNodes(prev => prev.filter(n => n.id !== nodeToDelete.id));
+      setNodeToDelete(null);
       setSelectedNode(null);
       setActiveEditNodeId(null);
-      setNodes(prev => prev.filter(n => n.id !== id));
+      loadTrashedNodes();
     } catch (err) {
-      console.error(err);
+      toast({ title: 'Eroare la ștergerea nodului', variant: 'destructive' });
+    }
+  };
+
+  const handleRestoreNode = async (id: number) => {
+    try {
+      await restoreSkillNode(id);
+      toast({ title: 'Nod restaurat cu succes' });
+      await loadNodes();
+      await loadTrashedNodes();
+    } catch (err) {
+      toast({ title: 'Eroare la restaurarea nodului', variant: 'destructive' });
+    }
+  };
+
+  const handlePermanentDelete = async (id: number) => {
+    try {
+      await deleteSkillNode(id);
+      toast({ title: 'Nod șters definitiv' });
+      await loadTrashedNodes();
+    } catch (err) {
+      toast({ title: 'Eroare la ștergerea definitivă', variant: 'destructive' });
     }
   };
 
@@ -386,7 +560,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
       category: parentNode.category, 
       level: Math.min(5, parentNode.level + 1),
       posX: parentNode.posX, 
-      posY: parentNode.posY + 100 
+      posY: parentNode.posY + 140 
     });
     setShowAddForm(true);
   };
@@ -406,21 +580,24 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
       if (editNodeData?.id) {
         const updated = await updateSkillNode(editNodeData.id, editNodeData);
         setNodes(prev => prev.map(n => n.id === updated.id ? updated : n));
+        toast({ title: 'Nod actualizat cu succes' });
       } else {
         const created = await createSkillNode(editNodeData as any);
         setNodes(prev => [...prev, created]);
+        toast({ title: 'Nod adăugat cu succes' });
       }
       setShowAddForm(false);
       setEditNodeData(null);
       setActiveEditNodeId(null);
     } catch (err) {
       console.error(err);
+      toast({ title: 'Eroare la salvarea nodului', variant: 'destructive' });
     }
   };
 
   const handleExportSVG = () => {
     if (!canvasRef.current) return;
-    const svgData = `<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1200" style="background:#080810">
+    const svgData = `<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="1800" style="background:#080810">
       <style>
         .node-text { fill: white; font-family: sans-serif; }
         .node-icon { font-size: 24px; }
@@ -446,8 +623,9 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
           </g>`;
         }
         return `<g transform="translate(${n.posX}, ${n.posY})">
-            <circle cx="28" cy="28" r="28" fill="${color}20" stroke="${color}" stroke-width="2"/>
-            <text x="28" y="34" text-anchor="middle" class="node-icon" font-size="16">${n.icon || ''}</text>
+            <circle cx="40" cy="28" r="28" fill="${color}20" stroke="${color}" stroke-width="2"/>
+            <text x="40" y="34" text-anchor="middle" class="node-icon" font-size="16">${n.icon || ''}</text>
+            <text x="40" y="74" text-anchor="middle" class="node-text" font-size="10">${n.label}</text>
           </g>`;
       }).join('')}
     </svg>`;
@@ -459,6 +637,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     a.download = 'skill-tree.svg';
     a.click();
     URL.revokeObjectURL(url);
+    toast({ title: 'Export SVG descărcat' });
   };
 
   const hasChildren = (id: number) => {
@@ -490,7 +669,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     } else if (node.level === 0) {
       return { x: node.posX + 50, y: node.posY + 15 }; // branch approx
     } else {
-      return { x: node.posX + 28, y: node.posY + 28 }; // skill circle 56x56
+      return { x: node.posX + 40, y: node.posY + 28 }; // skill circle width 80 (centered circle 56), center is 40
     }
   };
 
@@ -518,10 +697,14 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
     return new Intl.DateTimeFormat('ro-RO', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(dateStr));
   };
 
+  const isAtDefaultView = zoom === 1 && pan.x === 0 && pan.y === 0;
+
   return (
-    <div className="relative flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-[#111111] border border-white/10 rounded-2xl p-3">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar">
+    <div className={cn("relative flex flex-col gap-4", isFullscreen && "fixed inset-0 z-[9990] bg-[#080810] p-4 h-screen w-screen overflow-hidden")}>
+      {/* TOOLBAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111111] border border-white/10 rounded-2xl p-2.5 sm:p-3">
+        {/* Category filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
           <button
             onClick={() => { setFilterCategory(null); setSelectedBranch(null); }}
             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterCategory && !selectedBranch ? 'bg-purple-500 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
@@ -540,50 +723,67 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex bg-[#09090b] border border-white/10 rounded-lg overflow-hidden">
-            <button onClick={() => handleZoomChange(-0.2)} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Zoom Out">
+        {/* View Controls & Admin Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex bg-[#09090b] border border-white/10 rounded-xl overflow-hidden">
+            <button onClick={() => handleZoomChange(-0.2)} className="p-2 text-slate-400 hover:text-white hover:bg-white/5 transition-colors" title="Zoom Out">
               <ZoomOut className="w-4 h-4" />
             </button>
-            <button onClick={() => { setZoom(1); setPan({x:0, y:0}); }} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Reset View">
-              <Maximize className="w-4 h-4" />
+            <button 
+              onClick={handleResetOrFullscreen} 
+              className={cn("p-2 transition-colors", isFullscreen ? "text-purple-400 bg-purple-500/10 hover:bg-purple-500/20" : "text-slate-400 hover:text-white hover:bg-white/5")} 
+              title={!isAtDefaultView ? 'Resetează vizualizarea (Apasă din nou pt Fullscreen)' : (isFullscreen ? 'Ieși din Fullscreen (ESC)' : 'Ecran complet (Fullscreen)')}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
-            <button onClick={() => handleZoomChange(0.2)} className="p-2 text-slate-400 hover:text-white hover:bg-white/5" title="Zoom In">
+            <button onClick={() => handleZoomChange(0.2)} className="p-2 text-slate-400 hover:text-white hover:bg-white/5 transition-colors" title="Zoom In">
               <ZoomIn className="w-4 h-4" />
             </button>
           </div>
           
-          <button onClick={handleExportSVG} className="p-2 text-slate-400 hover:text-purple-400 bg-[#09090b] border border-white/10 rounded-lg" title="Export SVG">
+          <button onClick={handleExportSVG} className="p-2 text-slate-400 hover:text-purple-400 bg-[#09090b] border border-white/10 rounded-xl transition-colors" title="Export SVG">
             <Download className="w-4 h-4" />
           </button>
           
           {isAdmin && (
             <>
-              <div className="w-px h-6 bg-white/10 mx-1"></div>
+              <div className="w-px h-6 bg-white/10 mx-1 hidden sm:block"></div>
+              {trashedNodes.length > 0 && (
+                <button 
+                  onClick={() => setIsTrashOpen(true)}
+                  className="relative p-2 text-slate-400 hover:text-rose-400 bg-[#09090b] border border-white/10 rounded-xl transition-colors"
+                  title="Coș de reciclare (noduri șterse)"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                    {trashedNodes.length}
+                  </span>
+                </button>
+              )}
               {nodes.length === 0 && (
-                <button onClick={handleSeed} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 text-sm font-medium transition-colors">
+                <button onClick={handleSeed} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/30 text-xs sm:text-sm font-medium transition-colors">
                   <Leaf className="w-4 h-4" /> Seed
                 </button>
               )}
               <button 
                 onClick={() => { setIsEditMode(!isEditMode); setActiveEditNodeId(null); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
                   isEditMode ? 'bg-purple-600 text-white' : 'bg-white/5 text-slate-300 hover:bg-white/10'
                 }`}
               >
-                <Edit2 className="w-4 h-4" /> {isEditMode ? 'Ieși din Mod Editare' : 'Editează'}
+                <Edit2 className="w-4 h-4" /> {isEditMode ? 'Ieși din Editare' : 'Editează'}
               </button>
               {isEditMode && (
                 <>
                   <button 
                     onClick={openAddNewNode}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-lg text-sm transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-xl text-xs sm:text-sm transition-colors"
                   >
                     <Plus className="w-4 h-4" /> Adaugă Nod
                   </button>
                   <button 
                     onClick={handleAutoArrange}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-sm transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-xl text-xs sm:text-sm transition-colors"
                     title="Rearanjează automat nodurile pentru a preveni suprapunerea"
                   >
                     <Maximize className="w-4 h-4" /> Auto-Aranjează
@@ -595,14 +795,12 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
         </div>
       </div>
 
+      {/* CANVAS CONTAINER */}
       <div 
         ref={containerRef}
         className={`relative bg-[#080810] rounded-[1.25rem] border overflow-hidden select-none touch-none transition-colors duration-300 ${isEditMode ? 'border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'border-white/5'}`}
-        style={{ height: '70vh', minHeight: 500 }}
+        style={{ height: isFullscreen ? 'calc(100vh - 90px)' : '78vh', minHeight: isFullscreen ? 500 : 620 }}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
       >
         {isEditMode && (
           <div className="absolute top-4 left-4 z-20 px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-full text-purple-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-sm pointer-events-none">
@@ -617,8 +815,8 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, 
             transformOrigin: '0 0', 
             position: 'absolute',
-            width: 2400, 
-            height: 1600,
+            width: 2600, 
+            height: 1800,
             cursor: isPanning ? 'grabbing' : 'default'
           }}
         >
@@ -699,7 +897,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                            onMouseDown={e => e.stopPropagation()}
                            onClick={e => e.stopPropagation()}>
                         <button type="button" onClick={(e) => { e.stopPropagation(); handleEditNode(node, e); }} className="w-7 h-7 rounded-lg bg-indigo-500/30 hover:bg-indigo-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Editează"><span className="text-sm">✏️</span></button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id, e); }} className="w-7 h-7 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Șterge"><span className="text-sm">🗑️</span></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleRequestDelete(node, e); }} className="w-7 h-7 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Șterge"><span className="text-sm">🗑️</span></button>
                         <button type="button" onClick={(e) => { e.stopPropagation(); openAddChildForm(node.id, e); }} className="w-7 h-7 rounded-lg bg-emerald-500/30 hover:bg-emerald-500 text-white flex items-center justify-center transition-all hover:scale-105" title="Adaugă sub-abilitate"><span className="text-sm">➕</span></button>
                       </div>
                     )}
@@ -712,7 +910,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                     editMode={isEditMode}
                     isActionActive={isActionActive}
                     onEdit={(node: SkillTreeNode, e: React.MouseEvent) => handleEditNode(node, e)}
-                    onDelete={(id: number, e: React.MouseEvent) => handleDeleteNode(id, e)}
+                    onDelete={(node: SkillTreeNode, e: React.MouseEvent) => handleRequestDelete(node, e)}
                     onAddChild={(id: number, e: React.MouseEvent) => openAddChildForm(id, e)}
                     onClick={handleNodeClick}
                     onDragStart={handleNodeDragStart}
@@ -738,14 +936,43 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
         </div>
       </div>
 
+      {/* NODE DETAIL MODAL WITH SIBLING NAVIGATION */}
       {selectedNode && !isEditMode && (
         <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedNode(null)}>
-          <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSelectedNode(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-black/20 rounded-full z-20">
+          <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 relative shadow-2xl" onClick={e => e.stopPropagation()}>
+            {/* Close Button */}
+            <button onClick={() => setSelectedNode(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-black/30 rounded-full z-30 transition-colors" title="Închide (ESC)">
               <X className="w-5 h-5" />
             </button>
+
+            {/* Sibling navigation arrows */}
+            {siblings.length > 1 && (
+              <>
+                <button 
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleNavigateSibling(-1); }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white/80 hover:text-white transition-all shadow-xl z-30"
+                  title="Abilitatea precedentă (Săgeată Stânga)"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button 
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleNavigateSibling(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black/90 border border-white/15 text-white/80 hover:text-white transition-all shadow-xl z-30"
+                  title="Abilitatea următoare (Săgeată Dreapta)"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
+            )}
             
             <div className="h-28 w-full relative" style={{ background: `linear-gradient(135deg, ${CATEGORY_COLORS[selectedNode.category]}40, transparent)` }}>
+              {siblings.length > 1 && (
+                <div className="absolute top-4 left-4 bg-black/40 border border-white/10 px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-300">
+                  {currentSiblingIndex + 1} / {siblings.length}
+                </div>
+              )}
               <div className="absolute -bottom-10 left-6">
                 <div className="w-20 h-20 rounded-2xl bg-[#1a1a24] border border-white/10 flex items-center justify-center text-4xl shadow-xl"
                      style={{ boxShadow: `0 10px 30px -10px ${CATEGORY_COLORS[selectedNode.category]}80` }}>
@@ -794,6 +1021,75 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
         </div>
       )}
 
+      {/* CONFIRMATION DIALOG FOR DELETE */}
+      <Dialog open={!!nodeToDelete} onOpenChange={(open) => { if (!open) setNodeToDelete(null); }}>
+        <DialogContent className="bg-[#111118] border-white/10 text-slate-200 max-w-sm rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+              <Trash2 className="w-4 h-4 text-rose-400" /> Șterge abilitate
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs mt-2">
+              Ești sigur că vrei să muți «{nodeToDelete?.label}» în coșul de reciclare? O vei putea restaura oricând.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-end mt-4">
+            <Button variant="ghost" onClick={() => setNodeToDelete(null)} className="text-slate-400 hover:text-white text-xs">
+              Anulează
+            </Button>
+            <Button onClick={confirmSoftDelete} className="bg-rose-600 hover:bg-rose-500 text-white text-xs gap-1.5">
+              <Trash2 className="w-3.5 h-3.5" /> Mută în coș
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TRASH RECYCLE BIN MODAL */}
+      <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
+        <DialogContent className="bg-[#111118] border-white/10 text-slate-200 w-[95vw] max-w-md rounded-2xl p-6 max-h-[80vh] flex flex-col">
+          <DialogHeader className="border-b border-white/5 pb-3">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+              <Trash2 className="w-4 h-4 text-purple-400" /> Coș de reciclare ({trashedNodes.length})
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs mt-1">
+              Nodurile din coș pot fi restaurate înapoi în arbore sau șterse definitiv.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto space-y-2 py-3 pr-1 custom-scrollbar">
+            {trashedNodes.length === 0 ? (
+              <p className="text-center text-slate-500 text-xs py-8">Coșul de reciclare este gol.</p>
+            ) : (
+              trashedNodes.map(node => (
+                <div key={node.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-lg shrink-0">{node.icon || '⚡'}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-200 truncate">{node.label}</p>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">{node.category}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => handleRestoreNode(node.id)} className="h-7 px-2 text-xs text-purple-300 hover:bg-purple-500/20 gap-1">
+                      <RotateCcw className="w-3 h-3" /> Restaurează
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={() => handlePermanentDelete(node.id)} className="h-7 w-7 text-rose-400 hover:bg-rose-500/20" title="Șterge definitiv">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <DialogFooter className="border-t border-white/5 pt-3">
+            <Button variant="outline" onClick={() => setIsTrashOpen(false)} className="border-white/10 hover:bg-white/5 text-xs">
+              Închide
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ADD / EDIT FORM MODAL */}
       {showAddForm && isAdmin && editNodeData && (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#111111] border border-white/10 rounded-3xl w-full max-w-md p-6">
@@ -827,7 +1123,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ isAdmin }) => {
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1.5">Nivel (0=Ramură/Root)</label>
                   <input type="number" min="0" max="5" value={editNodeData.level ?? 1} onChange={e => setEditNodeData({...editNodeData, level: parseInt(e.target.value)})}
-                         className="w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:border-purple-500/50 outline-none" />
+                          className="w-full bg-[#09090b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:border-purple-500/50 outline-none" />
                 </div>
               </div>
               

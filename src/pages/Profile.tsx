@@ -109,7 +109,6 @@ const Profile: React.FC = () => {
             <TabsList className={`${isMobile ? 'flex flex-wrap gap-1 h-auto p-1 bg-muted/50' : 'responsive-tabs'} w-full mb-8`}>
               <TabsTrigger value="cv" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>CV</TabsTrigger>
               {isAdmin && <TabsTrigger value="skill-tree" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Skill Tree</TabsTrigger>}
-              <TabsTrigger value="about" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Despre</TabsTrigger>
               <TabsTrigger value="skills" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Skills</TabsTrigger>
               <TabsTrigger value="contact" className={isMobile ? 'flex-1 min-w-[80px] text-xs py-2' : ''}>Contact</TabsTrigger>
             </TabsList>
@@ -285,49 +284,7 @@ const Profile: React.FC = () => {
               </Card>
             </TabsContent>
 
-            {/* About Tab */}
-            <TabsContent value="about" className="space-y-6">
-              <Card className={`${isMobile ? 'p-4' : 'p-8'} hover-lift`}>
-                <div className="flex items-center gap-3 mb-6">
-                  <User className="h-6 w-6 text-primary" />
-                  <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold`}>Despre Mine</h2>
-                </div>
-                
-                <div className="prose prose-invert max-w-none">
-                  <p className={`${isMobile ? 'text-base' : 'text-lg'} leading-relaxed mb-6`}>
-                    Sunt o persoană care găsește frumusețea în intersecția dintre tehnologie și artă. 
-                    Cu o pasiune pentru inovație și creativitate, îmi place să explorez limitele 
-                    a ceea ce este posibil în domeniul digital și artistic.
-                  </p>
-                  
-                  <h3 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold mb-4 flex items-center gap-2`}>
-                    <Heart className="h-5 w-5 text-art-primary" />
-                    Pasiunile Mele
-                  </h3>
-                  
-                  <div className={`grid grid-cols-1 ${isMobile ? '' : 'md:grid-cols-2'} gap-6`}>
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-tech-primary">Tehnologie</h4>
-                      <ul className="space-y-1 text-muted-foreground">
-                        <li>• Dezvoltare web modernă</li>
-                        <li>• Inteligență artificială</li>
-                        <li>• Design de baze de date</li>
-                        <li>• Optimizare performanță</li>
-                      </ul>
-                    </div>
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-art-primary">Artă & Creativitate</h4>
-                      <ul className="space-y-1 text-muted-foreground">
-                        <li>• Grafică digitală</li>
-                        <li>• Fotografie artistică</li>
-                        <li>• Scriere creativă</li>
-                        <li>• Design UI/UX</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </TabsContent>
+
 
             {/* Skills & Statistics Tab */}
             <TabsContent value="skills" className="space-y-6">

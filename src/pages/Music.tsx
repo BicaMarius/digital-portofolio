@@ -203,9 +203,9 @@ export default function Music() {
       setStatsTopAlbums(albums);
     } catch (error: any) {
       console.error('Failed to load stats:', error);
-      if (error?.message?.includes('401') || error?.message?.includes('not authenticated')) {
+      if (error?.status === 401 || error?.message?.includes('401') || error?.message?.includes('not authenticated') || error?.message?.includes('needsAuth') || error?.message?.includes('Failed to get top')) {
         setIsAuthenticated(false);
-        toast({ title: 'Sesiune expirată', description: 'Te rugăm să te autentifici din nou.', variant: 'destructive' });
+        toast({ title: 'Sesiune Spotify expirată', description: 'Te rugăm să te reconectezi cu contul Spotify pentru a vizualiza statisticile.', variant: 'default' });
       } else {
         toast({ title: 'Eroare', description: 'Nu am putut încărca statisticile.', variant: 'destructive' });
       }

@@ -695,11 +695,20 @@ export async function deleteGame(id: number): Promise<void> {
 export async function getSkillTree(): Promise<SkillTreeNode[]> {
   return apiCall<SkillTreeNode[]>('/skill-tree');
 }
+export async function getTrashedSkillTree(): Promise<SkillTreeNode[]> {
+  return apiCall<SkillTreeNode[]>('/skill-tree/trash');
+}
 export async function createSkillNode(node: Omit<SkillTreeNode, 'id' | 'createdAt' | 'updatedAt'>): Promise<SkillTreeNode> {
   return apiCall<SkillTreeNode>('/skill-tree', { method: 'POST', body: JSON.stringify(node) });
 }
 export async function updateSkillNode(id: number, updates: Partial<SkillTreeNode>): Promise<SkillTreeNode> {
   return apiCall<SkillTreeNode>(`/skill-tree/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+}
+export async function softDeleteSkillNode(id: number): Promise<void> {
+  return apiCall<void>(`/skill-tree/${id}/trash`, { method: 'PATCH' });
+}
+export async function restoreSkillNode(id: number): Promise<void> {
+  return apiCall<void>(`/skill-tree/${id}/restore`, { method: 'PATCH' });
 }
 export async function deleteSkillNode(id: number): Promise<void> {
   return apiCall<void>(`/skill-tree/${id}`, { method: 'DELETE' });

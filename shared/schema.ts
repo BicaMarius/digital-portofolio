@@ -436,6 +436,7 @@ export const skillTreeNodes = pgTable("skill_tree_nodes", {
   nodeOrder: integer("node_order").notNull().default(0),
   posX: integer("pos_x").default(0), // canvas X position
   posY: integer("pos_y").default(0), // canvas Y position
+  deletedAt: text("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -26,6 +26,7 @@ export async function ensureDbColumnsExist() {
     await pool.query('ALTER TABLE film_items ADD COLUMN IF NOT EXISTS deleted_at text;');
     await pool.query('ALTER TABLE book_items ADD COLUMN IF NOT EXISTS deleted_at text;');
     await pool.query('ALTER TABLE note_items ADD COLUMN IF NOT EXISTS deleted_at text;');
+    await pool.query('ALTER TABLE skill_tree_nodes ADD COLUMN IF NOT EXISTS deleted_at text;');
     migrationDone = true;
     console.log('[DB Schema] Verified/added missing columns to Neon database.');
   } catch (err) {

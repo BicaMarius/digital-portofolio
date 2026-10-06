@@ -1045,19 +1045,11 @@ export function registerRoutes(app: Express, storage: IStorage) {
     }
 
     try {
-      const { db } = await import("./db.js");
-      const { spotifyUserTokens } = await import("../shared/schema.js");
-      const { eq } = await import("drizzle-orm");
-
-      const tokens = await db
-        .select()
-        .from(spotifyUserTokens)
-        .where(eq(spotifyUserTokens.userId, userId))
-        .limit(1);
-
-      res.json({ authenticated: tokens.length > 0 });
+      const { getUserToken } = await import("./spotify.js");
+      await getUserToken(userId);
+      res.json({ authenticated: true });
     } catch (error) {
-      console.error('[Spotify Auth Status] Error:', error);
+      res.clearCookie('spotify_user_id');
       res.json({ authenticated: false });
     }
   });
@@ -1167,8 +1159,9 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const artists = await getUserTopArtists(userId, timeRange, limit);
       res.json(artists);
     } catch (error: any) {
-      console.error('[Spotify Top Artists] Error:', error);
-      if (error.message?.includes('not authenticated')) {
+      console.error('[Spotify Top Artists] Error:', error?.message || error);
+      res.clearCookie('spotify_user_id');
+      if (error.message?.includes('not authenticated') || error.message?.includes('invalid_grant') || error.message?.includes('revoked') || error.message?.includes('401')) {
         return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
       }
       res.status(500).json({ error: "Failed to get top artists" });
@@ -1190,8 +1183,9 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const tracks = await getUserTopTracks(userId, timeRange, limit);
       res.json(tracks);
     } catch (error: any) {
-      console.error('[Spotify Top Tracks] Error:', error);
-      if (error.message?.includes('not authenticated')) {
+      console.error('[Spotify Top Tracks] Error:', error?.message || error);
+      res.clearCookie('spotify_user_id');
+      if (error.message?.includes('not authenticated') || error.message?.includes('invalid_grant') || error.message?.includes('revoked') || error.message?.includes('401')) {
         return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
       }
       res.status(500).json({ error: "Failed to get top tracks" });
@@ -1213,8 +1207,9 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const albums = await getUserTopAlbums(userId, timeRange, limit);
       res.json(albums);
     } catch (error: any) {
-      console.error('[Spotify Top Albums] Error:', error);
-      if (error.message?.includes('not authenticated')) {
+      console.error('[Spotify Top Albums] Error:', error?.message || error);
+      res.clearCookie('spotify_user_id');
+      if (error.message?.includes('not authenticated') || error.message?.includes('invalid_grant') || error.message?.includes('revoked') || error.message?.includes('401')) {
         return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
       }
       res.status(500).json({ error: "Failed to get top albums" });
@@ -1235,8 +1230,9 @@ export function registerRoutes(app: Express, storage: IStorage) {
       const items = await getRecentlyPlayed(userId, limit);
       res.json(items);
     } catch (error: any) {
-      console.error('[Spotify Recently Played] Error:', error);
-      if (error.message?.includes('not authenticated')) {
+      console.error('[Spotify Recently Played] Error:', error?.message || error);
+      res.clearCookie('spotify_user_id');
+      if (error.message?.includes('not authenticated') || error.message?.includes('invalid_grant') || error.message?.includes('revoked') || error.message?.includes('401')) {
         return res.status(401).json({ error: 'Not authenticated', needsAuth: true });
       }
       res.status(500).json({ error: "Failed to get recently played" });
@@ -1689,6 +1685,9 @@ export function registerRoutes(app: Express, storage: IStorage) {
   app.get("/api/skill-tree", async (_req, res) => {
     try { res.json(await storage.getSkillTreeNodes()); } catch { res.status(500).json({ error: "Failed to fetch skill tree" }); }
   });
+  app.get("/api/skill-tree/trash", async (_req, res) => {
+    try { res.json(await storage.getTrashedSkillTreeNodes()); } catch { res.status(500).json({ error: "Failed to fetch trashed nodes" }); }
+  });
   app.get("/api/skill-tree/:id", async (req, res) => {
     try {
       const node = await storage.getSkillTreeNodeById(parseInt(req.params.id));
@@ -1717,12 +1716,26 @@ export function registerRoutes(app: Express, storage: IStorage) {
       res.status(500).json({ error: "Failed to update node" });
     }
   });
+  app.patch("/api/skill-tree/:id/trash", async (req, res) => {
+    try {
+      const softDeleted = await storage.softDeleteSkillTreeNode(parseInt(req.params.id));
+      if (!softDeleted) return res.status(404).json({ error: "Node not found" });
+      res.json({ success: true });
+    } catch { res.status(500).json({ error: "Failed to trash node" }); }
+  });
+  app.patch("/api/skill-tree/:id/restore", async (req, res) => {
+    try {
+      const restored = await storage.restoreSkillTreeNode(parseInt(req.params.id));
+      if (!restored) return res.status(404).json({ error: "Node not found" });
+      res.json({ success: true });
+    } catch { res.status(500).json({ error: "Failed to restore node" }); }
+  });
   app.delete("/api/skill-tree/:id", async (req, res) => {
     try {
       const deleted = await storage.deleteSkillTreeNode(parseInt(req.params.id));
       if (!deleted) return res.status(404).json({ error: "Node not found" });
       res.status(204).send();
-    } catch { res.status(500).json({ error: "Failed to delete node" }); }
+    } catch { res.status(500).json({ error: "Failed to permanently delete node" }); }
   });
 
   app.use((err: any, req: Request, res: any, next: any) => {

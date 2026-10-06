@@ -180,9 +180,12 @@ export interface IStorage {
 
   // Skill Tree Nodes
   getSkillTreeNodes(): Promise<SkillTreeNode[]>;
+  getTrashedSkillTreeNodes(): Promise<SkillTreeNode[]>;
   getSkillTreeNodeById(id: number): Promise<SkillTreeNode | null>;
   createSkillTreeNode(node: InsertSkillTreeNode): Promise<SkillTreeNode>;
   updateSkillTreeNode(id: number, updates: UpdateSkillTreeNode): Promise<SkillTreeNode | null>;
+  softDeleteSkillTreeNode(id: number): Promise<boolean>;
+  restoreSkillTreeNode(id: number): Promise<boolean>;
   deleteSkillTreeNode(id: number): Promise<boolean>;
 }
 
@@ -849,14 +852,25 @@ export class MemStorage implements IStorage {
   // ======== SKILL TREE (MemStorage stubs) ========
   private skillNodesMap: Map<number, SkillTreeNode> = new Map();
   private skillNodeIdCounter = 1;
-  async getSkillTreeNodes(): Promise<SkillTreeNode[]> { return Array.from(this.skillNodesMap.values()).sort((a, b) => a.nodeOrder - b.nodeOrder); }
+  async getSkillTreeNodes(): Promise<SkillTreeNode[]> { return Array.from(this.skillNodesMap.values()).filter(n => !n.deletedAt).sort((a, b) => a.nodeOrder - b.nodeOrder); }
+  async getTrashedSkillTreeNodes(): Promise<SkillTreeNode[]> { return Array.from(this.skillNodesMap.values()).filter(n => !!n.deletedAt).sort((a, b) => a.nodeOrder - b.nodeOrder); }
   async getSkillTreeNodeById(id: number): Promise<SkillTreeNode | null> { return this.skillNodesMap.get(id) || null; }
   async createSkillTreeNode(node: InsertSkillTreeNode): Promise<SkillTreeNode> {
-    const nn = { ...node, id: this.skillNodeIdCounter++, createdAt: new Date(), updatedAt: new Date() } as SkillTreeNode;
+    const nn = { ...node, id: this.skillNodeIdCounter++, createdAt: new Date(), updatedAt: new Date(), deletedAt: null } as SkillTreeNode;
     this.skillNodesMap.set(nn.id, nn); return nn;
   }
   async updateSkillTreeNode(id: number, updates: UpdateSkillTreeNode): Promise<SkillTreeNode | null> {
     const n = this.skillNodesMap.get(id); if (!n) return null; const u = { ...n, ...updates, updatedAt: new Date() }; this.skillNodesMap.set(id, u); return u;
+  }
+  async softDeleteSkillTreeNode(id: number): Promise<boolean> {
+    const n = this.skillNodesMap.get(id); if (!n) return false;
+    n.deletedAt = new Date().toISOString();
+    return true;
+  }
+  async restoreSkillTreeNode(id: number): Promise<boolean> {
+    const n = this.skillNodesMap.get(id); if (!n) return false;
+    n.deletedAt = null;
+    return true;
   }
   async deleteSkillTreeNode(id: number): Promise<boolean> { return this.skillNodesMap.delete(id); }
 }
@@ -1501,21 +1515,40 @@ export class DbStorage implements IStorage {
 
   // ============ SKILL TREE NODES ============
   async getSkillTreeNodes(): Promise<SkillTreeNode[]> {
-    return await db.select().from(skillTreeNodes).orderBy(skillTreeNodes.nodeOrder);
+    await ensureDbColumnsExist();
+    return await db.select().from(skillTreeNodes).where(isNull(skillTreeNodes.deletedAt)).orderBy(skillTreeNodes.nodeOrder);
+  }
+  async getTrashedSkillTreeNodes(): Promise<SkillTreeNode[]> {
+    await ensureDbColumnsExist();
+    return await db.select().from(skillTreeNodes).where(isNotNull(skillTreeNodes.deletedAt)).orderBy(skillTreeNodes.nodeOrder);
   }
   async getSkillTreeNodeById(id: number): Promise<SkillTreeNode | null> {
+    await ensureDbColumnsExist();
     const result = await db.select().from(skillTreeNodes).where(eq(skillTreeNodes.id, id));
     return result[0] || null;
   }
   async createSkillTreeNode(node: InsertSkillTreeNode): Promise<SkillTreeNode> {
+    await ensureDbColumnsExist();
     const result = await db.insert(skillTreeNodes).values(node).returning();
     return result[0];
   }
   async updateSkillTreeNode(id: number, updates: UpdateSkillTreeNode): Promise<SkillTreeNode | null> {
+    await ensureDbColumnsExist();
     const result = await db.update(skillTreeNodes).set({ ...updates, updatedAt: new Date() }).where(eq(skillTreeNodes.id, id)).returning();
     return result[0] || null;
   }
+  async softDeleteSkillTreeNode(id: number): Promise<boolean> {
+    await ensureDbColumnsExist();
+    const result = await db.update(skillTreeNodes).set({ deletedAt: new Date().toISOString() }).where(eq(skillTreeNodes.id, id)).returning();
+    return result.length > 0;
+  }
+  async restoreSkillTreeNode(id: number): Promise<boolean> {
+    await ensureDbColumnsExist();
+    const result = await db.update(skillTreeNodes).set({ deletedAt: null }).where(eq(skillTreeNodes.id, id)).returning();
+    return result.length > 0;
+  }
   async deleteSkillTreeNode(id: number): Promise<boolean> {
+    await ensureDbColumnsExist();
     const result = await db.delete(skillTreeNodes).where(eq(skillTreeNodes.id, id)).returning();
     return result.length > 0;
   }
